@@ -156,17 +156,6 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>com.metamx.druid-extensions-mmx</groupId>
-      <artifactId>druid-extensions</artifactId>
-      <version>${druid.extensions.version}</version>
-      <exclusions>
-        <exclusion>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-core</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
       <version>14.0.1</version>
