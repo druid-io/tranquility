@@ -326,7 +326,7 @@
     <repository>
       <id>central-local</id>
       <name>Central</name>
-      <url>https://metamx.artifactoryonline.com/metamx/libs-releases-local</url>
+      <url>https://metamx.artifactoryonline.com/metamx/pub-libs-releases-local</url>
     </repository>
   </distributionManagement>
 
