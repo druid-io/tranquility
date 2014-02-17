@@ -234,6 +234,12 @@
       <groupId>com.metamx</groupId>
       <artifactId>scala-util_2.9.1</artifactId>
       <version>1.5.9</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.codahale</groupId>
+          <artifactId>jerkson_2.9.1</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.metamx</groupId>
@@ -329,6 +335,14 @@
       </plugin>
     </plugins>
   </build>
+
+  <repositories>
+    <repository>
+      <id>pub-libs</id>
+      <name>pub-libs-local</name>
+      <url>https://metamx.artifactoryonline.com/metamx/pub-libs-releases-local</url>
+    </repository>
+  </repositories>
 
   <distributionManagement>
     <repository>
