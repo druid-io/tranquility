@@ -17,7 +17,7 @@ val druidService = DruidBeams
   .builder[Map[String, Any]](eventMap => new DateTime(eventMap("timestamp")))
   .curator(curator)
   .discoveryPath("/test/discovery")
-  .location(DruidLocation(new DruidEnvironment("druid:local:indexer", "druid:local:firehose:%s"), dataSource))
+  .location(DruidLocation(new DruidEnvironment("druid:overlord", "druid:firehose:%s"), dataSource))
   .rollup(DruidRollup(dimensions, aggregators, QueryGranularity.MINUTE))
   .tuning(ClusteredBeamTuning(Granularity.HOUR, 10.minutes, 1, 1))
   .buildService()
@@ -53,8 +53,8 @@ final Service<List<Map<String, Object>>, Integer> druidService = DruidBeams
     .location(
         new DruidLocation(
             new DruidEnvironment(
-                "druid:local:indexer",
-                "druid:local:firehose:%s"
+                "druid:overlord",
+                "druid:firehose:%s"
             ), dataSource
         )
     )
@@ -89,7 +89,7 @@ class MyBeamFactory extends BeamFactory[Map[String, Any]]
       .builder[Map[String, Any]](eventMap => new DateTime(eventMap("timestamp")))
       .curator(curator)
       .discoveryPath("/test/discovery")
-      .location(DruidLocation(new DruidEnvironment("druid:local:indexer", "druid:local:firehose:%s"), dataSource))
+      .location(DruidLocation(new DruidEnvironment("druid:overlord", "druid:firehose:%s"), dataSource))
       .rollup(DruidRollup(dimensions, aggregators, QueryGranularity.MINUTE))
       .tuning(ClusteredBeamTuning(Granularity.HOUR, 10.minutes, 1, 1))
       .buildBeam()
@@ -104,3 +104,9 @@ val bolt = new BeamBolt(new MyBeamFactory)
 
 If you're using Trident on top of Storm, you can use Trident's partitionPersist in concert with Tranquility's
 TridentBeamStateFactory (which takes a BeamFactory, like the Storm Bolt) and TridentBeamStateUpdater.
+
+## Druid Setup
+
+Tranquility works with the Druid indexing service (http://druid.io/docs/latest/Indexing-Service.html). To get started, you'll need an Overlord, enough Middle Managers for your realtime workload, and enough Historical nodes to receive handoffs. You don't need any Realtime nodes, since Tranquility uses the indexing service for all of its ingestion needs.
+
+Tranquility periodically submits new tasks to the indexing service to provide for log rotation and to support zero-downtime configuration changes. These new tasks are typically submitted before the old ones exit, so to allow for smooth transitions, you'll need enough indexing service worker capacity to run two sets of overlapping tasks (that's 2 * #partitions * #replicants). The number of partitions and replicants both default to 1 (single partition, single copy) and can be tuned using a ClusteredBeamTuning object.
