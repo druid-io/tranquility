@@ -5,6 +5,8 @@ handles partitioning, replication, service discovery, and schema rollover for yo
 Tranquility is written in Scala, and bundles idiomatic Java and Scala APIs that work nicely with Finagle, Storm, and
 Trident.
 
+This project is a friend of Druid. For discussion, feel free to use the normal Druid channels: http://druid.io/community.html
+
 ## Finagle
 
 For general purposes, you'll likely end up using the Finagle API. You can set up and use a Finagle Service like this:
