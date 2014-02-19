@@ -423,7 +423,19 @@ case class ClusteredBeamTuning(
 object ClusteredBeamTuning
 {
   /**
-   * More friendly name for Java users.
+   * Factory method for ClusteredBeamTuning objects.
+   *
+   * @param segmentGranularity Each sub-beam will cover blocks of this size in the timeline. This controls how often
+   *                           segments are closed off and made immutable. {{{Granularity.HOUR}}} is usually reasonable.
+   * @param warmingPeriod If nonzero, create sub-beams this early. This can be useful if sub-beams take a long time
+   *                      to start up.
+   * @param windowPeriod Accept events this far outside of their timeline block. e.g. with a windowPeriod of 10 minutes,
+   *                     and segmentGranularity of HOUR, we will accept an event timestamped for 4:15PM anywhere from
+   *                     3:50PM to 4:10PM.
+   * @param partitions Create this many logically distinct sub-beams per timeline block. This is used to scale
+   *                   ingestion up to handle larger streams.
+   * @param replicants Create this many replicants per sub-beam. This is used to provide higher availability and
+   *                   parallelism for queries.
    */
   def create(
     segmentGranularity: Granularity,
