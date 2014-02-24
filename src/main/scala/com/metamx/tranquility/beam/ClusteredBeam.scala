@@ -429,9 +429,10 @@ object ClusteredBeamTuning
    *                           segments are closed off and made immutable. {{{Granularity.HOUR}}} is usually reasonable.
    * @param warmingPeriod If nonzero, create sub-beams this early. This can be useful if sub-beams take a long time
    *                      to start up.
-   * @param windowPeriod Accept events this far outside of their timeline block. e.g. with a windowPeriod of 10 minutes,
-   *                     and segmentGranularity of HOUR, we will accept an event timestamped for 4:15PM anywhere from
-   *                     3:50PM to 4:10PM.
+   * @param windowPeriod Accept events this far outside of their timeline block. For example, if it's currently
+   *                     1:25PM, and your windowPeriod is PT10M, and your segmentGranularity is HOUR, Tranquility will
+   *                     accept events timestamped anywhere from 12:50PM to 2:10PM (but will drop events outside
+   *                     that range).
    * @param partitions Create this many logically distinct sub-beams per timeline block. This is used to scale
    *                   ingestion up to handle larger streams.
    * @param replicants Create this many replicants per sub-beam. This is used to provide higher availability and
