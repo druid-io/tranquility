@@ -70,7 +70,7 @@ class BeamBolt[EventType](beamFactory: BeamFactory[EventType], confPrefixOption:
           }
           catch {
             case e: Exception =>
-              log.warn("Failed to send %,d queued events.")
+              log.warn(e, "Failed to send %,d queued events.", emittable.size)
               emittable foreach collector.fail
           }
         }
