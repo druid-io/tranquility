@@ -444,6 +444,6 @@ object ClusteredBeamTuning
     partitions: Int,
     replicants: Int
   ): ClusteredBeamTuning = {
-    apply(segmentGranularity, warmingPeriod, warmingPeriod, partitions, replicants)
+    apply(segmentGranularity, warmingPeriod, windowPeriod, partitions, replicants)
   }
 }
