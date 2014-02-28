@@ -459,7 +459,7 @@ class ClusteredBeamUnitSpec extends Spec with CuratorRequiringSpec
             )
           )
 
-          Await.ready(beams.close())
+          Await.result(beams.close())
 
           val beams2 = newBeams(curator, tuning)
           beams2.timekeeper.now = start + 2.hours

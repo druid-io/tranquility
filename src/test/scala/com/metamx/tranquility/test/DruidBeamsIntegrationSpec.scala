@@ -266,7 +266,7 @@ class DruidBeamsIntegrationSpec extends Spec with CuratorRequiringSpec with Logg
                     }
                   }
                   finally {
-                    Await.ready(indexing.close())
+                    Await.result(indexing.close())
                   }
               }
           }

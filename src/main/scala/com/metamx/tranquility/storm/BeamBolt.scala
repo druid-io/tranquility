@@ -92,7 +92,7 @@ class BeamBolt[EventType](beamFactory: BeamFactory[EventType], confPrefixOption:
 
   override def cleanup() {
     Option(emitThread) foreach (_.interrupt())
-    Await.ready(beam.close())
+    Await.result(beam.close())
   }
 
   override def declareOutputFields(declarer: OutputFieldsDeclarer) {
