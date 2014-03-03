@@ -27,14 +27,7 @@ class DruidRollup(
   val dimensions: IndexedSeq[String],
   val aggregators: IndexedSeq[AggregatorFactory],
   val indexGranularity: QueryGranularity
-  )
-{
-  /**
-   * Combining aggregators know how to combine metrics from two beta (already-rolled-up) events. Contrast this with
-   * regular aggregators, which know how turn alpha (non-rolled-up) events into beta events.
-   */
-  def combiningAggregators: IndexedSeq[AggregatorFactory] = aggregators.map(_.getCombiningFactory)
-}
+)
 
 object DruidRollup
 {

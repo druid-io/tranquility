@@ -179,7 +179,7 @@ class DruidBeamsIntegrationSpec extends Spec with CuratorRequiringSpec with Logg
                   val tuning = new ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 2, 2)
                   val rollup = new DruidRollup(
                     IndexedSeq("foo"),
-                    IndexedSeq(new LongSumAggregatorFactory("bar", "bar")),
+                    IndexedSeq(new LongSumAggregatorFactory("barr", "bar")),
                     QueryGranularity.MINUTE
                   )
                   val druidEnvironment = new DruidEnvironment(
@@ -235,16 +235,16 @@ class DruidBeamsIntegrationSpec extends Spec with CuratorRequiringSpec with Logg
                         .dataSource("xxx")
                         .granularity(QueryGranularity.NONE)
                         .intervals("0000/3000")
-                        .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("bar", "bar")).asJava)
+                        .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
                         .build().run(walker),
                         Seq(
                           Map(
                             "timestamp" -> timekeeper.now.toString(),
-                            "result" -> Map("bar" -> 2)
+                            "result" -> Map("barr" -> 2)
                           ),
                           Map(
                             "timestamp" -> (timekeeper.now + 1.minute).toString(),
-                            "result" -> Map("bar" -> 3)
+                            "result" -> Map("barr" -> 3)
                           )
                         ))
                     )

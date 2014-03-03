@@ -76,7 +76,7 @@ class DruidBeamMaker[A : Timestamper](
       new Schema(
         location.dataSource,
         List.empty[SpatialDimensionSchema].asJava,
-        rollup.combiningAggregators.toArray,
+        rollup.aggregators.toArray,
         rollup.indexGranularity,
         shardSpec
       ),
