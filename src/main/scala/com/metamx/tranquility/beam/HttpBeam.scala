@@ -102,7 +102,7 @@ class HttpBeam[A: Timestamper](
       req.headers.set("Content-Encoding", "gzip")
       req.headers.set("Content-Length", bytes.size)
       for (x <- auth) {
-        req.headers.set("Authorization", "Basic %s" format Base64.encodeBase64(x.getBytes(Charsets.UTF_8)))
+        req.headers.set("Authorization", "Basic %s" format Base64.encodeBase64String(x.getBytes(Charsets.UTF_8)))
       }
       req.setContent(ChannelBuffers.wrappedBuffer(bytes))
   }
