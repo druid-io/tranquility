@@ -37,6 +37,7 @@ import org.apache.curator.framework.CuratorFramework
 import org.joda.time.{DateTime, Interval}
 import org.scala_tools.time.Implicits._
 import scala.collection.JavaConverters._
+import io.druid.data.input.impl.TimestampSpec
 
 /**
  * Builds Beams or Finagle services that send events to the Druid indexing service.
@@ -64,6 +65,8 @@ import scala.collection.JavaConverters._
  */
 object DruidBeams
 {
+  val DefaultTimestampSpec = new TimestampSpec("timestamp", "iso")
+
   def builder[EventType](timeFn: EventType => DateTime) = {
     new Builder[EventType](
       new BuilderConfig(
@@ -92,6 +95,8 @@ object DruidBeams
     def location(location: DruidLocation) = new Builder[EventType](config.copy(_location = Some(location)))
 
     def rollup(rollup: DruidRollup) = new Builder[EventType](config.copy(_rollup = Some(rollup)))
+
+    def timestampSpec(timestampSpec: TimestampSpec) = new Builder[EventType](config.copy(_timestampSpec = Some(timestampSpec)))
 
     def clusteredBeamZkBasePath(path: String) = new Builder[EventType](config.copy(_clusteredBeamZkBasePath = Some(path)))
 
@@ -143,6 +148,7 @@ object DruidBeams
         things.location,
         things.tuning,
         things.rollup,
+        things.timestampSpec,
         things.finagleRegistry,
         indexService,
         things.emitter,
@@ -186,6 +192,7 @@ object DruidBeams
     _tuning: Option[ClusteredBeamTuning] = None,
     _location: Option[DruidLocation] = None,
     _rollup: Option[DruidRollup] = None,
+    _timestampSpec: Option[TimestampSpec] = None,
     _clusteredBeamZkBasePath: Option[String] = None,
     _clusteredBeamIdent: Option[String] = None,
     _druidBeamConfig: Option[DruidBeamConfig] = None,
@@ -223,6 +230,9 @@ object DruidBeams
       }
       val rollup                  = _rollup getOrElse {
         throw new IllegalArgumentException("Missing 'rollup'")
+      }
+      val timestampSpec           = _timestampSpec getOrElse {
+        DefaultTimestampSpec
       }
       val clusteredBeamZkBasePath = _clusteredBeamZkBasePath getOrElse "/tranquility/beams"
       val clusteredBeamIdent      = _clusteredBeamIdent getOrElse {

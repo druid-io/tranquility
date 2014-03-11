@@ -31,9 +31,6 @@ class DruidRollup(
 
 object DruidRollup
 {
-  val DefaultTimestampColumn = "timestamp"
-  val DefaultTimestampFormat = "iso"
-
   /**
    * Builder for Scala users.
    */

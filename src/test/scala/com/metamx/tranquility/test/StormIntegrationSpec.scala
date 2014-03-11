@@ -30,7 +30,7 @@ import com.fasterxml.jackson.annotation.JsonValue
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.tranquility.beam.Beam
-import com.metamx.tranquility.druid.DruidRollup
+import com.metamx.tranquility.druid.DruidBeams
 import com.metamx.tranquility.storm.{BeamBolt, BeamFactory}
 import com.metamx.tranquility.test.StormIntegrationSpec.{SimpleKryoFactory, SimpleBeam, SimpleBeamFactory, SimpleEvent}
 import com.metamx.tranquility.test.traits.{StormRequiringSpec, CuratorRequiringSpec}
@@ -53,7 +53,7 @@ object StormIntegrationSpec
   case class SimpleEvent(ts: DateTime, fields: Map[String, String])
   {
     @JsonValue
-    def toMap = fields ++ Map(DruidRollup.DefaultTimestampColumn -> ts.toString())
+    def toMap = fields ++ Map(DruidBeams.DefaultTimestampSpec.getTimestampColumn -> ts.toString())
   }
 
   @Ignore

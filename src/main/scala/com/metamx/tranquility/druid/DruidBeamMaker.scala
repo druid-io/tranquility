@@ -44,6 +44,7 @@ class DruidBeamMaker[A : Timestamper](
   location: DruidLocation,
   tuning: ClusteredBeamTuning,
   rollup: DruidRollup,
+  timestampSpec: TimestampSpec,
   finagleRegistry: FinagleRegistry,
   indexService: IndexService,
   emitter: ServiceEmitter,
@@ -86,7 +87,7 @@ class DruidBeamMaker[A : Timestamper](
             location.environment.firehoseServicePattern format firehoseId,
             null,
             new MapInputRowParser(
-              new TimestampSpec(DruidRollup.DefaultTimestampColumn, DruidRollup.DefaultTimestampFormat),
+              timestampSpec,
               // Sort dimension names to trick IndexMerger into working correctly (it assumes row comparator
               // based on lexicographically ordered dimension names, which will only be the case if we force
               // it here)

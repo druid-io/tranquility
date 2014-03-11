@@ -48,9 +48,12 @@ import org.junit.{Ignore, Test}
 import org.scala_tools.time.Implicits._
 import scala.collection.JavaConverters._
 import scala.util.Random
+import io.druid.data.input.impl.TimestampSpec
 
 class DruidBeamsIntegrationSpec extends Spec with CuratorRequiringSpec with Logging
 {
+  val TimeColumn = "ts"
+  val TimeFormat = "posix"
 
   @Ignore
   trait DruidServerHandle
@@ -64,7 +67,7 @@ class DruidBeamsIntegrationSpec extends Spec with CuratorRequiringSpec with Logg
   case class SimpleEvent(ts: DateTime, fields: Map[String, String])
   {
     @JsonValue
-    def toMap = fields ++ Map(DruidRollup.DefaultTimestampColumn -> ts.toString())
+    def toMap = fields ++ Map(TimeColumn -> (ts.millis / 1000))
   }
 
   implicit val simpleEventTimestamper = new Timestamper[SimpleEvent] {
@@ -193,6 +196,7 @@ class DruidBeamsIntegrationSpec extends Spec with CuratorRequiringSpec with Logg
                     .rollup(rollup)
                     .tuning(tuning)
                     .timekeeper(timekeeper)
+                    .timestampSpec(new TimestampSpec(TimeColumn, TimeFormat))
                     .beamMergeFn(beams => new RoundRobinBeam(beams.toIndexedSeq))
                     .buildService()
                   try {
