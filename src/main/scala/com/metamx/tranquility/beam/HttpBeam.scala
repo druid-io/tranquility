@@ -19,6 +19,7 @@
 package com.metamx.tranquility.beam
 
 import com.google.common.base.Charsets
+import com.google.common.io.BaseEncoding
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.control._
@@ -39,7 +40,6 @@ import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http.HttpRequest
 import org.joda.time.{Duration, Period}
 import org.scala_tools.time.Implicits._
-import org.apache.commons.codec.binary.Base64
 
 /**
  * Emits events over http.
@@ -102,7 +102,8 @@ class HttpBeam[A: Timestamper](
       req.headers.set("Content-Encoding", "gzip")
       req.headers.set("Content-Length", bytes.size)
       for (x <- auth) {
-        req.headers.set("Authorization", "Basic %s" format Base64.encodeBase64String(x.getBytes(Charsets.UTF_8)))
+        val base64 = BaseEncoding.base64().encode(x.getBytes(Charsets.UTF_8))
+        req.headers.set("Authorization", "Basic %s" format base64)
       }
       req.setContent(ChannelBuffers.wrappedBuffer(bytes))
   }
