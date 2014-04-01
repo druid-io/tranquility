@@ -29,13 +29,14 @@ import com.metamx.common.scala.timekeeper.TestingTimekeeper
 import com.metamx.common.scala.untyped.Dict
 import com.metamx.common.scala.{Jackson, Logging}
 import com.metamx.tranquility.beam.{RoundRobinBeam, ClusteredBeamTuning}
-import com.metamx.tranquility.druid.{DruidBeams, DruidEnvironment, DruidRollup, DruidGuicer, DruidLocation}
+import com.metamx.tranquility.druid.{DruidBeams, SpecificDruidDimensions, DruidRollup, DruidGuicer, DruidEnvironment, DruidLocation}
 import com.metamx.tranquility.test.traits.CuratorRequiringSpec
 import com.metamx.tranquility.typeclass.Timestamper
 import com.simple.simplespec.Spec
 import com.twitter.finagle.Service
 import com.twitter.util.{Future, Await}
 import io.druid.cli.{CliBroker, GuiceRunnable, CliOverlord}
+import io.druid.data.input.impl.TimestampSpec
 import io.druid.granularity.QueryGranularity
 import io.druid.initialization.Initialization
 import io.druid.query.aggregation.{AggregatorFactory, LongSumAggregatorFactory}
@@ -48,7 +49,6 @@ import org.junit.{Ignore, Test}
 import org.scala_tools.time.Implicits._
 import scala.collection.JavaConverters._
 import scala.util.Random
-import io.druid.data.input.impl.TimestampSpec
 
 class DruidBeamsIntegrationSpec extends Spec with CuratorRequiringSpec with Logging
 {
@@ -179,9 +179,9 @@ class DruidBeamsIntegrationSpec extends Spec with CuratorRequiringSpec with Logg
                 overlord =>
                   val dataSource = "xxx"
                   val timekeeper = new TestingTimekeeper
-                  val tuning = new ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 2, 2)
-                  val rollup = new DruidRollup(
-                    IndexedSeq("foo"),
+                  val tuning = ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 2, 2)
+                  val rollup = DruidRollup(
+                    SpecificDruidDimensions(IndexedSeq("foo")),
                     IndexedSeq(new LongSumAggregatorFactory("barr", "bar")),
                     QueryGranularity.MINUTE
                   )

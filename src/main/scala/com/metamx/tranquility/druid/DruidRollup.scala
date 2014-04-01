@@ -24,27 +24,49 @@ import scala.collection.JavaConverters._
 
 // Not a case class because equality is not well-defined for AggregatorFactories and QueryGranularities.
 class DruidRollup(
-  val dimensions: IndexedSeq[String],
+  val dimensions: DruidDimensions,
   val aggregators: IndexedSeq[AggregatorFactory],
   val indexGranularity: QueryGranularity
 )
 
+sealed abstract class DruidDimensions
+case class SpecificDruidDimensions(dimensions: IndexedSeq[String]) extends DruidDimensions
+case class SchemalessDruidDimensions(dimensionExclusions: IndexedSeq[String]) extends DruidDimensions
+
 object DruidRollup
 {
   /**
-   * Builder for Scala users.
+   * Builder for Scala users. Accepts a druid dimensions object and can be used to build rollups based on specific
+   * or schemaless dimensions.
    */
   def apply(
-    dimensions: Seq[String],
+    dimensions: DruidDimensions,
     aggregators: Seq[AggregatorFactory],
     indexGranularity: QueryGranularity
   ) =
   {
-    new DruidRollup(dimensions.toIndexedSeq, aggregators.toIndexedSeq, indexGranularity)
+    new DruidRollup(dimensions, aggregators.toIndexedSeq, indexGranularity)
   }
 
   /**
-   * Builder for Java users.
+   * Builder for Java users. Accepts a druid dimensions object and can be used to build rollups based on specific
+   * or schemaless dimensions.
+   */
+  def create(
+    dimensions: DruidDimensions,
+    aggregators: java.util.List[AggregatorFactory],
+    indexGranularity: QueryGranularity
+  ) =
+  {
+    new DruidRollup(
+      dimensions,
+      aggregators.asScala.toIndexedSeq,
+      indexGranularity
+    )
+  }
+
+  /**
+   * Builder for Java users. Accepts dimensions as strings, and creates a rollup with those specific dimensions.
    */
   def create(
     dimensions: java.util.List[String],
@@ -52,6 +74,34 @@ object DruidRollup
     indexGranularity: QueryGranularity
   ) =
   {
-    new DruidRollup(dimensions.asScala.toIndexedSeq, aggregators.asScala.toIndexedSeq, indexGranularity)
+    new DruidRollup(
+      SpecificDruidDimensions(dimensions.asScala.toIndexedSeq),
+      aggregators.asScala.toIndexedSeq,
+      indexGranularity
+    )
+  }
+}
+
+object DruidDimensions
+{
+  /**
+   * Builder for Java users.
+   */
+  def specific(dimensions: java.util.List[String]): DruidDimensions = {
+    SpecificDruidDimensions(dimensions.asScala.toIndexedSeq)
+  }
+
+  /**
+   * Builder for Java users.
+   */
+  def schemaless(): DruidDimensions = {
+    SchemalessDruidDimensions(Vector.empty)
+  }
+
+  /**
+   * Builder for Java users.
+   */
+  def schemalessWithExclusions(dimensionExclusions: java.util.List[String]): DruidDimensions = {
+    SchemalessDruidDimensions(dimensionExclusions.asScala.toIndexedSeq)
   }
 }

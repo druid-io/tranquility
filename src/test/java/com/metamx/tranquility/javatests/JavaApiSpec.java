@@ -25,9 +25,12 @@ import com.metamx.common.Granularity;
 import com.metamx.tranquility.beam.Beam;
 import com.metamx.tranquility.beam.ClusteredBeamTuning;
 import com.metamx.tranquility.druid.DruidBeams;
+import com.metamx.tranquility.druid.DruidDimensions;
 import com.metamx.tranquility.druid.DruidEnvironment;
 import com.metamx.tranquility.druid.DruidLocation;
 import com.metamx.tranquility.druid.DruidRollup;
+import com.metamx.tranquility.druid.SchemalessDruidDimensions;
+import com.metamx.tranquility.druid.SpecificDruidDimensions;
 import com.metamx.tranquility.storm.BeamBolt;
 import com.metamx.tranquility.storm.BeamFactory;
 import com.metamx.tranquility.typeclass.Timestamper;
@@ -35,6 +38,7 @@ import com.twitter.finagle.Service;
 import io.druid.granularity.QueryGranularity;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.CountAggregatorFactory;
+import junit.framework.Assert;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -50,6 +54,13 @@ import java.util.Map;
 
 public class JavaApiSpec
 {
+  private static final List<String> dimensions = ImmutableList.of("column");
+  private static final List<AggregatorFactory> aggregators = ImmutableList.<AggregatorFactory>of(
+      new CountAggregatorFactory(
+          "cnt"
+      )
+  );
+
   public static class MyBeamFactory implements BeamFactory<Map<String, Object>>
   {
     @Override
@@ -66,12 +77,6 @@ public class JavaApiSpec
         curator.start();
 
         final String dataSource = "hey";
-        final List<String> dimensions = ImmutableList.of("column");
-        final List<AggregatorFactory> aggregators = ImmutableList.<AggregatorFactory>of(
-            new CountAggregatorFactory(
-                "cnt"
-            )
-        );
 
         final DruidBeams.Builder<Map<String, Object>> builder = DruidBeams
             .builder(
@@ -98,14 +103,51 @@ public class JavaApiSpec
             .tuning(ClusteredBeamTuning.create(Granularity.HOUR, new Period("PT0M"), new Period("PT10M"), 1, 1));
 
         final Service<List<Map<String, Object>>, Integer> service = builder.buildJavaService();
+        Assert.assertNotNull(service);
         final Beam<Map<String, Object>> beam = builder.buildBeam();
-
+        Assert.assertNotNull(beam);
         return beam;
       }
       catch (Exception e) {
         throw Throwables.propagate(e);
       }
     }
+  }
+
+  @Test
+  public void testSpecificDimensionsRollupConfiguration() throws Exception
+  {
+    final DruidRollup rollup = DruidRollup.create(
+        DruidDimensions.specific(dimensions),
+        aggregators,
+        QueryGranularity.MINUTE
+    );
+    Assert.assertTrue(rollup.dimensions() instanceof SpecificDruidDimensions);
+    Assert.assertEquals("column", ((SpecificDruidDimensions) rollup.dimensions()).dimensions().apply(0));
+  }
+
+  @Test
+  public void testSchemalessDimensionsRollupConfiguration() throws Exception
+  {
+    final DruidRollup rollup = DruidRollup.create(
+        DruidDimensions.schemaless(),
+        aggregators,
+        QueryGranularity.MINUTE
+    );
+    Assert.assertTrue(rollup.dimensions() instanceof SchemalessDruidDimensions);
+    Assert.assertEquals(0, ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().size());
+  }
+
+  @Test
+  public void testSchemalessDimensionsWithExclusionsRollupConfiguration() throws Exception
+  {
+    final DruidRollup rollup = DruidRollup.create(
+        DruidDimensions.schemalessWithExclusions(dimensions),
+        aggregators,
+        QueryGranularity.MINUTE
+    );
+    Assert.assertTrue(rollup.dimensions() instanceof SchemalessDruidDimensions);
+    Assert.assertEquals("column", ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().apply(0));
   }
 
   @Test
@@ -116,5 +158,6 @@ public class JavaApiSpec
     // Ensure serializability
     final ObjectOutputStream objectOutputStream = new ObjectOutputStream(new ByteArrayOutputStream());
     objectOutputStream.writeObject(beamBolt);
+    Assert.assertTrue(true);
   }
 }
