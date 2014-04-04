@@ -146,6 +146,7 @@ object IndexService
       ifException[com.twitter.finagle.RequestException],
       ifException[com.twitter.finagle.ChannelException],
       ifException[com.twitter.finagle.TimeoutException],
+      ifException[com.twitter.finagle.ServiceException],
       ifException[org.jboss.netty.channel.ChannelException],
       ifException[org.jboss.netty.channel.ConnectTimeoutException],
       ifException[org.jboss.netty.handler.timeout.TimeoutException]

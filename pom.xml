@@ -5,7 +5,7 @@
   <groupId>com.metamx</groupId>
   <name>tranquility</name>
   <artifactId>tranquility</artifactId>
-  <version>0.1.12-SNAPSHOT</version>
+  <version>0.1.15-SNAPSHOT</version>
 
   <scm>
     <connection>scm:git:ssh://git@github.com/metamx/tranquility.git</connection>
@@ -290,18 +290,29 @@
       <plugin>
         <groupId>net.alchim31.maven</groupId>
         <artifactId>scala-maven-plugin</artifactId>
-        <version>3.1.0</version>
+        <version>3.1.6</version>
         <configuration>
-          <recompileMode>incremental</recompileMode>
           <args>
             <arg>-unchecked</arg>
             <arg>-deprecation</arg>
           </args>
+          <jvmArgs>
+            <jvmArg>-Xmx1g</jvmArg>
+          </jvmArgs>
         </configuration>
         <executions>
           <execution>
+            <id>scala-compile-first</id>
+            <phase>process-resources</phase>
             <goals>
+              <goal>add-source</goal>
               <goal>compile</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>scala-test-compile</id>
+            <phase>process-test-resources</phase>
+            <goals>
               <goal>testCompile</goal>
             </goals>
           </execution>
@@ -332,6 +343,19 @@
             </goals>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-release-plugin</artifactId>
+        <version>2.4.2</version>
+        <dependencies>
+          <dependency>
+            <groupId>org.apache.maven.scm</groupId>
+            <artifactId>maven-scm-provider-gitexe</artifactId>
+            <!-- This version is necessary for use with git version 1.8.5 -->
+            <version>1.8.1</version>
+          </dependency>
+        </dependencies>
       </plugin>
     </plugins>
   </build>

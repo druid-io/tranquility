@@ -71,6 +71,26 @@ class DruidBeamMaker[A : Timestamper](
     } else {
       new NoneShardSpec
     }
+    val parser = {
+      val dimensions = rollup.dimensions match {
+        case SpecificDruidDimensions(xs) =>
+          // Sort dimension names to trick IndexMerger into working correctly (it assumes row comparator based on
+          // lexicographically ordered dimension names, which will only be the case if we force it here)
+          Some(xs.sorted)
+        case SchemalessDruidDimensions(xs) =>
+          // null dimensions causes the Druid parser to go schemaless
+          None
+      }
+      val dimensionExclusions = rollup.dimensions match {
+        case SpecificDruidDimensions(xs) => None
+        case SchemalessDruidDimensions(xs) => Some(xs)
+      }
+      new MapInputRowParser(
+        timestampSpec,
+        dimensions.map(_.asJava).orNull,
+        dimensionExclusions.map(_.asJava).orNull
+      )
+    }
     new RealtimeIndexTask(
       taskId,
       new TaskResource(availabilityGroup, 1),
@@ -86,14 +106,7 @@ class DruidBeamMaker[A : Timestamper](
           new EventReceiverFirehoseFactory(
             location.environment.firehoseServicePattern format firehoseId,
             null,
-            new MapInputRowParser(
-              timestampSpec,
-              // Sort dimension names to trick IndexMerger into working correctly (it assumes row comparator
-              // based on lexicographically ordered dimension names, which will only be the case if we force
-              // it here)
-              rollup.dimensions.sorted.asJava,
-              List.empty[String].asJava
-            ),
+            parser,
             null
           ), shutoffTime
         ), interval
