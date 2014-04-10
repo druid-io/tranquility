@@ -182,9 +182,9 @@
 
     <!-- Storm, Chill (optional) -->
     <dependency>
-      <groupId>storm</groupId>
-      <artifactId>storm</artifactId>
-      <version>0.9.0-mmx4</version>
+      <groupId>org.apache.storm</groupId>
+      <artifactId>storm-core</artifactId>
+      <version>0.9.1-incubating-mmx2</version>
       <optional>true</optional>
       <exclusions>
         <exclusion>
