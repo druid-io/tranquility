@@ -18,6 +18,7 @@ val discoveryPath = "/discovery" // Your overlord's druid.discovery.curator.path
 val dataSource = "foo"
 val dimensions = Seq("bar")
 val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
+
 val druidService = DruidBeams
   .builder((eventMap: Map[String, Any]) => new DateTime(eventMap("timestamp")))
   .curator(curator)
