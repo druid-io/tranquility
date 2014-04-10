@@ -16,11 +16,11 @@ val dataSource = "foo"
 val dimensions = Seq("bar")
 val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
 val druidService = DruidBeams
-  .builder[Map[String, Any]](eventMap => new DateTime(eventMap("timestamp")))
+  .builder((eventMap: Map[String, Any]) => new DateTime(eventMap("timestamp")))
   .curator(curator)
   .discoveryPath("/test/discovery")
   .location(DruidLocation(new DruidEnvironment("druid:overlord", "druid:firehose:%s"), dataSource))
-  .rollup(DruidRollup(dimensions, aggregators, QueryGranularity.MINUTE))
+  .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularity.MINUTE))
   .tuning(ClusteredBeamTuning(Granularity.HOUR, 10.minutes, 1, 1))
   .buildService()
 
@@ -63,7 +63,7 @@ final Service<List<Map<String, Object>>, Integer> druidService = DruidBeams
             ), dataSource
         )
     )
-    .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularity.MINUTE))
+    .rollup(DruidRollup.create(DruidDimensions.specific(dimensions), aggregators, QueryGranularity.MINUTE))
     .tuning(ClusteredBeamTuning.create(Granularity.HOUR, new Period("PT0M"), new Period("PT10M"), 1, 1))
     .buildJavaService();
 
@@ -93,12 +93,17 @@ class MyBeamFactory extends BeamFactory[Map[String, Any]]
       new BoundedExponentialBackoffRetry(100, 1000, 5)
     )
     curator.start()
+
+    val dataSource = "foo"
+    val dimensions = Seq("bar")
+    val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
+
     DruidBeams
       .builder((eventMap: Map[String, Any]) => new DateTime(eventMap("timestamp")))
       .curator(curator)
       .discoveryPath("/test/discovery")
       .location(DruidLocation(new DruidEnvironment("druid:overlord", "druid:firehose:%s"), dataSource))
-      .rollup(DruidRollup(dimensions, aggregators, QueryGranularity.MINUTE))
+      .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularity.MINUTE))
       .tuning(ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 1, 1))
       .buildBeam()
   }
