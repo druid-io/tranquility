@@ -65,7 +65,10 @@ final Service<List<Map<String, Object>>, Integer> druidService = DruidBeams
     .buildJavaService();
 
 // Send events to Druid:
-final Future<Integer> numSent = druidService.apply(listOfEvents);
+final Future<Integer> numSentFuture = druidService.apply(listOfEvents);
+
+// Wait for confirmation:
+final Integer numSent = Await.result(numSent);
 ```
 
 ## Storm
@@ -88,12 +91,12 @@ class MyBeamFactory extends BeamFactory[Map[String, Any]]
     )
     curator.start()
     DruidBeams
-      .builder[Map[String, Any]](eventMap => new DateTime(eventMap("timestamp")))
+      .builder((eventMap: Map[String, Any]) => new DateTime(eventMap("timestamp")))
       .curator(curator)
       .discoveryPath("/test/discovery")
       .location(DruidLocation(new DruidEnvironment("druid:overlord", "druid:firehose:%s"), dataSource))
       .rollup(DruidRollup(dimensions, aggregators, QueryGranularity.MINUTE))
-      .tuning(ClusteredBeamTuning(Granularity.HOUR, 10.minutes, 1, 1))
+      .tuning(ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 1, 1))
       .buildBeam()
   }
 }
@@ -109,6 +112,12 @@ TridentBeamStateFactory (which takes a BeamFactory, like the Storm Bolt) and Tri
 
 ## Druid Setup
 
-Tranquility works with the Druid indexing service (http://druid.io/docs/latest/Indexing-Service.html). To get started, you'll need an Overlord, enough Middle Managers for your realtime workload, and enough Historical nodes to receive handoffs. You don't need any Realtime nodes, since Tranquility uses the indexing service for all of its ingestion needs.
+Tranquility works with the Druid indexing service (http://druid.io/docs/latest/Indexing-Service.html). To get started,
+you'll need an Overlord, enough Middle Managers for your realtime workload, and enough Historical nodes to receive
+handoffs. You don't need any Realtime nodes, since Tranquility uses the indexing service for all of its ingestion needs.
 
-Tranquility periodically submits new tasks to the indexing service to provide for log rotation and to support zero-downtime configuration changes. These new tasks are typically submitted before the old ones exit, so to allow for smooth transitions, you'll need enough indexing service worker capacity to run two sets of overlapping tasks (that's 2 * #partitions * #replicants). The number of partitions and replicants both default to 1 (single partition, single copy) and can be tuned using a ClusteredBeamTuning object.
+Tranquility periodically submits new tasks to the indexing service to provide for log rotation and to support
+zero-downtime configuration changes. These new tasks are typically submitted before the old ones exit, so to allow for
+smooth transitions, you'll need enough indexing service worker capacity to run two sets of overlapping tasks (that's
+2 * #partitions * #replicants). The number of partitions and replicants both default to 1 (single partition, single
+copy) and can be tuned using a ClusteredBeamTuning object.
