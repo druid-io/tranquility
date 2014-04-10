@@ -110,6 +110,19 @@ val bolt = new BeamBolt(new MyBeamFactory)
 If you're using Trident on top of Storm, you can use Trident's partitionPersist in concert with Tranquility's
 TridentBeamStateFactory (which takes a BeamFactory, like the Storm Bolt) and TridentBeamStateUpdater.
 
+## Maven
+
+Tranquility artifacts are hosted on the Metamarkets maven repository: https://metamx.artifactoryonline.com/metamx/pub-libs-releases-local/.
+If you set up your project to know about this repository, you can set up your project to pull one of the
+[hosted versions](https://metamx.artifactoryonline.com/metamx/pub-libs-releases-local/com/metamx/tranquility/).
+
+## Storm Setup
+
+Tranquility depends on a newer version of zookeeper than Storm is built with, at least through Storm 0.9.1. This should
+be worked out once [STORM-70](https://issues.apache.org/jira/browse/STORM-70) is in a release, but for the time being,
+Tranquility deployments will work better on a patched Storm. Our fork is here: https://github.com/metamx/incubator-storm/tree/v0.9.1-incubating-mmx.
+We have also published artifacts in the the metamx maven repository.
+
 ## Druid Setup
 
 Tranquility works with the Druid indexing service (http://druid.io/docs/latest/Indexing-Service.html). To get started,
