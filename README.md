@@ -12,14 +12,17 @@ This project is a friend of Druid. For discussion, feel free to use the normal D
 For general purposes, you'll likely end up using the Finagle API. You can set up and use a Finagle Service like this:
 
 ```scala
+val indexService = "druid:overlord" // Your overlord's service name.
+val firehosePattern = "druid:firehose:%s" // Make up a service pattern, include %s somewhere in it.
+val discoveryPath = "/discovery" // Your overlord's druid.discovery.curator.path
 val dataSource = "foo"
 val dimensions = Seq("bar")
 val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
 val druidService = DruidBeams
   .builder((eventMap: Map[String, Any]) => new DateTime(eventMap("timestamp")))
   .curator(curator)
-  .discoveryPath("/test/discovery")
-  .location(DruidLocation(new DruidEnvironment("druid:overlord", "druid:firehose:%s"), dataSource))
+  .discoveryPath(discoveryPath)
+  .location(DruidLocation(new DruidEnvironment(indexService, firehosePattern), dataSource))
   .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularity.MINUTE))
   .tuning(ClusteredBeamTuning(Granularity.HOUR, 10.minutes, 1, 1))
   .buildService()
@@ -34,6 +37,9 @@ val numSent = Await.result(numSentFuture)
 Or in Java:
 
 ```java
+final String indexService = "druid:overlord" // Your overlord's service name.
+final String firehosePattern = "druid:firehose:%s" // Make up a service pattern, include %s somewhere in it.
+final String discoveryPath = "/discovery" // Your overlord's druid.discovery.curator.path
 final String dataSource = "hey";
 final List<String> dimensions = ImmutableList.of("column");
 final List<AggregatorFactory> aggregators = ImmutableList.<AggregatorFactory>of(
@@ -54,12 +60,12 @@ final Service<List<Map<String, Object>>, Integer> druidService = DruidBeams
         }
     )
     .curator(curator)
-    .discoveryPath("/test/discovery")
+    .discoveryPath(discoveryPath)
     .location(
         new DruidLocation(
             new DruidEnvironment(
-                "druid:overlord",
-                "druid:firehose:%s"
+                indexService,
+                firehosePattern
             ), dataSource
         )
     )
@@ -94,6 +100,9 @@ class MyBeamFactory extends BeamFactory[Map[String, Any]]
     )
     curator.start()
 
+    val indexService = "druid:overlord" // Your overlord's service name.
+    val firehosePattern = "druid:firehose:%s" // Make up a service pattern, include %s somewhere in it.
+    val discoveryPath = "/discovery" // Your overlord's druid.discovery.curator.path
     val dataSource = "foo"
     val dimensions = Seq("bar")
     val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
@@ -101,8 +110,8 @@ class MyBeamFactory extends BeamFactory[Map[String, Any]]
     DruidBeams
       .builder((eventMap: Map[String, Any]) => new DateTime(eventMap("timestamp")))
       .curator(curator)
-      .discoveryPath("/test/discovery")
-      .location(DruidLocation(new DruidEnvironment("druid:overlord", "druid:firehose:%s"), dataSource))
+      .discoveryPath(discoveryPath)
+      .location(DruidLocation(new DruidEnvironment(indexService, firehosePattern), dataSource))
       .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularity.MINUTE))
       .tuning(ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 1, 1))
       .buildBeam()
