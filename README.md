@@ -113,7 +113,7 @@ TridentBeamStateFactory (which takes a BeamFactory, like the Storm Bolt) and Tri
 ## Maven
 
 Tranquility artifacts are hosted on the Metamarkets maven repository: https://metamx.artifactoryonline.com/metamx/pub-libs-releases-local/.
-If you set up your project to know about this repository, you can set up your project to pull one of the
+If you set up your project to know about this repository, you can depend on one of the
 [hosted versions](https://metamx.artifactoryonline.com/metamx/pub-libs-releases-local/com/metamx/tranquility/).
 
 ## Storm Setup
