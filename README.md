@@ -25,7 +25,10 @@ val druidService = DruidBeams
   .buildService()
 
 // Send events to Druid:
-val numSent: Future[Int] = druidService(listOfEvents)
+val numSentFuture: Future[Int] = druidService(listOfEvents)
+
+// Wait for confirmation:
+val numSent = Await.result(numSentFuture)
 ```
 
 Or in Java:
