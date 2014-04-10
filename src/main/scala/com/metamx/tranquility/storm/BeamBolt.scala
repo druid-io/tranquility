@@ -64,6 +64,7 @@ class BeamBolt[EventType](beamFactory: BeamFactory[EventType], confPrefixOption:
         if (emittable.nonEmpty) {
           try {
             val events: IndexedSeq[EventType] = emittable.map(_.getValue(0).asInstanceOf[EventType]).toIndexedSeq
+            log.info("Sending %,d queued events.", events.size)
             val sent = Await.result(beam.propagate(events))
             log.info("Sent %,d, ignored %,d queued events.", sent, events.size - sent)
             emittable foreach collector.ack
