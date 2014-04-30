@@ -5,13 +5,13 @@
   <groupId>com.metamx</groupId>
   <name>tranquility</name>
   <artifactId>tranquility</artifactId>
-  <version>0.1.18</version>
+  <version>0.1.19-SNAPSHOT</version>
 
   <scm>
     <connection>scm:git:ssh://git@github.com/metamx/tranquility.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/metamx/tranquility.git</developerConnection>
     <url>http://github.com/metamx/tranquility</url>
-    <tag>tranquility-0.1.18</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <properties>
