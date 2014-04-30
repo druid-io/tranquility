@@ -26,35 +26,31 @@ import com.metamx.common.scala.Logging
 import com.metamx.common.scala.concurrent.loggingRunnable
 import com.metamx.tranquility.beam.Beam
 import com.twitter.util.Await
-import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.{BlockingQueue, ArrayBlockingQueue}
 import java.{util => ju}
 import scala.collection.JavaConverters._
 
 /**
  * A Storm Bolt for using a Beam to propagate tuples.
  * @param beamFactory a factory for creating the beam we will use
- * @param confPrefixOption extract configuration properties using this prefix. For example, if the prefix is "foo",
- *                         we'll use foo.queue.size for the blocking queue size.
+ * @param queueSize maximum number of tuples to keep in the beam queue
+ * @param emitMillis emit at least this often
  */
-class BeamBolt[EventType](beamFactory: BeamFactory[EventType], confPrefixOption: Option[String])
+class BeamBolt[EventType](beamFactory: BeamFactory[EventType], queueSize: Int, emitMillis: Long)
   extends BaseRichBolt with Logging
 {
-  def this(beamFactory: BeamFactory[EventType]) = this(beamFactory, None)
+  def this(beamFactory: BeamFactory[EventType]) = this(beamFactory, 1000, 1000)
 
-  def this(beamFactory: BeamFactory[EventType], confPrefix: String) = this(beamFactory, Some(confPrefix))
-
-  @volatile private var beam      : Beam[EventType] = null
-  @volatile private var queueSize : Int             = 1000
-  @volatile private var emitMillis: Long            = 1000
-  @volatile private var emitThread: Thread          = null
-
-  private val queue = new LinkedBlockingQueue[Tuple]()
+  @volatile private var beam      : Beam[EventType]      = null
+  @volatile private var emitThread: Thread               = null
+  @volatile private var lock      : AnyRef               = null
+  @volatile private var queue     : BlockingQueue[Tuple] = null
 
   override def prepare(conf: ju.Map[_, _], context: TopologyContext, collector: OutputCollector) {
-    val confPrefix = confPrefixOption map (_ + ".") getOrElse ""
-    Option(conf.get("%squeue.size" format confPrefix)) foreach (v => queueSize = v.asInstanceOf[String].toInt)
-    Option(conf.get("%semit.millis" format confPrefix)) foreach (v => emitMillis = v.asInstanceOf[String].toLong)
+    require(beam == null && lock == null && queue == null, "WTF?! Already initialized, but prepare was called anyway.")
     beam = beamFactory.makeBeam(conf, context)
+    lock = new AnyRef
+    queue = new ArrayBlockingQueue[Tuple](queueSize)
     val emitRunnable = loggingRunnable {
       while (!Thread.currentThread().isInterrupted) {
         val startMillis = System.currentTimeMillis()
@@ -77,18 +73,25 @@ class BeamBolt[EventType](beamFactory: BeamFactory[EventType], confPrefixOption:
         }
         val waitMillis = startMillis + emitMillis - System.currentTimeMillis()
         if (waitMillis > 0) {
-          Thread.sleep(waitMillis)
+          lock.synchronized {
+            lock.wait(waitMillis)
+          }
         }
       }
     }
     emitThread = new Thread(emitRunnable)
-    emitThread.setName("BeamBolt-Emitter-%s" format confPrefix)
+    emitThread.setName("BeamBolt-Emitter-%s-%d" format (context.getThisComponentId, context.getThisTaskIndex))
     emitThread.setDaemon(true)
     emitThread.start()
   }
 
   override def execute(tuple: Tuple) {
-    queue.put(tuple)
+    if (!queue.offer(tuple)) {
+      lock.synchronized {
+        lock.notifyAll()
+      }
+      queue.put(tuple)
+    }
   }
 
   override def cleanup() {

@@ -145,7 +145,7 @@ class StormIntegrationSpec extends Spec with CuratorRequiringSpec with StormRequ
               conf.setKryoFactory(classOf[SimpleKryoFactory])
               val builder = new TopologyBuilder
               builder.setSpout("events", spout)
-              builder.setBolt("beam", new BeamBolt[SimpleEvent](new SimpleBeamFactory, None)).shuffleGrouping("events")
+              builder.setBolt("beam", new BeamBolt[SimpleEvent](new SimpleBeamFactory)).shuffleGrouping("events")
               storm.submitTopology("test", conf, builder.createTopology())
               val start = System.currentTimeMillis()
               while (SimpleBeam.sortedBuffer != inputs && System.currentTimeMillis() < start + 300000) {
