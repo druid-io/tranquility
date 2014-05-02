@@ -328,7 +328,7 @@
             <sun.io.serialization.extendedDebugInfo>true</sun.io.serialization.extendedDebugInfo>
           </systemPropertyVariables>
           <includes>
-            <include>**/*Spec.class</include>
+            <include>**/*Test.class</include>
           </includes>
         </configuration>
       </plugin>

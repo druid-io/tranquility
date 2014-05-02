@@ -16,26 +16,29 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-package com.metamx.tranquility.test
+package com.metamx.tranquility.test.common
 
-import com.metamx.common.Granularity
-import com.metamx.tranquility.druid.DruidBeamMaker
 import com.simple.simplespec.Spec
-import org.joda.time.DateTime
-import org.junit.Test
+import org.apache.curator.framework.{CuratorFrameworkFactory, CuratorFramework}
+import org.apache.curator.retry.BoundedExponentialBackoffRetry
+import org.apache.curator.test.TestingCluster
 
-class DruidBeamUnitSpec extends Spec
+trait CuratorRequiringSpec
 {
+  self: Spec =>
 
-  class A
-  {
-    @Test def testGenerateFirehoseId()
-    {
-      val dt = new DateTime("2010-02-03T12:34:56.789Z")
-      DruidBeamMaker.generateBaseFirehoseId("x", Granularity.MINUTE, dt, 1) must be("x-34-0001")
-      DruidBeamMaker.generateBaseFirehoseId("x", Granularity.HOUR, dt, 1) must be("x-12-0001")
-      DruidBeamMaker.generateBaseFirehoseId("x", Granularity.DAY, dt, 1) must be("x-03-0001")
+  def withLocalCurator[A](f: CuratorFramework => A): A = {
+    val cluster = new TestingCluster(1)
+    val curator = CuratorFrameworkFactory.newClient(
+      cluster.getConnectString,
+      new BoundedExponentialBackoffRetry(100, 1000, 5)
+    )
+    cluster.start()
+    curator.start()
+    try f(curator)
+    finally {
+      curator.close()
+      cluster.close()
     }
   }
-
 }

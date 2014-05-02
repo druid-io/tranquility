@@ -31,7 +31,7 @@ import com.metamx.common.scala.untyped._
 import com.metamx.emitter.core.LoggingEmitter
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.beam.{ClusteredBeamTuning, RoundRobinBeam, ClusteredBeamMeta, ClusteredBeam, BeamMaker, DefunctBeamException, Beam}
-import com.metamx.tranquility.test.traits.CuratorRequiringSpec
+import com.metamx.tranquility.test.common.CuratorRequiringSpec
 import com.metamx.tranquility.typeclass.Timestamper
 import com.simple.simplespec.Spec
 import com.twitter.util.{Await, Future}
@@ -43,7 +43,7 @@ import org.scala_tools.time.Implicits._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-class ClusteredBeamUnitSpec extends Spec with CuratorRequiringSpec
+class ClusteredBeamTest extends Spec with CuratorRequiringSpec
 {
   @Ignore
   case class SimpleEvent(ts: DateTime, fields: Map[String, String])

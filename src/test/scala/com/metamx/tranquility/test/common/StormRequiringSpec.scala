@@ -16,13 +16,19 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-package com.metamx.tranquility.test.traits
+package com.metamx.tranquility.test.common
 
 import backtype.storm.LocalCluster
 import backtype.storm.generated.KillOptions
+import backtype.storm.serialization.IKryoFactory
+import com.esotericsoftware.kryo.Kryo
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.control._
 import com.simple.simplespec.Spec
+import com.twitter.chill.{KryoSerializer, KryoBase}
+import java.{util => ju}
+import org.junit.Ignore
+import org.objenesis.strategy.StdInstantiatorStrategy
 import org.scala_tools.time.Implicits._
 import scala.collection.JavaConverters._
 
