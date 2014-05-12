@@ -17,7 +17,7 @@
   <properties>
     <scala.version>2.9.3</scala.version>
     <curator.version>2.3.0</curator.version>
-    <druid.version>0.6.58</druid.version>
+    <druid.version>0.6.105</druid.version>
     <finagle.version>6.11.1</finagle.version>
     <jackson.version>2.2.2</jackson.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
