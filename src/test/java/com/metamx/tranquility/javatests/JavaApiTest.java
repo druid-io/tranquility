@@ -52,7 +52,7 @@ import java.io.ObjectOutputStream;
 import java.util.List;
 import java.util.Map;
 
-public class JavaApiSpec
+public class JavaApiTest
 {
   private static final List<String> dimensions = ImmutableList.of("column");
   private static final List<AggregatorFactory> aggregators = ImmutableList.<AggregatorFactory>of(
