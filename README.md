@@ -134,6 +134,16 @@ Tranquility artifacts are hosted on the Metamarkets maven repository: https://me
 If you set up your project to know about this repository, you can depend on one of the
 [hosted versions](https://metamx.artifactoryonline.com/metamx/pub-libs-releases-local/com/metamx/tranquility/).
 
+The `master` branch always has the bleeding edge development version. The current stable version is:
+
+```xml
+<dependency>
+  <groupId>com.metamx</groupId>
+  <artifactId>tranquility</artifactId>
+  <version>0.1.19</version>
+</dependency>
+```
+
 ## Storm Setup
 
 Tranquility depends on a newer version of zookeeper than Storm is built with, at least through Storm 0.9.1. This should
