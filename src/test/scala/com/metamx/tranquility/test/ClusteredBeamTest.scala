@@ -25,7 +25,6 @@ import com.metamx.common.Granularity
 import com.metamx.common.logger.Logger
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Predef._
-import com.metamx.common.scala.collection.mutable.ConcurrentMap
 import com.metamx.common.scala.timekeeper.TestingTimekeeper
 import com.metamx.common.scala.untyped._
 import com.metamx.emitter.core.LoggingEmitter
@@ -67,11 +66,17 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
     x => x.fields("foo") -> x
   }).toMap
 
-  val _beams = new ArrayBuffer[TestingBeam]() with mutable.SynchronizedBuffer[TestingBeam]
+  val _beams = new ArrayBuffer[TestingBeam]()
+  val _buffers = mutable.HashMap[String, EventBuffer]()
+  val _lock = new AnyRef
 
-  val _buffers = ConcurrentMap[String, EventBuffer]()
+  def buffers = _lock.synchronized {
+    _buffers.values.map(x => (x.timestamp, x.partition, x.open, x.buffer.toSeq)).toSet
+  }
 
-  def buffers = _buffers.values.map(x => (x.timestamp, x.partition, x.open, x.buffer.toSeq)).toSet
+  def beamsList = _lock.synchronized {
+    _beams.toList
+  }
 
   @Ignore
   class EventBuffer(val timestamp: DateTime, val partition: Int)
@@ -104,9 +109,11 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
   class TestingBeam(val timestamp: DateTime, val partition: Int, val uuid: String = UUID.randomUUID().toString)
     extends Beam[SimpleEvent]
   {
-    _beams += this
+    _lock.synchronized {
+      _beams += this
+    }
 
-    def propagate(_events: Seq[SimpleEvent]) = {
+    def propagate(_events: Seq[SimpleEvent]) = _lock.synchronized {
       if (_events.contains(events("defunct"))) {
         Future.exception(new DefunctBeamException("Defunct"))
       } else {
@@ -117,7 +124,7 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
       }
     }
 
-    def close() = {
+    def close() = _lock.synchronized {
       _beams -= this
       val buffer = _buffers.getOrElseUpdate(uuid, new EventBuffer(timestamp, partition))
       buffer.open = false
@@ -197,7 +204,10 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
 
     @Before
     def setUp() {
-      _beams.clear()
+      _lock.synchronized {
+        _beams.clear()
+        _buffers.clear()
+      }
     }
 
     @Test
@@ -214,6 +224,7 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
           buffers must be(
             Set(
               (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
+              (new DateTime("2012-01-01T00Z"), 1, false, Nil),
               (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "d") map events),
               (new DateTime("2012-01-01T01Z"), 1, true, Seq("e", "f") map events)
             )
@@ -256,7 +267,9 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
           buffers must be(
             Set(
               (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b") map events),
-              (new DateTime("2012-01-01T01Z"), 0, true, Seq("d", "c") map events)
+              (new DateTime("2012-01-01T00Z"), 1, false, Nil),
+              (new DateTime("2012-01-01T01Z"), 0, true, Seq("d", "c") map events),
+              (new DateTime("2012-01-01T01Z"), 1, false, Nil)
             )
           )
       }
@@ -301,6 +314,13 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
           beamsA.blockagate(Seq("c") map events)
           Await.result(beamsA.close())
 
+          buffers must be(
+            Set(
+              (new DateTime("2012-01-01T01Z"), 0, false, Seq("c") map events),
+              (new DateTime("2012-01-01T01Z"), 1, false, Nil)
+            )
+          )
+
           val beamsB = newBeams(curator, newTuning)
           beamsB.timekeeper.now = start
           beamsB.blockagate(Seq("d", "b") map events)
@@ -314,7 +334,8 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
               (new DateTime("2012-01-01T00Z"), 1, true, Seq("b") map events),
               (new DateTime("2012-01-01T00Z"), 2, true, Seq("b") map events),
               (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "d", "c") map events),
-              (new DateTime("2012-01-01T01Z"), 1, true, Seq("d", "c", "c") map events)
+              (new DateTime("2012-01-01T01Z"), 1, true, Seq("d", "c") map events),
+              (new DateTime("2012-01-01T01Z"), 2, true, Seq("c") map events)
             )
           )
       }
@@ -363,7 +384,8 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
             Set(
               (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
               (new DateTime("2012-01-01T00Z"), 1, true, Seq("b") map events),
-              (new DateTime("2012-01-01T01Z"), 0, true, Seq("c") map events)
+              (new DateTime("2012-01-01T01Z"), 0, true, Seq("c") map events),
+              (new DateTime("2012-01-01T01Z"), 1, false, Nil)
             )
           )
       }
@@ -378,15 +400,18 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
           beams.blockagate(Seq("b") map events) must be(1)
           buffers must be(
             Set(
-              (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events)
+              (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
+              (new DateTime("2012-01-01T00Z"), 1, false, Nil),
+              (new DateTime("2012-01-01T01Z"), 0, false, Nil),
+              (new DateTime("2012-01-01T01Z"), 1, false, Nil)
             )
           )
           val desired = List("2012-01-01T00Z", "2012-01-01T00Z", "2012-01-01T01Z", "2012-01-01T01Z").map(new DateTime(_))
           val startTime = System.currentTimeMillis()
-          while (System.currentTimeMillis() < startTime + 2000 && _beams.toList.map(_.timestamp).sortBy(_.millis) != desired) {
+          while (System.currentTimeMillis() < startTime + 2000 && beamsList.map(_.timestamp).sortBy(_.millis) != desired) {
             Thread.sleep(100)
           }
-          _beams.toList.map(_.timestamp).sortBy(_.millis) must be(desired)
+          beamsList.map(_.timestamp).sortBy(_.millis) must be(desired)
       }
     }
 

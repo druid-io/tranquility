@@ -33,7 +33,7 @@ import io.druid.indexing.common.task.{Task, TaskResource, RealtimeIndexTask}
 import io.druid.segment.realtime.firehose.{TimedShutoffFirehoseFactory, ClippedFirehoseFactory}
 import io.druid.segment.realtime.plumber.NoopRejectionPolicyFactory
 import io.druid.segment.realtime.{FireDepartmentConfig, Schema}
-import io.druid.timeline.partition.{NoneShardSpec, NumberedShardSpec}
+import io.druid.timeline.partition.LinearShardSpec
 import org.joda.time.{Interval, DateTime}
 import org.scala_tools.time.Implicits._
 import scala.collection.JavaConverters._
@@ -66,11 +66,7 @@ class DruidBeamMaker[A : Timestamper](
     val taskId = "index_realtime_%s_%s_%s_%s_%s" format (location.dataSource, ts, partition, replicant, suffix)
     val interval = tuning.segmentBucket(ts)
     val shutoffTime = interval.end + tuning.windowPeriod + config.firehoseGracePeriod
-    val shardSpec = if (tuning.partitions != 1) {
-      new NumberedShardSpec(partition, tuning.partitions)
-    } else {
-      new NoneShardSpec
-    }
+    val shardSpec = new LinearShardSpec(partition)
     val parser = {
       val dimensions = rollup.dimensions match {
         case SpecificDruidDimensions(xs) =>
