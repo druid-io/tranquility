@@ -18,6 +18,7 @@
  */
 package com.metamx.tranquility.beam
 
+import com.google.common.hash.Hashing
 import com.metamx.common.scala.Logging
 import com.twitter.util.Future
 
@@ -30,7 +31,7 @@ class HashPartitionBeam[A](
 ) extends Beam[A] with Logging
 {
   def propagate(events: Seq[A]) = {
-    val futures = events.groupBy(event => math.abs(event.hashCode % delegates.size)) map {
+    val futures = events.groupBy(event => Hashing.consistentHash(event.hashCode, delegates.size)) map {
       case (i, group) =>
         delegates(i).propagate(group)
     }
