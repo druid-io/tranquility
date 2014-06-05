@@ -33,7 +33,6 @@ import com.metamx.common.scala.untyped._
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.typeclass.Timestamper
 import com.twitter.util.{Future, FuturePool}
-import io.druid.segment.IndexGranularity
 import java.util.UUID
 import java.util.concurrent.Executors
 import org.apache.curator.framework.CuratorFramework
@@ -404,14 +403,6 @@ case class ClusteredBeamTuning(
   replicants: Int
 )
 {
-  def segmentGranularityAsIndexGranularity: IndexGranularity = segmentGranularity match {
-    case Granularity.MINUTE => IndexGranularity.MINUTE
-    case Granularity.HOUR => IndexGranularity.HOUR
-    case Granularity.DAY => IndexGranularity.DAY
-    case x =>
-      throw new IllegalArgumentException("No IndexGranularity for granularity: %s" format x)
-  }
-
   def segmentBucket(ts: DateTime) = segmentGranularity.bucket(ts)
 }
 

@@ -21,6 +21,7 @@ package com.metamx.tranquility.finagle
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.net.curator._
+import com.metamx.common.scala.net.finagle.DiscoResolver
 import com.twitter.finagle.builder.ClientBuilder
 import com.twitter.finagle.http.Http
 import com.twitter.finagle.{Group, ServiceProxy, Service}

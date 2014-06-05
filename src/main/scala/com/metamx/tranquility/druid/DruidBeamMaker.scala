@@ -27,19 +27,20 @@ import com.metamx.tranquility.beam.{ClusteredBeamTuning, BeamMaker}
 import com.metamx.tranquility.finagle.FinagleRegistry
 import com.metamx.tranquility.typeclass.{JsonWriter, Timestamper}
 import com.twitter.util.{Future, Await}
-import io.druid.data.input.impl.{TimestampSpec, MapInputRowParser, SpatialDimensionSchema}
-import io.druid.indexing.common.index.EventReceiverFirehoseFactory
+import io.druid.data.input.impl.{DimensionsSpec, JSONParseSpec, TimestampSpec, MapInputRowParser}
 import io.druid.indexing.common.task.{Task, TaskResource, RealtimeIndexTask}
-import io.druid.segment.realtime.firehose.{TimedShutoffFirehoseFactory, ClippedFirehoseFactory}
+import io.druid.segment.indexing.granularity.UniformGranularitySpec
+import io.druid.segment.indexing.{RealtimeTuningConfig, RealtimeIOConfig, DataSchema}
+import io.druid.segment.realtime.FireDepartment
+import io.druid.segment.realtime.firehose.{EventReceiverFirehoseFactory, TimedShutoffFirehoseFactory, ClippedFirehoseFactory}
 import io.druid.segment.realtime.plumber.NoopRejectionPolicyFactory
-import io.druid.segment.realtime.{FireDepartmentConfig, Schema}
 import io.druid.timeline.partition.LinearShardSpec
 import org.joda.time.{Interval, DateTime}
 import org.scala_tools.time.Implicits._
 import scala.collection.JavaConverters._
 import scala.util.Random
 
-class DruidBeamMaker[A : Timestamper](
+class DruidBeamMaker[A: Timestamper](
   config: DruidBeamConfig,
   location: DruidLocation,
   tuning: ClusteredBeamTuning,
@@ -62,8 +63,8 @@ class DruidBeamMaker[A : Timestamper](
   {
     // Randomize suffix to allow creation of multiple tasks with the same parameters (useful for testing)
     val rand = Random.nextInt()
-    val suffix = (0 until 8).map(i => (rand >> (i*4)) & 0x0F).map(n => ('a' + n).toChar).mkString
-    val taskId = "index_realtime_%s_%s_%s_%s_%s" format (location.dataSource, ts, partition, replicant, suffix)
+    val suffix = (0 until 8).map(i => (rand >> (i * 4)) & 0x0F).map(n => ('a' + n).toChar).mkString
+    val taskId = "index_realtime_%s_%s_%s_%s_%s" format(location.dataSource, ts, partition, replicant, suffix)
     val interval = tuning.segmentBucket(ts)
     val shutoffTime = interval.end + tuning.windowPeriod + config.firehoseGracePeriod
     val shardSpec = new LinearShardSpec(partition)
@@ -82,36 +83,61 @@ class DruidBeamMaker[A : Timestamper](
         case SchemalessDruidDimensions(xs) => Some(xs)
       }
       new MapInputRowParser(
-        timestampSpec,
-        dimensions.map(_.asJava).orNull,
-        dimensionExclusions.map(_.asJava).orNull
+        new JSONParseSpec(
+          timestampSpec,
+          new DimensionsSpec(dimensions.map(_.asJava).orNull, dimensionExclusions.map(_.asJava).orNull, null)
+        ),
+        null,
+        null,
+        null,
+        null
       )
     }
     new RealtimeIndexTask(
       taskId,
       new TaskResource(availabilityGroup, 1),
-      new Schema(
-        location.dataSource,
-        List.empty[SpatialDimensionSchema].asJava,
-        rollup.aggregators.toArray,
-        rollup.indexGranularity,
-        shardSpec
+      new FireDepartment(
+        new DataSchema(
+          location.dataSource,
+          parser,
+          rollup.aggregators.toArray,
+          new UniformGranularitySpec(tuning.segmentGranularity, rollup.indexGranularity, null, null)
+        ),
+        new RealtimeIOConfig(
+          new ClippedFirehoseFactory(
+            new TimedShutoffFirehoseFactory(
+              new EventReceiverFirehoseFactory(
+                location.environment.firehoseServicePattern format firehoseId,
+                null,
+                parser,
+                null
+              ), shutoffTime
+            ), interval
+          ),
+          null
+        ),
+        new RealtimeTuningConfig(
+          75000,
+          10.minutes,
+          tuning.windowPeriod,
+          null,
+          null,
+          new NoopRejectionPolicyFactory,
+          1,
+          shardSpec
+        ),
+        null,
+        null,
+        null,
+        null
       ),
-      new ClippedFirehoseFactory(
-        new TimedShutoffFirehoseFactory(
-          new EventReceiverFirehoseFactory(
-            location.environment.firehoseServicePattern format firehoseId,
-            null,
-            parser,
-            null
-          ), shutoffTime
-        ), interval
-      ),
-      new FireDepartmentConfig(75000, 10.minutes),
-      tuning.windowPeriod,
-      1, // TODO: put into config
-      tuning.segmentGranularityAsIndexGranularity,
-      new NoopRejectionPolicyFactory
+      null,
+      null,
+      null,
+      null,
+      1,
+      null,
+      null
     )
   }
 
