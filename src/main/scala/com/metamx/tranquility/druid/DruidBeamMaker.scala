@@ -43,7 +43,8 @@ import scala.util.Random
 class DruidBeamMaker[A: Timestamper](
   config: DruidBeamConfig,
   location: DruidLocation,
-  tuning: ClusteredBeamTuning,
+  beamTuning: ClusteredBeamTuning,
+  druidTuning: DruidTuning,
   rollup: DruidRollup,
   timestampSpec: TimestampSpec,
   finagleRegistry: FinagleRegistry,
@@ -65,8 +66,8 @@ class DruidBeamMaker[A: Timestamper](
     val rand = Random.nextInt()
     val suffix = (0 until 8).map(i => (rand >> (i * 4)) & 0x0F).map(n => ('a' + n).toChar).mkString
     val taskId = "index_realtime_%s_%s_%s_%s_%s" format(location.dataSource, ts, partition, replicant, suffix)
-    val interval = tuning.segmentBucket(ts)
-    val shutoffTime = interval.end + tuning.windowPeriod + config.firehoseGracePeriod
+    val interval = beamTuning.segmentBucket(ts)
+    val shutoffTime = interval.end + beamTuning.windowPeriod + config.firehoseGracePeriod
     val shardSpec = new LinearShardSpec(partition)
     val parser = {
       val dimensions = rollup.dimensions match {
@@ -101,7 +102,7 @@ class DruidBeamMaker[A: Timestamper](
           location.dataSource,
           parser,
           rollup.aggregators.toArray,
-          new UniformGranularitySpec(tuning.segmentGranularity, rollup.indexGranularity, null, null)
+          new UniformGranularitySpec(beamTuning.segmentGranularity, rollup.indexGranularity, null, null)
         ),
         new RealtimeIOConfig(
           new ClippedFirehoseFactory(
@@ -117,13 +118,13 @@ class DruidBeamMaker[A: Timestamper](
           null
         ),
         new RealtimeTuningConfig(
-          75000,
-          10.minutes,
-          tuning.windowPeriod,
+          druidTuning.maxRowsInMemory,
+          druidTuning.intermediatePersistPeriod,
+          beamTuning.windowPeriod,
           null,
           null,
           new NoopRejectionPolicyFactory,
-          1,
+          druidTuning.maxPendingPersists,
           shardSpec
         ),
         null,
@@ -143,16 +144,16 @@ class DruidBeamMaker[A: Timestamper](
 
   override def newBeam(interval: Interval, partition: Int) = {
     require(
-      tuning.segmentBucket(interval.start) == interval,
-      "Interval does not match segmentGranularity[%s]: %s" format(tuning.segmentGranularity, interval)
+      beamTuning.segmentBucket(interval.start) == interval,
+      "Interval does not match segmentGranularity[%s]: %s" format(beamTuning.segmentGranularity, interval)
     )
     val availabilityGroup = DruidBeamMaker.generateBaseFirehoseId(
       location.dataSource,
-      tuning.segmentGranularity,
+      beamTuning.segmentGranularity,
       interval.start,
       partition
     )
-    val futureTasks = for (replicant <- 0 until tuning.replicants) yield {
+    val futureTasks = for (replicant <- 0 until beamTuning.replicants) yield {
       val firehoseId = "%s-%04d" format(availabilityGroup, replicant)
       indexService.submit(taskObject(interval.start, availabilityGroup, firehoseId, partition, replicant)) map {
         taskId =>
@@ -186,8 +187,8 @@ class DruidBeamMaker[A: Timestamper](
   override def fromDict(d: Dict) = {
     val ts = new DateTime(d("timestamp"))
     require(
-      tuning.segmentGranularity.truncate(ts) == ts,
-      "Timestamp does not match segmentGranularity[%s]: %s" format(tuning.segmentGranularity, ts)
+      beamTuning.segmentGranularity.truncate(ts) == ts,
+      "Timestamp does not match segmentGranularity[%s]: %s" format(beamTuning.segmentGranularity, ts)
     )
     val partition = partitionFromDict(d)
     val tasks = if (d contains "tasks") {
@@ -209,7 +210,7 @@ class DruidBeamMaker[A: Timestamper](
     )
   }
 
-  override def intervalFromDict(d: Dict) = tuning.segmentBucket(new DateTime(d("timestamp")))
+  override def intervalFromDict(d: Dict) = beamTuning.segmentBucket(new DateTime(d("timestamp")))
 
   override def partitionFromDict(d: Dict) = int(d("partition"))
 }

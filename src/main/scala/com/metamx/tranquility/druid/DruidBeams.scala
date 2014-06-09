@@ -32,12 +32,12 @@ import com.metamx.tranquility.beam.{HashPartitionBeam, ClusteredBeam, ClusteredB
 import com.metamx.tranquility.finagle.{BeamService, FinagleRegistryConfig, FinagleRegistry}
 import com.metamx.tranquility.typeclass.{JsonWriter, Timestamper}
 import com.twitter.finagle.Service
+import io.druid.data.input.impl.TimestampSpec
 import java.{lang => jl, util => ju}
 import org.apache.curator.framework.CuratorFramework
 import org.joda.time.{DateTime, Interval}
 import org.scala_tools.time.Implicits._
 import scala.collection.JavaConverters._
-import io.druid.data.input.impl.TimestampSpec
 
 /**
  * Builds Beams or Finagle services that send events to the Druid indexing service.
@@ -91,6 +91,8 @@ object DruidBeams
     def discoveryPath(path: String) = new Builder[EventType](config.copy(_discoveryPath = Some(path)))
 
     def tuning(tuning: ClusteredBeamTuning) = new Builder[EventType](config.copy(_tuning = Some(tuning)))
+
+    def druidTuning(druidTuning: DruidTuning) = new Builder[EventType](config.copy(_druidTuning = Some(druidTuning)))
 
     def location(location: DruidLocation) = new Builder[EventType](config.copy(_location = Some(location)))
 
@@ -147,6 +149,7 @@ object DruidBeams
         things.druidBeamConfig,
         things.location,
         things.tuning,
+        things.druidTuning,
         things.rollup,
         things.timestampSpec,
         things.finagleRegistry,
@@ -190,6 +193,7 @@ object DruidBeams
     _curator: Option[CuratorFramework] = None,
     _discoveryPath: Option[String] = None,
     _tuning: Option[ClusteredBeamTuning] = None,
+    _druidTuning: Option[DruidTuning] = None,
     _location: Option[DruidLocation] = None,
     _rollup: Option[DruidRollup] = None,
     _timestampSpec: Option[TimestampSpec] = None,
@@ -224,6 +228,9 @@ object DruidBeams
       )
       val tuning                  = _tuning getOrElse {
         new ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 1, 1)
+      }
+      val druidTuning             = _druidTuning getOrElse {
+        new DruidTuning(75000, 10.minutes, 1)
       }
       val location                = _location getOrElse {
         throw new IllegalArgumentException("Missing 'location'")
