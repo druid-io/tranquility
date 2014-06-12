@@ -16,6 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+
 package com.metamx.tranquility.test
 
 import backtype.storm.Config
@@ -27,12 +28,11 @@ import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.druid.DruidBeams
 import com.metamx.tranquility.storm.{BeamBolt, BeamFactory}
 import com.metamx.tranquility.test.BeamBoltTest.{SimpleBeam, SimpleBeamFactory, SimpleEvent}
-import com.metamx.tranquility.test.common.{SimpleSpout, SimpleKryoFactory, StormRequiringSpec, CuratorRequiringSpec}
-import com.simple.simplespec.Spec
+import com.metamx.tranquility.test.common.{SimpleSpout, SimpleKryoFactory, StormRequiringSuite, CuratorRequiringSuite}
+import org.scalatest.FunSuite
 import com.twitter.util.Future
 import java.{util => ju}
 import org.joda.time.DateTime
-import org.junit.{Ignore, Test}
 import org.scala_tools.time.Implicits._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -40,14 +40,12 @@ import scala.collection.mutable.ArrayBuffer
 object BeamBoltTest
 {
 
-  @Ignore
   case class SimpleEvent(ts: DateTime, fields: Map[String, String])
   {
     @JsonValue
     def toMap = fields ++ Map(DruidBeams.DefaultTimestampSpec.getTimestampColumn -> ts.toString())
   }
 
-  @Ignore
   class SimpleBeam extends Beam[SimpleEvent]
   {
     def propagate(events: Seq[SimpleEvent]) = {
@@ -58,7 +56,6 @@ object BeamBoltTest
     def close() = Future.Done
   }
 
-  @Ignore
   object SimpleBeam
   {
     val buffer = new ArrayBuffer[SimpleEvent] with mutable.SynchronizedBuffer[SimpleEvent]
@@ -66,7 +63,6 @@ object BeamBoltTest
     def sortedBuffer = buffer.sortBy(_.ts.millis).toList
   }
 
-  @Ignore
   class SimpleBeamFactory extends BeamFactory[SimpleEvent]
   {
     def makeBeam(conf: ju.Map[_, _], metrics: IMetricsContext) = new SimpleBeam
@@ -74,35 +70,31 @@ object BeamBoltTest
 
 }
 
-class BeamBoltTest extends Spec with CuratorRequiringSpec with StormRequiringSpec with Logging
+class BeamBoltTest extends FunSuite with CuratorRequiringSuite with StormRequiringSuite with Logging
 {
 
-  class A
-  {
-    @Test
-    def testStormBeamBolt() {
-      withLocalCurator {
-        curator =>
-          withLocalStorm {
-            storm =>
-              val inputs = List(
-                new SimpleEvent(new DateTime("2010-01-01T02:03:04Z"), Map("hey" -> "what")),
-                new SimpleEvent(new DateTime("2010-01-01T02:03:05Z"), Map("foo" -> "bar"))
-              ).sortBy(_.ts.millis)
-              val spout = new SimpleSpout[SimpleEvent](inputs)
-              val conf = new Config
-              conf.setKryoFactory(classOf[SimpleKryoFactory])
-              val builder = new TopologyBuilder
-              builder.setSpout("events", spout)
-              builder.setBolt("beam", new BeamBolt[SimpleEvent](new SimpleBeamFactory)).shuffleGrouping("events")
-              storm.submitTopology("test", conf, builder.createTopology())
-              val start = System.currentTimeMillis()
-              while (SimpleBeam.sortedBuffer != inputs && System.currentTimeMillis() < start + 300000) {
-                Thread.sleep(2000)
-              }
-              SimpleBeam.sortedBuffer must be(inputs)
-          }
-      }
+  test("Storm BeamBolt") {
+    withLocalCurator {
+      curator =>
+        withLocalStorm {
+          storm =>
+            val inputs = List(
+              new SimpleEvent(new DateTime("2010-01-01T02:03:04Z"), Map("hey" -> "what")),
+              new SimpleEvent(new DateTime("2010-01-01T02:03:05Z"), Map("foo" -> "bar"))
+            ).sortBy(_.ts.millis)
+            val spout = new SimpleSpout[SimpleEvent](inputs)
+            val conf = new Config
+            conf.setKryoFactory(classOf[SimpleKryoFactory])
+            val builder = new TopologyBuilder
+            builder.setSpout("events", spout)
+            builder.setBolt("beam", new BeamBolt[SimpleEvent](new SimpleBeamFactory)).shuffleGrouping("events")
+            storm.submitTopology("test", conf, builder.createTopology())
+            val start = System.currentTimeMillis()
+            while (SimpleBeam.sortedBuffer != inputs && System.currentTimeMillis() < start + 300000) {
+              Thread.sleep(2000)
+            }
+            assert(SimpleBeam.sortedBuffer === inputs)
+        }
     }
   }
 

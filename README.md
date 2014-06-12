@@ -128,13 +128,12 @@ val bolt = new BeamBolt(new MyBeamFactory)
 If you're using Trident on top of Storm, you can use Trident's partitionPersist in concert with Tranquility's
 TridentBeamStateFactory (which takes a BeamFactory, like the Storm Bolt) and TridentBeamStateUpdater.
 
-## Maven
+## JARs
 
 Tranquility artifacts are hosted on the Metamarkets maven repository: https://metamx.artifactoryonline.com/metamx/pub-libs-releases-local/.
-If you set up your project to know about this repository, you can depend on one of the
-[hosted versions](https://metamx.artifactoryonline.com/metamx/pub-libs-releases-local/com/metamx/tranquility/).
+If you set up your project to know about this repository, you can depend on one of the hosted versions.
 
-The `master` branch always has the bleeding edge development version. The current stable version is:
+The current stable version is:
 
 ```xml
 <dependency>
@@ -143,6 +142,11 @@ The `master` branch always has the bleeding edge development version. The curren
   <version>0.1.19</version>
 </dependency>
 ```
+
+The `master` branch always has the bleeding edge development version. Starting with the 0.2 series, Tranquility is built
+with [SBT](http://www.scala-sbt.org/). If you want to build the jars yourself, you can run ```sbt +package```.
+Tranquility can be cross-built for multiple Scala versions, so you will get one jar for each Scala version we currently
+support.
 
 ## Storm Setup
 
@@ -162,3 +166,19 @@ zero-downtime configuration changes. These new tasks are typically submitted bef
 smooth transitions, you'll need enough indexing service worker capacity to run two sets of overlapping tasks (that's
 2 * #partitions * #replicants). The number of partitions and replicants both default to 1 (single partition, single
 copy) and can be tuned using a ClusteredBeamTuning object.
+
+## Recommended Operations
+
+At Metamarkets we run Tranquility in real-time and follow up with a nightly Hadoop batch indexing
+job to ensure eventual correctness. This is because even though Tranquility tries reasonably hard to preserve your data,
+it does not guarantee that events will be processed exactly once. In some conditions, it can drop or duplicate events:
+
+- Events with timestamps outside your configured windowPeriod will be dropped.
+- If you suffer too many Druid Middle Manager failures, some partially indexed data will be lost. You can mitigate this
+risk by using a higher number of replicas.
+- If there is a persistent issue that prevents communication with the Druid indexing service, and retry policies are
+exhausted during that period, some events will be dropped.
+- If there is an issue that prevents Tranquility from receiving an acknowledgement from the indexing service, it will
+retry the batch, which can lead to duplicated events.
+- If you are using Tranquility inside Storm, various parts of the Storm architecture have an at-least-once design and
+can lead to duplicated events.

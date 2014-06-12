@@ -16,6 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+
 package com.metamx.tranquility.test
 
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -29,22 +30,20 @@ import com.metamx.common.scala.timekeeper.TestingTimekeeper
 import com.metamx.common.scala.untyped._
 import com.metamx.emitter.core.LoggingEmitter
 import com.metamx.emitter.service.ServiceEmitter
-import com.metamx.tranquility.beam.{ClusteredBeamTuning, RoundRobinBeam, ClusteredBeamMeta, ClusteredBeam, BeamMaker, DefunctBeamException, Beam}
-import com.metamx.tranquility.test.common.CuratorRequiringSpec
+import com.metamx.tranquility.beam.{Beam, BeamMaker, ClusteredBeam, ClusteredBeamMeta, ClusteredBeamTuning, DefunctBeamException, RoundRobinBeam}
+import com.metamx.tranquility.test.common.CuratorRequiringSuite
 import com.metamx.tranquility.typeclass.Timestamper
-import com.simple.simplespec.Spec
 import com.twitter.util.{Await, Future}
-import java.util.UUID
 import org.apache.curator.framework.CuratorFramework
-import org.joda.time.{Interval, DateTime}
-import org.junit.{Before, Ignore, Test}
+import org.joda.time.{DateTime, Interval}
 import org.scala_tools.time.Implicits._
+import org.scalatest.{BeforeAndAfter, FunSuite}
+import java.util.UUID
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-class ClusteredBeamTest extends Spec with CuratorRequiringSpec
+class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeAndAfter
 {
-  @Ignore
   case class SimpleEvent(ts: DateTime, fields: Map[String, String])
 
   implicit val simpleEventTimestamper = new Timestamper[SimpleEvent] {
@@ -78,14 +77,12 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
     _beams.toList
   }
 
-  @Ignore
   class EventBuffer(val timestamp: DateTime, val partition: Int)
   {
     val buffer: mutable.Buffer[SimpleEvent] = mutable.ListBuffer()
     @volatile var open: Boolean = true
   }
 
-  @Ignore
   case class TestingBeamsHolder(
     beam: Beam[SimpleEvent],
     beamMaker: TestingBeamMaker,
@@ -105,7 +102,6 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
     }
   }
 
-  @Ignore
   class TestingBeam(val timestamp: DateTime, val partition: Int, val uuid: String = UUID.randomUUID().toString)
     extends Beam[SimpleEvent]
   {
@@ -138,7 +134,6 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
     )
   }
 
-  @Ignore
   class TestingBeamMaker extends BeamMaker[SimpleEvent, TestingBeam]
   {
     def newBeam(interval: Interval, partition: Int) = new TestingBeam(interval.start, partition)
@@ -198,351 +193,306 @@ class ClusteredBeamTest extends Spec with CuratorRequiringSpec
     )
   }
 
-  class BeamTests
-  {
-    val tuning = new ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 2, 1)
+  val tuning = new ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 2, 1)
 
-    @Before
-    def setUp() {
-      _lock.synchronized {
-        _beams.clear()
-        _buffers.clear()
-      }
-    }
-
-    @Test
-    def testExpiration() {
-      withLocalCurator {
-        curator =>
-          val beams = newBeams(curator, tuning)
-
-          // First set of events
-          beams.timekeeper.now = start
-          beams.blockagate(Seq("a", "b") map events)
-          beams.blockagate(Seq("c", "d") map events)
-          beams.blockagate(Seq("e", "f", "g") map events)
-          buffers must be(
-            Set(
-              (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
-              (new DateTime("2012-01-01T00Z"), 1, false, Nil),
-              (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "d") map events),
-              (new DateTime("2012-01-01T01Z"), 1, true, Seq("e", "f") map events)
-            )
-          )
-
-          // Move forward in time, send the same events
-          beams.timekeeper.now = start + 2.hours
-          beams.blockagate(Seq("a", "b") map events)
-          beams.blockagate(Seq("c", "d") map events)
-          beams.blockagate(Seq("e", "f", "g") map events)
-          beams.blockagate(Seq("h") map events)
-          buffers must be(
-            Set(
-              (new DateTime("2012-01-01T00Z"), 0, false, Seq("b") map events),
-              (new DateTime("2012-01-01T00Z"), 1, false, Nil),
-              (new DateTime("2012-01-01T01Z"), 0, false, Seq("c", "d") map events),
-              (new DateTime("2012-01-01T01Z"), 1, false, Seq("e", "f") map events),
-              (new DateTime("2012-01-01T03Z"), 0, true, Seq("g") map events),
-              (new DateTime("2012-01-01T03Z"), 1, true, Seq("h") map events)
-            )
-          )
-      }
-    }
-
-    @Test
-    def testMulti() {
-      withLocalCurator {
-        curator =>
-          val beamsA = newBeams(curator, tuning)
-          val beamsB = newBeams(curator, tuning)
-
-          beamsA.timekeeper.now = start
-          beamsB.timekeeper.now = start
-
-          beamsA.blockagate(Seq("b") map events)
-          beamsB.blockagate(Seq("b") map events)
-          beamsB.blockagate(Seq("d") map events)
-          beamsA.blockagate(Seq("c") map events)
-
-          buffers must be(
-            Set(
-              (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b") map events),
-              (new DateTime("2012-01-01T00Z"), 1, false, Nil),
-              (new DateTime("2012-01-01T01Z"), 0, true, Seq("d", "c") map events),
-              (new DateTime("2012-01-01T01Z"), 1, false, Nil)
-            )
-          )
-      }
-    }
-
-    @Test
-    def testFailover() {
-      withLocalCurator {
-        curator =>
-          val beamsA = newBeams(curator, tuning)
-          val beamsB = newBeams(curator, tuning)
-          val beamsC = newBeams(curator, tuning)
-
-          beamsA.timekeeper.now = start
-          beamsB.timekeeper.now = start
-          beamsC.timekeeper.now = start
-
-          beamsA.blockagate(Seq("c") map events)
-          Await.result(beamsA.close())
-
-          beamsB.blockagate(Seq("d") map events)
-          beamsC.blockagate(Seq("e") map events)
-
-          buffers must be(
-            Set(
-              (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "d", "e") map events),
-              (new DateTime("2012-01-01T01Z"), 1, false, Nil)
-            )
-          )
-      }
-    }
-
-    @Test
-    def testScaleUp() {
-      withLocalCurator {
-        curator =>
-          val oldTuning = tuning
-          val newTuning = oldTuning.copy(partitions = oldTuning.partitions + 1)
-
-          val beamsA = newBeams(curator, oldTuning)
-          beamsA.timekeeper.now = start
-          beamsA.blockagate(Seq("c") map events)
-          Await.result(beamsA.close())
-
-          buffers must be(
-            Set(
-              (new DateTime("2012-01-01T01Z"), 0, false, Seq("c") map events),
-              (new DateTime("2012-01-01T01Z"), 1, false, Nil)
-            )
-          )
-
-          val beamsB = newBeams(curator, newTuning)
-          beamsB.timekeeper.now = start
-          beamsB.blockagate(Seq("d", "b") map events)
-          beamsB.blockagate(Seq("d", "c", "b") map events)
-          beamsB.blockagate(Seq("c", "b") map events)
-          beamsB.blockagate(Seq("c", "b") map events)
-
-          buffers must be(
-            Set(
-              (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b") map events),
-              (new DateTime("2012-01-01T00Z"), 1, true, Seq("b") map events),
-              (new DateTime("2012-01-01T00Z"), 2, true, Seq("b") map events),
-              (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "d", "c") map events),
-              (new DateTime("2012-01-01T01Z"), 1, true, Seq("d", "c") map events),
-              (new DateTime("2012-01-01T01Z"), 2, true, Seq("c") map events)
-            )
-          )
-      }
-    }
-
-    @Test
-    def testScaleDown() {
-      withLocalCurator {
-        curator =>
-          val oldTuning = tuning
-          val newTuning = oldTuning.copy(partitions = oldTuning.partitions - 1)
-
-          val beamsA = newBeams(curator, oldTuning)
-          beamsA.timekeeper.now = start
-          beamsA.blockagate(Seq("c") map events)
-          Await.result(beamsA.close())
-
-          val beamsB = newBeams(curator, newTuning)
-          beamsB.timekeeper.now = start
-          beamsB.blockagate(Seq("d", "b") map events)
-          beamsB.blockagate(Seq("d", "c", "b") map events)
-          beamsB.blockagate(Seq("c", "b") map events)
-          beamsB.blockagate(Seq("c", "b") map events)
-
-          buffers must be(
-            Set(
-              (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b", "b", "b") map events),
-              (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "d", "c") map events),
-              (new DateTime("2012-01-01T01Z"), 1, true, Seq("d", "c", "c") map events)
-            )
-          )
-      }
-    }
-
-    @Test
-    def testDefunctBeam() {
-      withLocalCurator {
-        curator =>
-          val beams = newBeams(curator, tuning)
-          beams.timekeeper.now = start
-          beams.blockagate(Seq("b", "c") map events) must be(2)
-          beams.blockagate(Seq("defunct") map events) must be(0)
-          beams.blockagate(Seq("b", "c") map events) must be(1)
-
-          buffers must be(
-            Set(
-              (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
-              (new DateTime("2012-01-01T00Z"), 1, true, Seq("b") map events),
-              (new DateTime("2012-01-01T01Z"), 0, true, Seq("c") map events),
-              (new DateTime("2012-01-01T01Z"), 1, false, Nil)
-            )
-          )
-      }
-    }
-
-    @Test
-    def testWarming() {
-      withLocalCurator {
-        curator =>
-          val beams = newBeams(curator, tuning.copy(warmingPeriod = 10.minutes, windowPeriod = 6.minutes))
-          beams.timekeeper.now = start
-          beams.blockagate(Seq("b") map events) must be(1)
-          buffers must be(
-            Set(
-              (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
-              (new DateTime("2012-01-01T00Z"), 1, false, Nil),
-              (new DateTime("2012-01-01T01Z"), 0, false, Nil),
-              (new DateTime("2012-01-01T01Z"), 1, false, Nil)
-            )
-          )
-          val desired = List("2012-01-01T00Z", "2012-01-01T00Z", "2012-01-01T01Z", "2012-01-01T01Z").map(new DateTime(_))
-          val startTime = System.currentTimeMillis()
-          while (System.currentTimeMillis() < startTime + 2000 && beamsList.map(_.timestamp).sortBy(_.millis) != desired) {
-            Thread.sleep(100)
-          }
-          beamsList.map(_.timestamp).sortBy(_.millis) must be(desired)
-      }
-    }
-
-    @Test
-    def testNoBeamNecromancy() {
-      withLocalCurator {
-        curator =>
-          val beams = newBeams(curator, tuning)
-
-          beams.timekeeper.now = start
-          beams.blockagate(Seq("c") map events)
-
-          beams.timekeeper.now = start + 1.hour
-          beams.blockagate(Seq("d") map events)
-
-          beams.timekeeper.now = start
-          beams.blockagate(Seq("e") map events)
-
-          buffers must be(
-            Set(
-              (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "e") map events),
-              (new DateTime("2012-01-01T01Z"), 1, true, Seq("d") map events)
-            )
-          )
-
-          beams.timekeeper.now = start + 2.hours
-          beams.blockagate(Seq("g") map events)
-          beams.blockagate(Seq("g") map events)
-          beams.blockagate(Seq("b") map events)
-          beams.blockagate(Seq("b") map events)
-          beams.blockagate(Seq("c") map events)
-
-          beams.timekeeper.now = start
-          beams.blockagate(Seq("f") map events)
-          beams.blockagate(Seq("f") map events)
-          beams.blockagate(Seq("b") map events)
-          beams.blockagate(Seq("b") map events)
-          beams.blockagate(Seq("c") map events)
-
-          buffers must be(
-            Set(
-              (new DateTime("2012-01-01T01Z"), 0, false, Seq("c", "e") map events),
-              (new DateTime("2012-01-01T01Z"), 1, false, Seq("d") map events),
-              (new DateTime("2012-01-01T03Z"), 0, true, Seq("g") map events),
-              (new DateTime("2012-01-01T03Z"), 1, true, Seq("g") map events)
-            )
-          )
-      }
-    }
-
-    @Test
-    def testNoBeamNecromancyWhenRestarting() {
-      withLocalCurator {
-        curator =>
-          val beams = newBeams(curator, tuning)
-
-          beams.timekeeper.now = start
-          beams.blockagate(Seq("c") map events)
-
-          beams.timekeeper.now = start + 1.hour
-          beams.blockagate(Seq("d") map events)
-
-          beams.timekeeper.now = start
-          beams.blockagate(Seq("e") map events)
-
-          buffers must be(
-            Set(
-              (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "e") map events),
-              (new DateTime("2012-01-01T01Z"), 1, true, Seq("d") map events)
-            )
-          )
-
-          Await.result(beams.close())
-
-          val beams2 = newBeams(curator, tuning)
-          beams2.timekeeper.now = start + 2.hours
-          beams2.blockagate(Seq("g") map events)
-          beams2.blockagate(Seq("g") map events)
-          beams2.blockagate(Seq("b") map events)
-          beams2.blockagate(Seq("c") map events)
-
-          beams2.timekeeper.now = start
-          beams2.blockagate(Seq("f") map events)
-          beams2.blockagate(Seq("f") map events)
-          beams2.blockagate(Seq("b") map events)
-          beams2.blockagate(Seq("c") map events)
-
-          buffers must be(
-            Set(
-              (new DateTime("2012-01-01T01Z"), 0, false, Seq("c", "e") map events),
-              (new DateTime("2012-01-01T01Z"), 1, false, Seq("d") map events),
-              (new DateTime("2012-01-01T03Z"), 0, true, Seq("g") map events),
-              (new DateTime("2012-01-01T03Z"), 1, true, Seq("g") map events)
-            )
-          )
-      }
+  before {
+    _lock.synchronized {
+      _beams.clear()
+      _buffers.clear()
     }
   }
 
-  class MetaSerdeTests
-  {
-    @Test
-    def testSimple() {
-      val s = """{
-                |   "beams" : {
-                |      "2000-01-01T15:00:00.000Z" : [
-                |         {
-                |            "partition" : 123
-                |         }
-                |      ]
-                |   },
-                |   "latestTime" : "2000-01-01T15:00:00.000Z"
-                |}""".stripMargin
-      def checkMeta(meta: ClusteredBeamMeta) {
-        meta.latestTime must be(new DateTime("2000-01-01T15:00:00.000Z"))
-        meta.beamDictss.keys.toSet must be(
-          Set(
-            new DateTime("2000-01-01T15:00:00.000Z")
-          )
-        )
-        meta.beamDictss(new DateTime("2000-01-01T15:00:00.000Z")).size must be(1)
-        meta.beamDictss(new DateTime("2000-01-01T15:00:00.000Z"))(0)("partition") must be(123)
-      }
-      val objectMapper = new ObjectMapper withEffect {
-        jm =>
-          jm.registerModule(DefaultScalaModule)
-      }
-      val meta1 = ClusteredBeamMeta.fromBytes(objectMapper, s.getBytes(Charsets.UTF_8)).right.get
-      checkMeta(meta1)
-      checkMeta(ClusteredBeamMeta.fromBytes(objectMapper, meta1.toBytes(objectMapper)).right.get) // Round trip
+  test("Expiration") {
+    withLocalCurator {
+      curator =>
+        val beams = newBeams(curator, tuning)
+
+        // First set of events
+        beams.timekeeper.now = start
+        beams.blockagate(Seq("a", "b") map events)
+        beams.blockagate(Seq("c", "d") map events)
+        beams.blockagate(Seq("e", "f", "g") map events)
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
+          (new DateTime("2012-01-01T00Z"), 1, false, Nil),
+          (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "d") map events),
+          (new DateTime("2012-01-01T01Z"), 1, true, Seq("e", "f") map events)
+        ))
+
+        // Move forward in time, send the same events
+        beams.timekeeper.now = start + 2.hours
+        beams.blockagate(Seq("a", "b") map events)
+        beams.blockagate(Seq("c", "d") map events)
+        beams.blockagate(Seq("e", "f", "g") map events)
+        beams.blockagate(Seq("h") map events)
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, false, Seq("b") map events),
+          (new DateTime("2012-01-01T00Z"), 1, false, Nil),
+          (new DateTime("2012-01-01T01Z"), 0, false, Seq("c", "d") map events),
+          (new DateTime("2012-01-01T01Z"), 1, false, Seq("e", "f") map events),
+          (new DateTime("2012-01-01T03Z"), 0, true, Seq("g") map events),
+          (new DateTime("2012-01-01T03Z"), 1, true, Seq("h") map events)
+        ))
     }
+  }
+
+  test("Multi") {
+    withLocalCurator {
+      curator =>
+        val beamsA = newBeams(curator, tuning)
+        val beamsB = newBeams(curator, tuning)
+
+        beamsA.timekeeper.now = start
+        beamsB.timekeeper.now = start
+
+        beamsA.blockagate(Seq("b") map events)
+        beamsB.blockagate(Seq("b") map events)
+        beamsB.blockagate(Seq("d") map events)
+        beamsA.blockagate(Seq("c") map events)
+
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b") map events),
+          (new DateTime("2012-01-01T00Z"), 1, false, Nil),
+          (new DateTime("2012-01-01T01Z"), 0, true, Seq("d", "c") map events),
+          (new DateTime("2012-01-01T01Z"), 1, false, Nil)
+        ))
+    }
+  }
+
+  test("Failover") {
+    withLocalCurator {
+      curator =>
+        val beamsA = newBeams(curator, tuning)
+        val beamsB = newBeams(curator, tuning)
+        val beamsC = newBeams(curator, tuning)
+
+        beamsA.timekeeper.now = start
+        beamsB.timekeeper.now = start
+        beamsC.timekeeper.now = start
+
+        beamsA.blockagate(Seq("c") map events)
+        Await.result(beamsA.close())
+
+        beamsB.blockagate(Seq("d") map events)
+        beamsC.blockagate(Seq("e") map events)
+
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "d", "e") map events),
+          (new DateTime("2012-01-01T01Z"), 1, false, Nil)
+        ))
+    }
+  }
+
+  test("ScaleUp") {
+    withLocalCurator {
+      curator =>
+        val oldTuning = tuning
+        val newTuning = oldTuning.copy(partitions = oldTuning.partitions + 1)
+
+        val beamsA = newBeams(curator, oldTuning)
+        beamsA.timekeeper.now = start
+        beamsA.blockagate(Seq("c") map events)
+        Await.result(beamsA.close())
+
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T01Z"), 0, false, Seq("c") map events),
+          (new DateTime("2012-01-01T01Z"), 1, false, Nil)
+        ))
+
+        val beamsB = newBeams(curator, newTuning)
+        beamsB.timekeeper.now = start
+        beamsB.blockagate(Seq("d", "b") map events)
+        beamsB.blockagate(Seq("d", "c", "b") map events)
+        beamsB.blockagate(Seq("c", "b") map events)
+        beamsB.blockagate(Seq("c", "b") map events)
+
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b") map events),
+          (new DateTime("2012-01-01T00Z"), 1, true, Seq("b") map events),
+          (new DateTime("2012-01-01T00Z"), 2, true, Seq("b") map events),
+          (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "d", "c") map events),
+          (new DateTime("2012-01-01T01Z"), 1, true, Seq("d", "c") map events),
+          (new DateTime("2012-01-01T01Z"), 2, true, Seq("c") map events)
+        ))
+    }
+  }
+
+  test("ScaleDown") {
+    withLocalCurator {
+      curator =>
+        val oldTuning = tuning
+        val newTuning = oldTuning.copy(partitions = oldTuning.partitions - 1)
+
+        val beamsA = newBeams(curator, oldTuning)
+        beamsA.timekeeper.now = start
+        beamsA.blockagate(Seq("c") map events)
+        Await.result(beamsA.close())
+
+        val beamsB = newBeams(curator, newTuning)
+        beamsB.timekeeper.now = start
+        beamsB.blockagate(Seq("d", "b") map events)
+        beamsB.blockagate(Seq("d", "c", "b") map events)
+        beamsB.blockagate(Seq("c", "b") map events)
+        beamsB.blockagate(Seq("c", "b") map events)
+
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b", "b", "b") map events),
+          (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "d", "c") map events),
+          (new DateTime("2012-01-01T01Z"), 1, true, Seq("d", "c", "c") map events)
+        ))
+    }
+  }
+
+  test("DefunctBeam") {
+    withLocalCurator {
+      curator =>
+        val beams = newBeams(curator, tuning)
+        beams.timekeeper.now = start
+        assert(beams.blockagate(Seq("b", "c") map events) === 2)
+        assert(beams.blockagate(Seq("defunct") map events) === 0)
+        assert(beams.blockagate(Seq("b", "c") map events) === 1)
+
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
+          (new DateTime("2012-01-01T00Z"), 1, true, Seq("b") map events),
+          (new DateTime("2012-01-01T01Z"), 0, true, Seq("c") map events),
+          (new DateTime("2012-01-01T01Z"), 1, false, Nil)
+        ))
+    }
+  }
+
+  test("Warming") {
+    withLocalCurator {
+      curator =>
+        val beams = newBeams(curator, tuning.copy(warmingPeriod = 10.minutes, windowPeriod = 6.minutes))
+        beams.timekeeper.now = start
+        assert(beams.blockagate(Seq("b") map events) === 1)
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
+          (new DateTime("2012-01-01T00Z"), 1, false, Nil),
+          (new DateTime("2012-01-01T01Z"), 0, false, Nil),
+          (new DateTime("2012-01-01T01Z"), 1, false, Nil)
+        ))
+        val desired = List("2012-01-01T00Z", "2012-01-01T00Z", "2012-01-01T01Z", "2012-01-01T01Z").map(new DateTime(_))
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() < startTime + 2000 && beamsList.map(_.timestamp).sortBy(_.millis) != desired) {
+          Thread.sleep(100)
+        }
+        assert(beamsList.map(_.timestamp).sortBy(_.millis) === desired)
+    }
+  }
+
+  test("NoBeamNecromancy") {
+    withLocalCurator {
+      curator =>
+        val beams = newBeams(curator, tuning)
+
+        beams.timekeeper.now = start
+        beams.blockagate(Seq("c") map events)
+
+        beams.timekeeper.now = start + 1.hour
+        beams.blockagate(Seq("d") map events)
+
+        beams.timekeeper.now = start
+        beams.blockagate(Seq("e") map events)
+
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "e") map events),
+          (new DateTime("2012-01-01T01Z"), 1, true, Seq("d") map events)
+        ))
+
+        beams.timekeeper.now = start + 2.hours
+        beams.blockagate(Seq("g") map events)
+        beams.blockagate(Seq("g") map events)
+        beams.blockagate(Seq("b") map events)
+        beams.blockagate(Seq("b") map events)
+        beams.blockagate(Seq("c") map events)
+
+        beams.timekeeper.now = start
+        beams.blockagate(Seq("f") map events)
+        beams.blockagate(Seq("f") map events)
+        beams.blockagate(Seq("b") map events)
+        beams.blockagate(Seq("b") map events)
+        beams.blockagate(Seq("c") map events)
+
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T01Z"), 0, false, Seq("c", "e") map events),
+          (new DateTime("2012-01-01T01Z"), 1, false, Seq("d") map events),
+          (new DateTime("2012-01-01T03Z"), 0, true, Seq("g") map events),
+          (new DateTime("2012-01-01T03Z"), 1, true, Seq("g") map events)
+        ))
+    }
+  }
+
+  test("NoBeamNecromancyWhenRestarting") {
+    withLocalCurator {
+      curator =>
+        val beams = newBeams(curator, tuning)
+
+        beams.timekeeper.now = start
+        beams.blockagate(Seq("c") map events)
+
+        beams.timekeeper.now = start + 1.hour
+        beams.blockagate(Seq("d") map events)
+
+        beams.timekeeper.now = start
+        beams.blockagate(Seq("e") map events)
+
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "e") map events),
+          (new DateTime("2012-01-01T01Z"), 1, true, Seq("d") map events)
+        ))
+
+        Await.result(beams.close())
+
+        val beams2 = newBeams(curator, tuning)
+        beams2.timekeeper.now = start + 2.hours
+        beams2.blockagate(Seq("g") map events)
+        beams2.blockagate(Seq("g") map events)
+        beams2.blockagate(Seq("b") map events)
+        beams2.blockagate(Seq("c") map events)
+
+        beams2.timekeeper.now = start
+        beams2.blockagate(Seq("f") map events)
+        beams2.blockagate(Seq("f") map events)
+        beams2.blockagate(Seq("b") map events)
+        beams2.blockagate(Seq("c") map events)
+
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T01Z"), 0, false, Seq("c", "e") map events),
+          (new DateTime("2012-01-01T01Z"), 1, false, Seq("d") map events),
+          (new DateTime("2012-01-01T03Z"), 0, true, Seq("g") map events),
+          (new DateTime("2012-01-01T03Z"), 1, true, Seq("g") map events)
+        ))
+    }
+  }
+
+  test("MetaSerde") {
+    val s = """{
+              |   "beams" : {
+              |      "2000-01-01T15:00:00.000Z" : [
+              |         {
+              |            "partition" : 123
+              |         }
+              |      ]
+              |   },
+              |   "latestTime" : "2000-01-01T15:00:00.000Z"
+              |}""".stripMargin
+    def checkMeta(meta: ClusteredBeamMeta) {
+      assert(meta.latestTime === new DateTime("2000-01-01T15:00:00.000Z"))
+      assert(meta.beamDictss.keys.toSet === Set(
+          new DateTime("2000-01-01T15:00:00.000Z")
+      ))
+      assert(meta.beamDictss(new DateTime("2000-01-01T15:00:00.000Z")).size === 1)
+      assert(meta.beamDictss(new DateTime("2000-01-01T15:00:00.000Z"))(0)("partition") === 123)
+    }
+    val objectMapper = new ObjectMapper withEffect {
+      jm =>
+        jm.registerModule(DefaultScalaModule)
+    }
+    val meta1 = ClusteredBeamMeta.fromBytes(objectMapper, s.getBytes(Charsets.UTF_8)).right.get
+    checkMeta(meta1)
+    checkMeta(ClusteredBeamMeta.fromBytes(objectMapper, meta1.toBytes(objectMapper)).right.get) // Round trip
   }
 
 }
