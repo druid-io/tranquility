@@ -22,6 +22,8 @@ parallelExecution in Test := false
 
 fork in Test := true
 
+publishArtifact in (Test, packageBin) := true
+
 testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-Duser.timezone=UTC")
 
 javaOptions += "-Duser.timezone=UTC"
