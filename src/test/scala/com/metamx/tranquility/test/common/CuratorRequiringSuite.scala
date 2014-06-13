@@ -16,17 +16,15 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+
 package com.metamx.tranquility.test.common
 
-import com.simple.simplespec.Spec
-import org.apache.curator.framework.{CuratorFrameworkFactory, CuratorFramework}
+import org.apache.curator.framework.{CuratorFramework, CuratorFrameworkFactory}
 import org.apache.curator.retry.BoundedExponentialBackoffRetry
 import org.apache.curator.test.TestingCluster
 
-trait CuratorRequiringSpec
+trait CuratorRequiringSuite
 {
-  self: Spec =>
-
   def withLocalCurator[A](f: CuratorFramework => A): A = {
     val cluster = new TestingCluster(1)
     val curator = CuratorFrameworkFactory.newClient(
