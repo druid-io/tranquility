@@ -22,6 +22,8 @@ parallelExecution in Test := false
 
 fork in Test := true
 
+publishArtifact in (Test, packageBin) := true
+
 testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-Duser.timezone=UTC")
 
 javaOptions += "-Duser.timezone=UTC"
@@ -36,7 +38,7 @@ val jacksonFasterxmlVersion = "2.2.2"
 val druidVersion = "0.6.121"
 
 libraryDependencies ++= Seq(
-  "com.metamx" %% "scala-util" % "1.8.11" force()
+  "com.metamx" %% "scala-util" % "1.8.15" force()
 )
 
 libraryDependencies ++= Seq(
@@ -93,7 +95,7 @@ libraryDependencies <++= scalaVersion {
 // Need druid-services for the test-everything integration test.
 libraryDependencies ++= Seq(
   "io.druid" % "druid-services" % druidVersion % "test" force(),
-  "org.apache.curator" % "curator-test" % "2.3.0" % "test" force(),
+  "org.apache.curator" % "curator-test" % "2.4.0" % "test" force(),
   "com.sun.jersey" % "jersey-servlet" % "1.17.1" % "test" force(),
   "junit" % "junit" % "4.11" % "test",
   "com.novocode" % "junit-interface" % "0.11-RC1" % "test"
