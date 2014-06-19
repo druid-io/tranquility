@@ -150,6 +150,12 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
         }
         newMeta
       }
+      catch {
+        case e: Throwable =>
+          // Log Throwables to avoid invisible errors caused by https://github.com/twitter/util/issues/100.
+          log.error(e, "Failed to update cluster state: %s", identifier)
+          throw e
+      }
       finally {
         mutex.release()
       }
