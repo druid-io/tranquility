@@ -11,7 +11,7 @@ lazy val root = project.in(file("."))
 net.virtualvoid.sbt.graph.Plugin.graphSettings
 
 resolvers ++= Seq(
-  "Metamarkets Releases" at "https://metamx.artifactoryonline.com/metamx/pub-libs-releases-local/"
+  "Metamarkets Releases" at "https://metamx.artifactoryonline.com/metamx/libs-releases/"
 )
 
 publishMavenStyle := true
