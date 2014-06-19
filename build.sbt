@@ -69,7 +69,7 @@ libraryDependencies ++= Seq(
 //
 
 libraryDependencies ++= Seq(
-  "org.apache.storm" % "storm-core" % "0.9.1-incubating-mmx2" % "optional"
+  "org.apache.storm" % "storm-core" % "0.9.1-incubating-mmx4" % "optional"
     exclude("javax.jms", "jms")
     exclude("org.slf4j", "log4j-over-slf4j")
     force(),
