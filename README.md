@@ -138,15 +138,16 @@ The current stable version is:
 ```xml
 <dependency>
   <groupId>com.metamx</groupId>
-  <artifactId>tranquility</artifactId>
-  <version>0.1.19</version>
+  <artifactId>tranquility_2.10</artifactId>
+  <!-- Or for scala 2.9: -->
+  <!-- <artifactId>tranquility_2.9.1</artifactId> -->
+  <version>0.2.1</version>
 </dependency>
 ```
 
-The `master` branch always has the bleeding edge development version. Starting with the 0.2 series, Tranquility is built
-with [SBT](http://www.scala-sbt.org/). If you want to build the jars yourself, you can run ```sbt +package```.
-Tranquility can be cross-built for multiple Scala versions, so you will get one jar for each Scala version we currently
-support.
+Tranquility is built with [SBT](http://www.scala-sbt.org/). If you want to build the jars yourself, you can
+run ```sbt +package```. Tranquility can be cross-built for multiple Scala versions, so you will get one jar
+for each Scala version we currently support.
 
 ## Storm Setup
 
