@@ -34,7 +34,7 @@ import com.metamx.common.scala.timekeeper.{TestingTimekeeper, Timekeeper}
 import com.metamx.common.scala.untyped.Dict
 import com.metamx.common.scala.{Jackson, Logging}
 import com.metamx.tranquility.beam.{ClusteredBeamTuning, RoundRobinBeam}
-import com.metamx.tranquility.druid.{DruidBeams, DruidEnvironment, DruidGuicer, DruidLocation, DruidRollup, SpecificDruidDimensions}
+import com.metamx.tranquility.druid.{DruidBeams, DruidEnvironment, DruidLocation, DruidRollup, SpecificDruidDimensions}
 import com.metamx.tranquility.storm.{BeamBolt, BeamFactory}
 import com.metamx.tranquility.test.DruidIntegrationTest._
 import com.metamx.tranquility.test.common._
@@ -274,14 +274,6 @@ class DruidIntegrationTest
       }
       assert(got === expected)
     }
-  }
-
-  before {
-    // The overlord servlets don't get set up properly unless the DruidGuicer is initialized first. The scary
-    // message "WARNING: Multiple Servlet injectors detected. This is a warning indicating that you have more than
-    // one GuiceFilter running in your web application." also appears. Might be that the two injectors are stomping
-    // on each other somehow, so we need to set up the one that actually uses its servlets last?
-    DruidGuicer
   }
 
   test("DruidStandalone")
