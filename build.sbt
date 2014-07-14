@@ -38,7 +38,7 @@ val jacksonFasterxmlVersion = "2.2.2"
 val druidVersion = "0.6.121"
 
 libraryDependencies ++= Seq(
-  "com.metamx" %% "scala-util" % "1.8.15" force()
+  "com.metamx" %% "scala-util" % "1.8.20" force()
 )
 
 libraryDependencies ++= Seq(
