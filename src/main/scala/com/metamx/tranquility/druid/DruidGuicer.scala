@@ -22,10 +22,9 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.inject.util.Modules
 import com.google.inject.{Binder, Guice, Key, Module}
 import io.druid.guice.annotations.{Json, Self, Smile}
-import io.druid.guice.{LifecycleModule, QueryableModule, DruidSecondaryModule, FirehoseModule, JsonConfigProvider, ServerModule}
+import io.druid.guice.{DruidSecondaryModule, ExtensionsConfig, FirehoseModule, GuiceInjectors, JsonConfigProvider, LifecycleModule, QueryableModule, ServerModule}
 import io.druid.initialization.{DruidModule, Initialization}
 import io.druid.server.DruidNode
-import io.druid.server.initialization.ExtensionsConfig
 import scala.collection.JavaConverters._
 
 object DruidGuicer
@@ -37,7 +36,7 @@ object DruidGuicer
     // the Jetty-related modules seem to cause problems if someone else is doing something similar in the same JVM. We
     // get the scary message, "WARNING: Multiple Servlet injectors detected. This is a warning indicating that you have
     // more than one GuiceFilter running in your web application." So let's try to use as few modules as possible.
-    val startupInjector = Initialization.makeStartupInjector
+    val startupInjector = GuiceInjectors.makeStartupInjector()
     def registerWithJackson(m: DruidModule) {
       m.getJacksonModules.asScala foreach {
         jacksonModule =>

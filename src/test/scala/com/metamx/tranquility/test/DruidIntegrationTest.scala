@@ -43,6 +43,7 @@ import com.twitter.util.{Await, Future}
 import io.druid.cli.{CliBroker, CliOverlord, GuiceRunnable}
 import io.druid.data.input.impl.TimestampSpec
 import io.druid.granularity.QueryGranularity
+import io.druid.guice.GuiceInjectors
 import io.druid.initialization.Initialization
 import io.druid.query.aggregation.{AggregatorFactory, LongSumAggregatorFactory}
 import io.druid.query.{Druids, QuerySegmentWalker}
@@ -149,7 +150,7 @@ class DruidIntegrationTest
     val serverName = server.getClass.getName
     // Would be better to have a way to easily pass Properties into the startup injector.
     System.setProperty("druid.properties.file", configFile.toString)
-    server.configure(Initialization.makeStartupInjector())
+    server.configure(GuiceInjectors.makeStartupInjector())
     val _injector = server.makeInjector()
     val lifecycle = server.initLifecycle(_injector)
     System.clearProperty("druid.properties.file")
