@@ -97,7 +97,8 @@ class DruidBeam[A : Timestamper](
       client <- clients.get(task) if client.active
     } yield {
       val eventPost = HttpPost(
-        "/druid/worker/v1/chat/%s/push-events" format task.firehoseId
+        "/druid/worker/v1/chat/%s/push-events" format
+          (location.environment.firehoseServicePattern format task.firehoseId)
       ) withEffect {
         req =>
           req.headers.set("Content-Type", "application/json")
