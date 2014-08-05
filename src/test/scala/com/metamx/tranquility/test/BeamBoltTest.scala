@@ -24,23 +24,24 @@ import backtype.storm.task.IMetricsContext
 import backtype.storm.topology.TopologyBuilder
 import com.fasterxml.jackson.annotation.JsonValue
 import com.metamx.common.scala.Logging
+import com.metamx.common.scala.untyped.Dict
 import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.druid.DruidBeams
 import com.metamx.tranquility.storm.{BeamBolt, BeamFactory}
 import com.metamx.tranquility.test.BeamBoltTest.{SimpleBeam, SimpleBeamFactory, SimpleEvent}
-import com.metamx.tranquility.test.common.{SimpleSpout, SimpleKryoFactory, StormRequiringSuite, CuratorRequiringSuite}
-import org.scalatest.FunSuite
+import com.metamx.tranquility.test.common.{CuratorRequiringSuite, SimpleKryoFactory, SimpleSpout, StormRequiringSuite}
 import com.twitter.util.Future
 import java.{util => ju}
 import org.joda.time.DateTime
 import org.scala_tools.time.Implicits._
+import org.scalatest.FunSuite
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 object BeamBoltTest
 {
 
-  case class SimpleEvent(ts: DateTime, fields: Map[String, String])
+  case class SimpleEvent(ts: DateTime, fields: Dict)
   {
     @JsonValue
     def toMap = fields ++ Map(DruidBeams.DefaultTimestampSpec.getTimestampColumn -> ts.toString())

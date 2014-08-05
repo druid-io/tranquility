@@ -23,19 +23,19 @@ import com.metamx.common.scala.Logging
 import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.common.scala.untyped._
 import com.metamx.emitter.service.ServiceEmitter
-import com.metamx.tranquility.beam.{ClusteredBeamTuning, BeamMaker}
+import com.metamx.tranquility.beam.{BeamMaker, ClusteredBeamTuning}
 import com.metamx.tranquility.finagle.FinagleRegistry
 import com.metamx.tranquility.typeclass.{JsonWriter, Timestamper}
-import com.twitter.util.{Future, Await}
-import io.druid.data.input.impl.{DimensionsSpec, JSONParseSpec, TimestampSpec, MapInputRowParser}
-import io.druid.indexing.common.task.{Task, TaskResource, RealtimeIndexTask}
+import com.twitter.util.{Await, Future}
+import io.druid.data.input.impl.{DimensionsSpec, JSONParseSpec, MapInputRowParser, TimestampSpec}
+import io.druid.indexing.common.task.{RealtimeIndexTask, Task, TaskResource}
 import io.druid.segment.indexing.granularity.UniformGranularitySpec
-import io.druid.segment.indexing.{RealtimeTuningConfig, RealtimeIOConfig, DataSchema}
+import io.druid.segment.indexing.{DataSchema, RealtimeIOConfig, RealtimeTuningConfig}
 import io.druid.segment.realtime.FireDepartment
-import io.druid.segment.realtime.firehose.{EventReceiverFirehoseFactory, TimedShutoffFirehoseFactory, ClippedFirehoseFactory}
+import io.druid.segment.realtime.firehose.{ClippedFirehoseFactory, EventReceiverFirehoseFactory, TimedShutoffFirehoseFactory}
 import io.druid.segment.realtime.plumber.NoopRejectionPolicyFactory
 import io.druid.timeline.partition.LinearShardSpec
-import org.joda.time.{Interval, DateTime}
+import org.joda.time.{DateTime, Interval}
 import org.scala_tools.time.Implicits._
 import scala.collection.JavaConverters._
 import scala.util.Random
@@ -71,22 +71,28 @@ class DruidBeamMaker[A: Timestamper](
     val shardSpec = new LinearShardSpec(partition)
     val parser = {
       val dimensions = rollup.dimensions match {
-        case SpecificDruidDimensions(xs) =>
+        case SpecificDruidDimensions(xs, _) =>
+          // Workaround for https://github.com/metamx/druid/issues/658
           // Sort dimension names to trick IndexMerger into working correctly (it assumes row comparator based on
           // lexicographically ordered dimension names, which will only be the case if we force it here)
           Some(xs.sorted)
-        case SchemalessDruidDimensions(xs) =>
-          // null dimensions causes the Druid parser to go schemaless
+        case SchemalessDruidDimensions(xs, _) =>
+          // Null dimensions causes the Druid parser to go schemaless
           None
       }
       val dimensionExclusions = rollup.dimensions match {
-        case SpecificDruidDimensions(xs) => None
-        case SchemalessDruidDimensions(xs) => Some(xs)
+        case SpecificDruidDimensions(xs, _) => None
+        case SchemalessDruidDimensions(xs, _) => Some(xs)
       }
+      val spatialDimensions = rollup.dimensions.spatialDimensions
       new MapInputRowParser(
         new JSONParseSpec(
           timestampSpec,
-          new DimensionsSpec(dimensions.map(_.asJava).orNull, dimensionExclusions.map(_.asJava).orNull, null)
+          new DimensionsSpec(
+            dimensions.map(_.asJava).orNull,
+            dimensionExclusions.map(_.asJava).orNull,
+            spatialDimensions.map(_.schema).asJava
+          )
         ),
         null,
         null,

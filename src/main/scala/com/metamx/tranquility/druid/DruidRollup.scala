@@ -18,6 +18,7 @@
  */
 package com.metamx.tranquility.druid
 
+import io.druid.data.input.impl.SpatialDimensionSchema
 import io.druid.granularity.QueryGranularity
 import io.druid.query.aggregation.AggregatorFactory
 import scala.collection.JavaConverters._
@@ -29,9 +30,55 @@ class DruidRollup(
   val indexGranularity: QueryGranularity
 )
 
+sealed abstract class DruidSpatialDimension
+{
+  def schema: SpatialDimensionSchema
+}
+
+case class SingleFieldDruidSpatialDimension(name: String) extends DruidSpatialDimension
+{
+  override def schema = new SpatialDimensionSchema(name, List.empty[String].asJava)
+}
+
+case class MultipleFieldDruidSpatialDimension(name: String, fieldNames: Seq[String]) extends DruidSpatialDimension
+{
+  override def schema = new SpatialDimensionSchema(name, fieldNames.asJava)
+}
+
 sealed abstract class DruidDimensions
-case class SpecificDruidDimensions(dimensions: IndexedSeq[String]) extends DruidDimensions
-case class SchemalessDruidDimensions(dimensionExclusions: IndexedSeq[String]) extends DruidDimensions
+{
+  def spatialDimensions: IndexedSeq[DruidSpatialDimension]
+}
+
+case class SpecificDruidDimensions(
+  dimensions: IndexedSeq[String],
+  spatialDimensions: IndexedSeq[DruidSpatialDimension] = Vector.empty
+) extends DruidDimensions
+{
+  /**
+   * Convenience method for Java users. Scala users should use "copy".
+   */
+  def withSpatialDimensions(xs: java.util.List[DruidSpatialDimension]) = copy(
+    spatialDimensions = xs
+      .asScala
+      .toIndexedSeq
+  )
+}
+
+case class SchemalessDruidDimensions(
+  dimensionExclusions: IndexedSeq[String],
+  spatialDimensions: IndexedSeq[DruidSpatialDimension] = Vector.empty
+) extends DruidDimensions
+{
+  /**
+   * Convenience method for Java users. Scala users should use "copy".
+   */
+  def withSpatialDimensions(xs: java.util.List[DruidSpatialDimension]) = copy(
+    spatialDimensions = xs
+      .asScala
+      .toIndexedSeq
+  )
+}
 
 object DruidRollup
 {
@@ -75,7 +122,7 @@ object DruidRollup
   ) =
   {
     new DruidRollup(
-      SpecificDruidDimensions(dimensions.asScala.toIndexedSeq),
+      SpecificDruidDimensions(dimensions.asScala.toIndexedSeq, Vector.empty),
       aggregators.asScala.toIndexedSeq,
       indexGranularity
     )
@@ -88,20 +135,20 @@ object DruidDimensions
    * Builder for Java users.
    */
   def specific(dimensions: java.util.List[String]): DruidDimensions = {
-    SpecificDruidDimensions(dimensions.asScala.toIndexedSeq)
+    SpecificDruidDimensions(dimensions.asScala.toIndexedSeq, Vector.empty)
   }
 
   /**
    * Builder for Java users.
    */
   def schemaless(): DruidDimensions = {
-    SchemalessDruidDimensions(Vector.empty)
+    SchemalessDruidDimensions(Vector.empty, Vector.empty)
   }
 
   /**
    * Builder for Java users.
    */
   def schemalessWithExclusions(dimensionExclusions: java.util.List[String]): DruidDimensions = {
-    SchemalessDruidDimensions(dimensionExclusions.asScala.toIndexedSeq)
+    SchemalessDruidDimensions(dimensionExclusions.asScala.toIndexedSeq, Vector.empty)
   }
 }

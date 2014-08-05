@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.common.base.Charsets
 import com.google.common.io.{CharStreams, Files}
 import com.google.inject.Injector
+import com.metamx.collections.spatial.search.RectangularBound
 import com.metamx.common.Granularity
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.concurrent.loggingThread
@@ -34,7 +35,7 @@ import com.metamx.common.scala.timekeeper.{TestingTimekeeper, Timekeeper}
 import com.metamx.common.scala.untyped.Dict
 import com.metamx.common.scala.{Jackson, Logging}
 import com.metamx.tranquility.beam.{ClusteredBeamTuning, RoundRobinBeam}
-import com.metamx.tranquility.druid.{DruidBeams, DruidEnvironment, DruidLocation, DruidRollup, SpecificDruidDimensions}
+import com.metamx.tranquility.druid.{DruidTuning, DruidBeams, DruidEnvironment, DruidLocation, DruidRollup, MultipleFieldDruidSpatialDimension, SpecificDruidDimensions}
 import com.metamx.tranquility.storm.{BeamBolt, BeamFactory}
 import com.metamx.tranquility.test.DruidIntegrationTest._
 import com.metamx.tranquility.test.common._
@@ -44,9 +45,9 @@ import io.druid.cli.{CliBroker, CliOverlord, GuiceRunnable}
 import io.druid.data.input.impl.TimestampSpec
 import io.druid.granularity.QueryGranularity
 import io.druid.guice.GuiceInjectors
-import io.druid.initialization.Initialization
 import io.druid.query.aggregation.{AggregatorFactory, LongSumAggregatorFactory}
-import io.druid.query.{Druids, QuerySegmentWalker}
+import io.druid.query.filter.SpatialDimFilter
+import io.druid.query.{Query, Druids, QuerySegmentWalker}
 import io.druid.server.ClientQuerySegmentWalker
 import java.io.{File, InputStreamReader}
 import java.{util => ju}
@@ -67,8 +68,8 @@ object DruidIntegrationTest
     // Need to use somewhat nowish timestamps for the timekeeper, because this is an integration test
     // against unmodified Druid indexing, and it will use real wall clock time to make its decisions.
     Seq(
-      SimpleEvent(now, Map("foo" -> "hey", "bar" -> "2")),
-      SimpleEvent(now + 1.minute, Map("foo" -> "what", "bar" -> "3"))
+      SimpleEvent(now, Map("foo" -> "hey", "bar" -> "2", "lat" -> "37.7833", "lon" -> "-122.4167")),
+      SimpleEvent(now + 1.minute, Map("foo" -> "what", "bar" -> "3", "lat" -> "37.7833", "lon" -> "122.4167"))
     )
   }
 
@@ -76,7 +77,7 @@ object DruidIntegrationTest
     val dataSource = "xxx"
     val tuning = ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 1, 1)
     val rollup = DruidRollup(
-      SpecificDruidDimensions(IndexedSeq("foo")),
+      SpecificDruidDimensions(Vector("foo"), Vector(MultipleFieldDruidSpatialDimension("coord.geo", Seq("lat", "lon")))),
       IndexedSeq(new LongSumAggregatorFactory("barr", "bar")),
       QueryGranularity.MINUTE
     )
@@ -114,7 +115,7 @@ object DruidIntegrationTest
     }
   }
 
-  case class SimpleEvent(ts: DateTime, fields: Map[String, String])
+  case class SimpleEvent(ts: DateTime, fields: Dict)
   {
     @JsonValue
     def toMap = fields ++ Map(TimeColumn -> (ts.millis / 1000))
@@ -249,6 +250,24 @@ class DruidIntegrationTest
           Map(
             "timestamp" -> timekeeper.now.toString(),
             "result" -> Map("barr" -> 2)
+          ),
+          Map(
+            "timestamp" -> (timekeeper.now + 1.minute).toString(),
+            "result" -> Map("barr" -> 3)
+          )
+        )),
+      ((walker: QuerySegmentWalker) => Druids
+        .newTimeseriesQueryBuilder()
+        .dataSource("xxx")
+        .granularity(QueryGranularity.MINUTE)
+        .intervals("0000/3000")
+        .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
+        .filters(new SpatialDimFilter("coord.geo", new RectangularBound(Array(35f, 120f), Array(40f, 125f))))
+        .build().run(walker),
+        Seq(
+          Map(
+            "timestamp" -> timekeeper.now.toString(),
+            "result" -> Map("barr" -> 0)
           ),
           Map(
             "timestamp" -> (timekeeper.now + 1.minute).toString(),
