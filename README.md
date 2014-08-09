@@ -172,9 +172,10 @@ copy) and can be tuned using a ClusteredBeamTuning object.
 
 ## Recommended Operations
 
-At Metamarkets we run Tranquility in real-time and follow up with a nightly Hadoop batch indexing
-job to ensure eventual correctness. This is because even though Tranquility tries reasonably hard to preserve your data,
-it does not guarantee that events will be processed exactly once. In some conditions, it can drop or duplicate events:
+At Metamarkets we send all of our data through Tranquility in real-time, but also store a copy in S3 and follow up with
+a nightly Hadoop batch indexing job to re-ingest the data. This is because even though Tranquility tries reasonably hard
+to preserve your data, it does not guarantee that events will be processed exactly once. In some conditions, it can drop
+or duplicate events:
 
 - Events with timestamps outside your configured windowPeriod will be dropped.
 - If you suffer too many Druid Middle Manager failures, some partially indexed data will be lost. You can mitigate this
