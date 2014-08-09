@@ -7,9 +7,11 @@ Trident.
 
 This project is a friend of Druid. For discussion, feel free to use the normal Druid channels: http://druid.io/community.html
 
-## Finagle
+## Direct API
 
-For general purposes, you'll likely end up using the Finagle API. You can set up and use a Finagle Service like this:
+If you want to write a program that sends data to Druid, you'll likely end up using the direct Finagle-based API. (The other alternative is the Storm API, described in the next section.)
+
+You can set up and use a Finagle Service like this:
 
 ```scala
 val indexService = "druid:overlord" // Your overlord's service name.
