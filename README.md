@@ -170,19 +170,23 @@ smooth transitions, you'll need enough indexing service worker capacity to run t
 2 * #partitions * #replicants). The number of partitions and replicants both default to 1 (single partition, single
 copy) and can be tuned using a ClusteredBeamTuning object.
 
-## Recommended Operations
+## Guarantees
 
-At Metamarkets we send all of our data through Tranquility in real-time, but also store a copy in S3 and follow up with
-a nightly Hadoop batch indexing job to re-ingest the data. This is because even though Tranquility tries reasonably hard
-to preserve your data, it does not guarantee that events will be processed exactly once. In some conditions, it can drop
-or duplicate events:
+Tranquility operates under a best-effort design. It tries reasonably hard to preserve your data, by allowing you to
+set up replicas and by retrying failed pushes for a period of time, but it does not guarantee that your events will be
+processed exactly once. In some conditions, it can drop or duplicate events:
 
 - Events with timestamps outside your configured windowPeriod will be dropped.
-- If you suffer too many Druid Middle Manager failures, some partially indexed data will be lost. You can mitigate this
-risk by using a higher number of replicas.
+- If you suffer more Druid Middle Managers failures than your configured replicas count, some partially indexed data
+may be lost.
 - If there is a persistent issue that prevents communication with the Druid indexing service, and retry policies are
-exhausted during that period, some events will be dropped.
+exhausted during that period, or the period lasts longer than your windowPeriod, some events will be dropped.
 - If there is an issue that prevents Tranquility from receiving an acknowledgement from the indexing service, it will
 retry the batch, which can lead to duplicated events.
 - If you are using Tranquility inside Storm, various parts of the Storm architecture have an at-least-once design and
 can lead to duplicated events.
+
+Our approach at Metamarkets is to send all of our data through Tranquility in real-time, but to also mitigate these
+risks by storing a copy in S3 and following up with a nightly Hadoop batch indexing job to re-ingest the data. This
+setup allows us to mitigate other risks as well, including data coming in later than expected, or needing to be
+revised after initial ingestion.
