@@ -188,5 +188,6 @@ can lead to duplicated events.
 
 Our approach at Metamarkets is to send all of our data through Tranquility in real-time, but to also mitigate these
 risks by storing a copy in S3 and following up with a nightly Hadoop batch indexing job to re-ingest the data. This
-setup allows us to mitigate other risks as well, including data coming in later than expected, or needing to be
-revised after initial ingestion.
+allow us to guarantee that in the end, every event is represented exactly once in Druid. The setup mitigates other risks
+as well, including the fact that data can come in later than expected (if a previous part of the pipeline is delayed
+by more than the windowPeriod) or may need to be revised after initial ingestion.
