@@ -144,6 +144,7 @@ class DruidBeamMaker[A: Timestamper](
       null,
       1,
       null,
+      null,
       null
     )
   }
