@@ -22,7 +22,7 @@ import com.fasterxml.jackson.core.{JsonFactory, JsonGenerator}
 import com.metamx.common.scala.Predef._
 import java.io.ByteArrayOutputStream
 
-trait JsonWriter[A] extends ObjectWriter[A]
+abstract class JsonWriter[A] extends ObjectWriter[A]
 {
   @transient private lazy val _jsonFactory = new JsonFactory
 

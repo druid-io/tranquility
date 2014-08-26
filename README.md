@@ -9,59 +9,37 @@ This project is a friend of Druid. For discussion, feel free to use the normal D
 
 ## Direct API
 
-If you want to write a program that sends data to Druid, you'll likely end up using the direct Finagle-based API. (The other alternative is the Storm API, described in the next section.)
+If you want to write a program that sends data to Druid, you'll likely end up using the direct Finagle-based API. (The
+other alternative is the Storm API, described in the next section.)
 
 You can set up and use a Finagle Service like this:
-
-```scala
-val indexService = "druid:overlord" // Your overlord's service name.
-val firehosePattern = "druid:firehose:%s" // Make up a service pattern, include %s somewhere in it.
-val discoveryPath = "/discovery" // Your overlord's druid.discovery.curator.path
-val dataSource = "foo"
-val dimensions = Seq("bar")
-val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
-
-val druidService = DruidBeams
-  .builder((eventMap: Map[String, Any]) => new DateTime(eventMap("timestamp")))
-  .curator(curator)
-  .discoveryPath(discoveryPath)
-  .location(DruidLocation(new DruidEnvironment(indexService, firehosePattern), dataSource))
-  .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularity.MINUTE))
-  .tuning(ClusteredBeamTuning(Granularity.HOUR, 10.minutes, 1, 1))
-  .buildService()
-
-// Send events to Druid:
-val numSentFuture: Future[Int] = druidService(listOfEvents)
-
-// Wait for confirmation:
-val numSent = Await.result(numSentFuture)
-```
-
-Or in Java:
 
 ```java
 final String indexService = "druid:overlord" // Your overlord's service name.
 final String firehosePattern = "druid:firehose:%s" // Make up a service pattern, include %s somewhere in it.
 final String discoveryPath = "/discovery" // Your overlord's druid.discovery.curator.path
-final String dataSource = "hey";
-final List<String> dimensions = ImmutableList.of("column");
+final String dataSource = "foo";
+final List<String> dimensions = ImmutableList.of("bar", "qux");
 final List<AggregatorFactory> aggregators = ImmutableList.<AggregatorFactory>of(
-    new CountAggregatorFactory(
-        "cnt"
-    )
+    new CountAggregatorFactory("cnt"),
+    new LongSumAggregatorFactory("baz", "baz")
 );
 
+// Tranquility needs to be able to extract timestamps from your object type (in this case, Map<String, Object>).
+final Timestamper<Map<String, Object>> timestamper = new Timestamper<Map<String, Object>>()
+{
+    @Override
+    public DateTime timestamp(Map<String, Object> theMap)
+    {
+        return new DateTime(theMap.get("timestamp"));
+    }
+};
+
+// Tranquility needs to be able to serialize your object type. By default this is done with Jackson. If you want to
+// provide an alternate serializer, you can provide your own via ```.eventWriter(...)```. In this case, we won't
+// provide one, so we're just using Jackson:
 final Service<List<Map<String, Object>>, Integer> druidService = DruidBeams
-    .builder(
-        new Timestamper<Map<String, Object>>()
-        {
-          @Override
-          public DateTime timestamp(Map<String, Object> theMap)
-          {
-            return new DateTime(theMap.get("timestamp"));
-          }
-        }
-    )
+    .builder(timestamper)
     .curator(curator)
     .discoveryPath(discoveryPath)
     .location(
@@ -80,7 +58,39 @@ final Service<List<Map<String, Object>>, Integer> druidService = DruidBeams
 final Future<Integer> numSentFuture = druidService.apply(listOfEvents);
 
 // Wait for confirmation:
-final Integer numSent = Await.result(numSent);
+final Integer numSent = Await.result(numSentFuture);
+```
+
+Or in Scala:
+
+```scala
+val indexService = "druid:overlord" // Your overlord's druid.service, with slashes replaced by colons.
+val firehosePattern = "druid:firehose:%s" // Make up a service pattern, include %s somewhere in it.
+val discoveryPath = "/discovery" // Your overlord's druid.discovery.curator.path.
+val dataSource = "foo"
+val dimensions = Seq("bar", "qux")
+val aggregators = Seq(new CountAggregatorFactory("cnt"), new LongSumAggregatorFactory("baz", "baz"))
+
+// Tranquility needs to be able to extract timestamps from your object type (in this case, Map<String, Object>).
+val timestamper = (eventMap: Map[String, Any]) => new DateTime(eventMap("timestamp"))
+
+// Tranquility needs to be able to serialize your object type. By default this is done with Jackson. If you want to
+// provide an alternate serializer, you can provide your own via ```.eventWriter(...)```. In this case, we won't
+// provide one, so we're just using Jackson:
+val druidService = DruidBeams
+  .builder(timestamper)
+  .curator(curator)
+  .discoveryPath(discoveryPath)
+  .location(DruidLocation(new DruidEnvironment(indexService, firehosePattern), dataSource))
+  .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularity.MINUTE))
+  .tuning(ClusteredBeamTuning(Granularity.HOUR, 10.minutes, 1, 1))
+  .buildService()
+
+// Send events to Druid:
+val numSentFuture: Future[Int] = druidService(listOfEvents)
+
+// Wait for confirmation:
+val numSent = Await.result(numSentFuture)
 ```
 
 ## Storm
@@ -103,9 +113,9 @@ class MyBeamFactory extends BeamFactory[Map[String, Any]]
     )
     curator.start()
 
-    val indexService = "druid:overlord" // Your overlord's service name.
+    val indexService = "druid:overlord" // Your overlord's druid.service, with slashes replaced by colons.
     val firehosePattern = "druid:firehose:%s" // Make up a service pattern, include %s somewhere in it.
-    val discoveryPath = "/discovery" // Your overlord's druid.discovery.curator.path
+    val discoveryPath = "/discovery" // Your overlord's druid.discovery.curator.path.
     val dataSource = "foo"
     val dimensions = Seq("bar")
     val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
