@@ -365,7 +365,7 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
     withLocalCurator {
       curator =>
         val beams = newBeams(curator, tuning.copy(warmingPeriod = 10.minutes, windowPeriod = 6.minutes))
-        beams.timekeeper.now = start
+        beams.timekeeper.now = new DateTime("2012-01-01T00:55Z")
         assert(beams.blockagate(Seq("b") map events) === 1)
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
@@ -379,6 +379,44 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
           Thread.sleep(100)
         }
         assert(beamsList.map(_.timestamp).sortBy(_.millis) === desired)
+    }
+  }
+
+  test("WarmingConcurrency") {
+    withLocalCurator {
+      curator =>
+        val beamsA = newBeams(curator, tuning.copy(warmingPeriod = 10.minutes, windowPeriod = 6.minutes))
+        val beamsB = newBeams(curator, tuning.copy(windowPeriod = 6.minutes))
+        beamsA.timekeeper.now = new DateTime("2012-01-01T00:55Z")
+        beamsB.timekeeper.now = new DateTime("2012-01-01T00:55Z")
+        assert(beamsA.blockagate(Seq("b") map events) === 1)
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
+          (new DateTime("2012-01-01T00Z"), 1, false, Nil),
+          (new DateTime("2012-01-01T01Z"), 0, false, Nil),
+          (new DateTime("2012-01-01T01Z"), 1, false, Nil)
+        ))
+        assert(beamsA.blockagate(Seq("c") map events) === 1)
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
+          (new DateTime("2012-01-01T00Z"), 1, false, Nil),
+          (new DateTime("2012-01-01T01Z"), 0, true, Seq("c") map events),
+          (new DateTime("2012-01-01T01Z"), 1, false, Nil)
+        ))
+        assert(beamsB.blockagate(Seq("b") map events) === 1)
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b") map events),
+          (new DateTime("2012-01-01T00Z"), 1, false, Nil),
+          (new DateTime("2012-01-01T01Z"), 0, true, Seq("c") map events),
+          (new DateTime("2012-01-01T01Z"), 1, false, Nil)
+        ))
+        assert(beamsB.blockagate(Seq("c") map events) === 1)
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b") map events),
+          (new DateTime("2012-01-01T00Z"), 1, false, Nil),
+          (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "c") map events),
+          (new DateTime("2012-01-01T01Z"), 1, false, Nil)
+        ))
     }
   }
 
@@ -476,10 +514,10 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
               |         }
               |      ]
               |   },
-              |   "latestTime" : "2000-01-01T15:00:00.000Z"
+              |   "latestCloseTime" : "2000-01-01T14:00:00.000Z"
               |}""".stripMargin
     def checkMeta(meta: ClusteredBeamMeta) {
-      assert(meta.latestTime === new DateTime("2000-01-01T15:00:00.000Z"))
+      assert(meta.latestCloseTime === new DateTime("2000-01-01T14:00:00.000Z"))
       assert(meta.beamDictss.keys.toSet === Set(
           new DateTime("2000-01-01T15:00:00.000Z")
       ))
