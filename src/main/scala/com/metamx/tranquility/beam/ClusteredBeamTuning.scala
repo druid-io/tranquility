@@ -38,7 +38,7 @@ object ClusteredBeamTuning
    * Factory method for ClusteredBeamTuning objects.
    *
    * @param segmentGranularity Each sub-beam will cover blocks of this size in the timeline. This controls how often
-   *                           segments are closed off and made immutable. {{{Granularity.HOUR}}} is usually reasonable.
+   *                           segments are closed off and made immutable. [[Granularity.HOUR]] is usually reasonable.
    * @param warmingPeriod If nonzero, create sub-beams this early. This can be useful if sub-beams take a long time
    *                      to start up.
    * @param windowPeriod Accept events this far outside of their timeline block. For example, if it's currently

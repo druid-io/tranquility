@@ -82,7 +82,7 @@ object DruidIntegrationTest
       QueryGranularity.MINUTE
     )
     val druidEnvironment = new DruidEnvironment(
-      "druid:tranquility:indexer",
+      "druid/tranquility/indexer" /* Slashes should be converted to colons */,
       "druid:tranquility:firehose:%s"
     )
     val druidLocation = new DruidLocation(druidEnvironment, dataSource)

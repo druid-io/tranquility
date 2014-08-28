@@ -93,11 +93,10 @@ public class JavaApiTest
             .curator(curator)
             .discoveryPath("/test/discovery")
             .location(
-                new DruidLocation(
-                    new DruidEnvironment(
-                        "druid:local:indexer",
-                        "druid:local:firehose:%s"
-                    ), dataSource
+                DruidLocation.create(
+                    "druid:local:indexer",
+                    "druid:local:firehose:%s",
+                    dataSource
                 )
             )
             .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularity.MINUTE))

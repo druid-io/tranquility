@@ -61,7 +61,7 @@ import scala.collection.JavaConverters._
  * }}}
  *
  * Your event type (in this case, {{{Map[String, Any]}}} must be serializable via Jackson to JSON that Druid can
- * understand. If Jackson is not an appropriate serializer, you can provide your own via {{{eventWriter}}}.
+ * understand. If Jackson is not an appropriate choice, you can provide a [[JsonWriter]] via {{{.eventWriter(...)}}}.
  */
 object DruidBeams
 {
