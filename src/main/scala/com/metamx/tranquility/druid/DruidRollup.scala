@@ -18,7 +18,7 @@
  */
 package com.metamx.tranquility.druid
 
-import io.druid.data.input.impl.SpatialDimensionSchema
+import io.druid.data.input.impl.{DimensionsSpec, SpatialDimensionSchema}
 import io.druid.granularity.QueryGranularity
 import io.druid.query.aggregation.AggregatorFactory
 import scala.collection.JavaConverters._
@@ -29,6 +29,13 @@ class DruidRollup(
   val aggregators: IndexedSeq[AggregatorFactory],
   val indexGranularity: QueryGranularity
 )
+
+sealed abstract class DruidDimensions
+{
+  def spec: DimensionsSpec
+
+  def spatialDimensions: IndexedSeq[DruidSpatialDimension]
+}
 
 sealed abstract class DruidSpatialDimension
 {
@@ -45,16 +52,21 @@ case class MultipleFieldDruidSpatialDimension(name: String, fieldNames: Seq[Stri
   override def schema = new SpatialDimensionSchema(name, fieldNames.asJava)
 }
 
-sealed abstract class DruidDimensions
-{
-  def spatialDimensions: IndexedSeq[DruidSpatialDimension]
-}
-
 case class SpecificDruidDimensions(
   dimensions: IndexedSeq[String],
   spatialDimensions: IndexedSeq[DruidSpatialDimension] = Vector.empty
 ) extends DruidDimensions
 {
+  override def spec = {
+    // Sort dimenions as a workaround for https://github.com/metamx/druid/issues/658
+    // (Indexer does not merge properly when dimensions are provided in non-lexicographic order.)
+    new DimensionsSpec(
+      dimensions.sorted.asJava,
+      null,
+      spatialDimensions.map(_.schema).asJava
+    )
+  }
+
   /**
    * Convenience method for Java users. Scala users should use "copy".
    */
@@ -70,6 +82,15 @@ case class SchemalessDruidDimensions(
   spatialDimensions: IndexedSeq[DruidSpatialDimension] = Vector.empty
 ) extends DruidDimensions
 {
+  override def spec = {
+    // Null dimensions causes the Druid parser to go schemaless.
+    new DimensionsSpec(
+      null,
+      dimensionExclusions.asJava,
+      spatialDimensions.map(_.schema).asJava
+    )
+  }
+
   /**
    * Convenience method for Java users. Scala users should use "copy".
    */

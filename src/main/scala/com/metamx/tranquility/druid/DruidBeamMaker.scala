@@ -27,7 +27,7 @@ import com.metamx.tranquility.beam.{BeamMaker, ClusteredBeamTuning}
 import com.metamx.tranquility.finagle.FinagleRegistry
 import com.metamx.tranquility.typeclass.{JsonWriter, Timestamper}
 import com.twitter.util.{Await, Future}
-import io.druid.data.input.impl.{DimensionsSpec, JSONParseSpec, MapInputRowParser, TimestampSpec}
+import io.druid.data.input.impl.{JSONParseSpec, MapInputRowParser, TimestampSpec}
 import io.druid.indexing.common.task.{RealtimeIndexTask, Task, TaskResource}
 import io.druid.segment.indexing.granularity.UniformGranularitySpec
 import io.druid.segment.indexing.{DataSchema, RealtimeIOConfig, RealtimeTuningConfig}
@@ -37,7 +37,6 @@ import io.druid.segment.realtime.plumber.NoopRejectionPolicyFactory
 import io.druid.timeline.partition.LinearShardSpec
 import org.joda.time.{DateTime, Interval}
 import org.scala_tools.time.Implicits._
-import scala.collection.JavaConverters._
 import scala.util.Random
 
 class DruidBeamMaker[A: Timestamper](
@@ -70,30 +69,8 @@ class DruidBeamMaker[A: Timestamper](
     val shutoffTime = interval.end + beamTuning.windowPeriod + config.firehoseGracePeriod
     val shardSpec = new LinearShardSpec(partition)
     val parser = {
-      val dimensions = rollup.dimensions match {
-        case SpecificDruidDimensions(xs, _) =>
-          // Workaround for https://github.com/metamx/druid/issues/658
-          // Sort dimension names to trick IndexMerger into working correctly (it assumes row comparator based on
-          // lexicographically ordered dimension names, which will only be the case if we force it here)
-          Some(xs.sorted)
-        case SchemalessDruidDimensions(xs, _) =>
-          // Null dimensions causes the Druid parser to go schemaless
-          None
-      }
-      val dimensionExclusions = rollup.dimensions match {
-        case SpecificDruidDimensions(xs, _) => None
-        case SchemalessDruidDimensions(xs, _) => Some(xs)
-      }
-      val spatialDimensions = rollup.dimensions.spatialDimensions
       new MapInputRowParser(
-        new JSONParseSpec(
-          timestampSpec,
-          new DimensionsSpec(
-            dimensions.map(_.asJava).orNull,
-            dimensionExclusions.map(_.asJava).orNull,
-            spatialDimensions.map(_.schema).asJava
-          )
-        ),
+        new JSONParseSpec(timestampSpec, rollup.dimensions.spec),
         null,
         null,
         null,
