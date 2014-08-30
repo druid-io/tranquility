@@ -15,12 +15,12 @@ other alternative is the Storm API, described in the next section.)
 You can set up and use a Finagle Service like this:
 
 ```java
-final String indexService = "druid:overlord" // Your overlord's service name.
-final String firehosePattern = "druid:firehose:%s" // Make up a service pattern, include %s somewhere in it.
-final String discoveryPath = "/discovery" // Your overlord's druid.discovery.curator.path
+final String indexService = "druid:overlord"; // Your overlord's service name.
+final String firehosePattern = "druid:firehose:%s"; // Make up a service pattern, include %s somewhere in it.
+final String discoveryPath = "/discovery"; // Your overlord's druid.discovery.curator.path
 final String dataSource = "foo";
 final List<String> dimensions = ImmutableList.of("bar", "qux");
-final List<AggregatorFactory> aggregators = ImmutableList.<AggregatorFactory>of(
+final List<AggregatorFactory> aggregators = ImmutableList.of(
     new CountAggregatorFactory("cnt"),
     new LongSumAggregatorFactory("baz", "baz")
 );
@@ -34,6 +34,14 @@ final Timestamper<Map<String, Object>> timestamper = new Timestamper<Map<String,
         return new DateTime(theMap.get("timestamp"));
     }
 };
+
+// Tranquility uses ZooKeeper (through Curator) for coordination.
+final CuratorFramework curator = CuratorFrameworkFactory
+    .builder()
+    .connectString("zk.example.com:2181")
+    .retryPolicy(new ExponentialBackoffRetry(1000, 20, 30000))
+    .build();
+curator.start();
 
 // Tranquility needs to be able to serialize your object type. By default this is done with Jackson. If you want to
 // provide an alternate serializer, you can provide your own via ```.eventWriter(...)```. In this case, we won't
@@ -58,6 +66,10 @@ final Future<Integer> numSentFuture = druidService.apply(listOfEvents);
 
 // Wait for confirmation:
 final Integer numSent = Await.result(numSentFuture);
+
+// Close lifecycled objects:
+Await.result(druidService.close());
+curator.close();
 ```
 
 Or in Scala:
