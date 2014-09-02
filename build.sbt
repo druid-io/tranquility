@@ -35,7 +35,8 @@ scalacOptions += "-Yresolve-term-conflict:object"
 releaseSettings
 
 // When updating Jackson, watch out for: https://github.com/FasterXML/jackson-module-scala/issues/148
-val jacksonFasterxmlVersion = "2.2.2"
+val jacksonOneVersion = "1.9.13"
+val jacksonTwoVersion = "2.2.2"
 val druidVersion = "0.6.146"
 
 libraryDependencies ++= Seq(
@@ -52,13 +53,20 @@ libraryDependencies ++= Seq(
   "org.slf4j" % "jul-to-slf4j" % "1.7.2" force() force()
 )
 
+// Curator uses Jackson 1.x internally, and older version cause problems with service discovery.
 libraryDependencies ++= Seq(
-  "com.fasterxml.jackson.core" % "jackson-core" % jacksonFasterxmlVersion force(),
-  "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonFasterxmlVersion force(),
-  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonFasterxmlVersion force(),
-  "com.fasterxml.jackson.dataformat" % "jackson-dataformat-smile" % jacksonFasterxmlVersion force(),
-  "com.fasterxml.jackson.datatype" % "jackson-datatype-joda" % jacksonFasterxmlVersion force(),
-  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonFasterxmlVersion force()
+  "com.fasterxml.jackson.core" % "jackson-core-asl" % jacksonOneVersion force(),
+  "com.fasterxml.jackson.core" % "jackson-mapper-asl" % jacksonOneVersion force()
+)
+
+// We use Jackson 2.x internally (and so does Druid).
+libraryDependencies ++= Seq(
+  "com.fasterxml.jackson.core" % "jackson-core" % jacksonTwoVersion force(),
+  "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonTwoVersion force(),
+  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonTwoVersion force(),
+  "com.fasterxml.jackson.dataformat" % "jackson-dataformat-smile" % jacksonTwoVersion force(),
+  "com.fasterxml.jackson.datatype" % "jackson-datatype-joda" % jacksonTwoVersion force(),
+  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonTwoVersion force()
 )
 
 libraryDependencies ++= Seq(
