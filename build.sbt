@@ -55,8 +55,8 @@ libraryDependencies ++= Seq(
 
 // Curator uses Jackson 1.x internally, and older version cause problems with service discovery.
 libraryDependencies ++= Seq(
-  "com.fasterxml.jackson.core" % "jackson-core-asl" % jacksonOneVersion force(),
-  "com.fasterxml.jackson.core" % "jackson-mapper-asl" % jacksonOneVersion force()
+  "org.codehaus.jackson" % "jackson-core-asl" % jacksonOneVersion force(),
+  "org.codehaus.jackson" % "jackson-mapper-asl" % jacksonOneVersion force()
 )
 
 // We use Jackson 2.x internally (and so does Druid).
