@@ -44,6 +44,10 @@ libraryDependencies ++= Seq(
 )
 
 libraryDependencies ++= Seq(
+  "io.netty" % "netty" % "3.9.0.Final" force()
+)
+
+libraryDependencies ++= Seq(
   "org.slf4j" % "slf4j-api" % "1.7.2" force() force(),
   "org.slf4j" % "jul-to-slf4j" % "1.7.2" force() force()
 )
