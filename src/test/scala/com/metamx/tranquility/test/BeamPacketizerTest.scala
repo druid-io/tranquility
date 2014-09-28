@@ -45,7 +45,7 @@ class BeamPacketizerTest extends FunSuite with Logging
   }
 
   test("Send by flush()") {
-    for (batchSize <- Seq(1, 2, 100); queueSize <- Seq(1, 2, 100); emitMillis <- Seq(0L, 1L, 300000000L)) {
+    for (batchSize <- Seq(1, 2, 100); queueSize <- Seq(2, 100); emitMillis <- Seq(0L, 1L, 300000000L)) {
       MemoryBeam.clear()
       val (acked, failed, packetizer) = newPacketizer(batchSize, queueSize, emitMillis)
       val desc = "(batchSize = %d, queueSize = %d, emitMillis = %d)" format (batchSize, queueSize, emitMillis)
