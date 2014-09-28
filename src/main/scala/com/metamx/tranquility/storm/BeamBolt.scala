@@ -23,12 +23,8 @@ import backtype.storm.topology.OutputFieldsDeclarer
 import backtype.storm.topology.base.BaseRichBolt
 import backtype.storm.tuple.{Fields, Tuple}
 import com.metamx.common.scala.Logging
-import com.metamx.common.scala.concurrent.loggingRunnable
-import com.metamx.tranquility.beam.Beam
-import com.twitter.util.Await
-import java.util.concurrent.{BlockingQueue, ArrayBlockingQueue}
+import com.metamx.tranquility.beam.{BeamPacketizer, BeamPacketizerListener}
 import java.{util => ju}
-import scala.collection.JavaConverters._
 
 /**
  * A Storm Bolt for using a Beam to propagate tuples.
@@ -41,62 +37,34 @@ class BeamBolt[EventType](beamFactory: BeamFactory[EventType], queueSize: Int, e
 {
   def this(beamFactory: BeamFactory[EventType]) = this(beamFactory, 1000, 1000)
 
-  @volatile private var beam      : Beam[EventType]      = null
-  @volatile private var emitThread: Thread               = null
-  @volatile private var lock      : AnyRef               = null
-  @volatile private var queue     : BlockingQueue[Tuple] = null
+  @volatile private var packetizer: BeamPacketizer[Tuple, EventType] = null
+  @volatile private var lock      : AnyRef                           = null
 
   override def prepare(conf: ju.Map[_, _], context: TopologyContext, collector: OutputCollector) {
-    require(beam == null && lock == null && queue == null, "WTF?! Already initialized, but prepare was called anyway.")
-    beam = beamFactory.makeBeam(conf, context)
+    require(packetizer == null && lock == null, "WTF?! Already initialized, but prepare was called anyway.")
     lock = new AnyRef
-    queue = new ArrayBlockingQueue[Tuple](queueSize)
-    val emitRunnable = loggingRunnable {
-      while (!Thread.currentThread().isInterrupted) {
-        val startMillis = System.currentTimeMillis()
-        val emittableJava = new ju.ArrayList[Tuple]()
-        val emittable = emittableJava.asScala
-        queue.drainTo(emittableJava)
-        if (emittable.nonEmpty) {
-          try {
-            val events: IndexedSeq[EventType] = emittable.map(_.getValue(0).asInstanceOf[EventType]).toIndexedSeq
-            log.info("Sending %,d queued events.", events.size)
-            val sent = Await.result(beam.propagate(events))
-            log.info("Sent %,d, ignored %,d queued events.", sent, events.size - sent)
-            emittable foreach collector.ack
-          }
-          catch {
-            case e: Exception =>
-              log.warn(e, "Failed to send %,d queued events.", emittable.size)
-              emittable foreach collector.fail
-          }
-        }
-        val waitMillis = startMillis + emitMillis - System.currentTimeMillis()
-        if (waitMillis > 0) {
-          lock.synchronized {
-            lock.wait(waitMillis)
-          }
-        }
-      }
+    val beam = beamFactory.makeBeam(conf, context)
+    val listener = new BeamPacketizerListener[Tuple] {
+      override def ack(a: Tuple) = collector.ack(a)
+
+      override def fail(a: Tuple) = collector.fail(a)
     }
-    emitThread = new Thread(emitRunnable)
-    emitThread.setName("BeamBolt-Emitter-%s-%d" format (context.getThisComponentId, context.getThisTaskIndex))
-    emitThread.setDaemon(true)
-    emitThread.start()
+    packetizer = new BeamPacketizer[Tuple, EventType](
+      beam,
+      t => t.getValue(0).asInstanceOf[EventType],
+      listener,
+      queueSize,
+      emitMillis
+    )
+    packetizer.start()
   }
 
   override def execute(tuple: Tuple) {
-    if (!queue.offer(tuple)) {
-      lock.synchronized {
-        lock.notifyAll()
-      }
-      queue.put(tuple)
-    }
+    packetizer.send(tuple)
   }
 
   override def cleanup() {
-    Option(emitThread) foreach (_.interrupt())
-    Await.result(beam.close())
+    packetizer.stop()
   }
 
   override def declareOutputFields(declarer: OutputFieldsDeclarer) {
