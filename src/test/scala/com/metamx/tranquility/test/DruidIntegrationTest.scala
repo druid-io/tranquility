@@ -53,7 +53,7 @@ import java.io.{File, InputStreamReader}
 import java.{util => ju}
 import org.apache.curator.framework.{CuratorFramework, CuratorFrameworkFactory}
 import org.apache.curator.retry.BoundedExponentialBackoffRetry
-import org.joda.time.DateTime
+import org.joda.time.{DateTimeZone, DateTime}
 import org.scala_tools.time.Implicits._
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import scala.collection.JavaConverters._
@@ -248,11 +248,11 @@ class DruidIntegrationTest
         .build().run(walker),
         Seq(
           Map(
-            "timestamp" -> timekeeper.now.toString(),
+            "timestamp" -> timekeeper.now.withZone(DateTimeZone.UTC).toString(),
             "result" -> Map("barr" -> 2)
           ),
           Map(
-            "timestamp" -> (timekeeper.now + 1.minute).toString(),
+            "timestamp" -> (timekeeper.now + 1.minute).withZone(DateTimeZone.UTC).toString(),
             "result" -> Map("barr" -> 3)
           )
         )),
@@ -266,11 +266,11 @@ class DruidIntegrationTest
         .build().run(walker),
         Seq(
           Map(
-            "timestamp" -> timekeeper.now.toString(),
+            "timestamp" -> timekeeper.now.withZone(DateTimeZone.UTC).toString(),
             "result" -> Map("barr" -> 0)
           ),
           Map(
-            "timestamp" -> (timekeeper.now + 1.minute).toString(),
+            "timestamp" -> (timekeeper.now + 1.minute).withZone(DateTimeZone.UTC).toString(),
             "result" -> Map("barr" -> 3)
           )
         ))

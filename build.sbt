@@ -25,10 +25,6 @@ fork in Test := true
 
 publishArtifact in (Test, packageBin) := true
 
-testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-Duser.timezone=UTC")
-
-javaOptions += "-Duser.timezone=UTC"
-
 // storm-core has a package and object with the same name
 scalacOptions += "-Yresolve-term-conflict:object"
 

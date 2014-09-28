@@ -519,10 +519,10 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
     def checkMeta(meta: ClusteredBeamMeta) {
       assert(meta.latestCloseTime === new DateTime("2000-01-01T14:00:00.000Z"))
       assert(meta.beamDictss.keys.toSet === Set(
-          new DateTime("2000-01-01T15:00:00.000Z")
+          new DateTime("2000-01-01T15:00:00.000Z").millis
       ))
-      assert(meta.beamDictss(new DateTime("2000-01-01T15:00:00.000Z")).size === 1)
-      assert(meta.beamDictss(new DateTime("2000-01-01T15:00:00.000Z"))(0)("partition") === 123)
+      assert(meta.beamDictss(new DateTime("2000-01-01T15:00:00.000Z").millis).size === 1)
+      assert(meta.beamDictss(new DateTime("2000-01-01T15:00:00.000Z").millis)(0)("partition") === 123)
     }
     val objectMapper = new ObjectMapper withEffect {
       jm =>

@@ -121,8 +121,8 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
   // that we thought were closed.
   @volatile private[this] var localLatestCloseTime = new DateTime(0)
 
-  // Beams we are currently aware of.
-  private[this] val beams = ConcurrentMap[DateTime, Beam[EventType]]()
+  // Beams we are currently aware of, interval start millis -> beam.
+  private[this] val beams = ConcurrentMap[Long, Beam[EventType]]()
 
   // Lock updates to "localLatestCloseTime" and "beams" to prevent races.
   private[this] val beamWriteMonitor = new AnyRef
@@ -173,7 +173,7 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
       tuning.segmentBucket(now - tuning.windowPeriod).start,
       tuning.segmentBucket(now + tuning.windowPeriod).end
     )
-    val futureBeamOption = beams.get(timestamp) match {
+    val futureBeamOption = beams.get(timestamp.millis) match {
       case _ if !open => Future.value(None)
       case Some(x) if windowInterval.overlaps(bucket) => Future.value(Some(x))
       case Some(x) => Future.value(None)
@@ -184,7 +184,7 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
         // This could be more efficient, but it's happening infrequently so it's probably not a big deal.
         data.modify {
           prev =>
-            val prevBeamDicts = prev.beamDictss.getOrElse(timestamp, Nil)
+            val prevBeamDicts = prev.beamDictss.getOrElse(timestamp.millis, Nil)
             if (prevBeamDicts.size >= tuning.partitions) {
               log.info(
                 "Beams already created for identifier[%s] timestamp[%s], with sufficient partitions (target = %d, actual = %d)",
@@ -226,11 +226,11 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
               val newBeamDictss = (prev.beamDictss filterNot {
                 case (ts, beam) =>
                   // Expire old beamDicts
-                  tuning.segmentGranularity.increment(ts) + tuning.windowPeriod < now
-              }) ++ Map(timestamp -> newBeamDicts)
-              val newLatestCloseTime = (
-                Seq(prev.latestCloseTime) ++ (prev.beamDictss.keySet -- newBeamDictss.keySet)
-              ).maxBy(_.millis)
+                  tuning.segmentGranularity.increment(new DateTime(ts)) + tuning.windowPeriod < now
+              }) ++ Map(timestamp.millis -> newBeamDicts)
+              val newLatestCloseTime = new DateTime(
+                (Seq(prev.latestCloseTime.millis) ++ (prev.beamDictss.keySet -- newBeamDictss.keySet)).max
+              )
               ClusteredBeamMeta(
                 newLatestCloseTime,
                 newBeamDictss
@@ -250,12 +250,12 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
               localLatestCloseTime = meta.latestCloseTime
               // Only add the beams we actually wanted at this time. This is because there might be other beams in ZK
               // that we don't want to add just yet, on account of maybe they need their partitions expanded.
-              if (!beams.contains(timestamp) && meta.beamDictss.contains(timestamp)) {
-                val beamDicts = meta.beamDictss(timestamp)
+              if (!beams.contains(timestamp.millis) && meta.beamDictss.contains(timestamp.millis)) {
+                val beamDicts = meta.beamDictss(timestamp.millis)
                 log.info("Adding beams for identifier[%s] timestamp[%s]: %s", identifier, timestamp, beamDicts)
                 // Should have better handling of unparseable zk data. Changing BeamMaker implementations currently
                 // just causes exceptions until the old dicts are cleared out.
-                beams(timestamp) = beamMergeFn(
+                beams(timestamp.millis) = beamMergeFn(
                   beamDicts map {
                     beamDict =>
                       val decorate = beamDecorateFn(
@@ -274,7 +274,7 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
                 beams.remove(timestamp)
               }
               // Return requested beam. It may not have actually been created, so it's an Option.
-              beams.get(timestamp) ifEmpty {
+              beams.get(timestamp.millis) ifEmpty {
                 log.info(
                   "Turns out we decided not to actually make beams for identifier[%s] timestamp[%s]. Returning None.",
                   identifier,
@@ -343,12 +343,12 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
                 prev =>
                   ClusteredBeamMeta(
                     Seq(prev.latestCloseTime, timestamp).maxBy(_.millis),
-                    prev.beamDictss - timestamp
+                    prev.beamDictss - timestamp.millis
                   )
               } onSuccess {
                 meta =>
                   beamWriteMonitor.synchronized {
-                    beams.remove(timestamp)
+                    beams.remove(timestamp.millis)
                   }
               } map (_ => 0)
 
@@ -382,14 +382,20 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
   override def toString = "ClusteredBeam(%s)" format identifier
 }
 
-case class ClusteredBeamMeta(latestCloseTime: DateTime, beamDictss: Map[DateTime, Seq[Dict]])
+/**
+ * Metadata stored in ZooKeeper for a ClusteredBeam.
+ *
+ * @param latestCloseTime Most recently shut-down interval (to prevent necromancy).
+ * @param beamDictss Map of interval start -> beam metadata, partition by partition.
+ */
+case class ClusteredBeamMeta(latestCloseTime: DateTime, beamDictss: Map[Long, Seq[Dict]])
 {
   def toBytes(objectMapper: ObjectMapper) = objectMapper.writeValueAsBytes(
     Dict(
       // latestTime is only being written for backwards compatibility
-      "latestTime" -> (Seq(latestCloseTime) ++ beamDictss.map(_._1)).maxBy(_.millis).toString(),
+      "latestTime" -> new DateTime((Seq(latestCloseTime.millis) ++ beamDictss.map(_._1)).max).toString(),
       "latestCloseTime" -> latestCloseTime.toString(),
-      "beams" -> beamDictss
+      "beams" -> beamDictss.map(kv => (new DateTime(kv._1).toString(), kv._2))
     )
   )
 }
@@ -401,11 +407,11 @@ object ClusteredBeamMeta
   def fromBytes[A](objectMapper: ObjectMapper, bytes: Array[Byte]): Either[Exception, ClusteredBeamMeta] = {
     try {
       val d = objectMapper.readValue(bytes, classOf[Dict])
-      val beams: Map[DateTime, Seq[Dict]] = dict(d.getOrElse("beams", Dict())) map {
+      val beams: Map[Long, Seq[Dict]] = dict(d.getOrElse("beams", Dict())) map {
         case (k, vs) =>
           val ts = new DateTime(k)
           val beamDicts = list(vs) map (dict(_))
-          (ts, beamDicts)
+          (ts.millis, beamDicts)
       }
       val latestCloseTime = new DateTime(d.getOrElse("latestCloseTime", 0L))
       Right(ClusteredBeamMeta(latestCloseTime, beams))
