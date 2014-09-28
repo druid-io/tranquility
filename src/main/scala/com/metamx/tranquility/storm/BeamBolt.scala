@@ -31,10 +31,10 @@ import java.{util => ju}
  * @param beamFactory a factory for creating the beam we will use
  * @param queueSize maximum number of tuples to keep in the beam queue
  */
-class BeamBolt[EventType](beamFactory: BeamFactory[EventType], queueSize: Int)
+class BeamBolt[EventType](beamFactory: BeamFactory[EventType], batchSize: Int, queueSize: Int, emitMillis: Long)
   extends BaseRichBolt with Logging
 {
-  def this(beamFactory: BeamFactory[EventType]) = this(beamFactory, 1000)
+  def this(beamFactory: BeamFactory[EventType]) = this(beamFactory, 200, 10000, 5000)
 
   @volatile private var packetizer: BeamPacketizer[Tuple, EventType] = null
   @volatile private var lock      : AnyRef                           = null
@@ -52,7 +52,9 @@ class BeamBolt[EventType](beamFactory: BeamFactory[EventType], queueSize: Int)
       beam,
       t => t.getValue(0).asInstanceOf[EventType],
       listener,
-      queueSize
+      batchSize,
+      queueSize,
+      emitMillis
     )
     packetizer.start()
   }
