@@ -30,12 +30,11 @@ import java.{util => ju}
  * A Storm Bolt for using a Beam to propagate tuples.
  * @param beamFactory a factory for creating the beam we will use
  * @param queueSize maximum number of tuples to keep in the beam queue
- * @param emitMillis emit at least this often
  */
-class BeamBolt[EventType](beamFactory: BeamFactory[EventType], queueSize: Int, emitMillis: Long)
+class BeamBolt[EventType](beamFactory: BeamFactory[EventType], queueSize: Int)
   extends BaseRichBolt with Logging
 {
-  def this(beamFactory: BeamFactory[EventType]) = this(beamFactory, 1000, 1000)
+  def this(beamFactory: BeamFactory[EventType]) = this(beamFactory, 1000)
 
   @volatile private var packetizer: BeamPacketizer[Tuple, EventType] = null
   @volatile private var lock      : AnyRef                           = null
@@ -53,8 +52,7 @@ class BeamBolt[EventType](beamFactory: BeamFactory[EventType], queueSize: Int, e
       beam,
       t => t.getValue(0).asInstanceOf[EventType],
       listener,
-      queueSize,
-      emitMillis
+      queueSize
     )
     packetizer.start()
   }

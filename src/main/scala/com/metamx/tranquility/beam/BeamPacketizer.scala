@@ -8,63 +8,59 @@ import java.{util => ju}
 import scala.collection.JavaConverters._
 
 /**
- * Wraps a Beam and exposes a single-event API rather than the future-batch-based API. Internally uses a queue and
+ * Wraps a Beam and exposes a single-message API rather than the future-batch-based API. Internally uses a queue and
  * single thread for sending data.
  *
- * @param queueSize maximum number of tuples to keep in the beam queue
- * @param emitMillis emit at least this often
+ * @param queueSize maximum number of messages to keep in the beam queue
  */
 class BeamPacketizer[A, B](
   beam: Beam[B],
   converter: A => B,
   listener: BeamPacketizerListener[A],
-  queueSize: Int,
-  emitMillis: Long
+  queueSize: Int
 ) extends Logging
 {
-  // Used by the send(a) to signal that the queue is full and a flush is needed ASAP.
-  private val flushNeededCondition = new AnyRef
-
-  // Used by the emitThread to signal that the queue may have been flushed.
-  private val possiblyFlushedCondition = new AnyRef
-
-  private val queue = new ArrayBlockingQueue[A](queueSize)
+  // Used by all threads to synchronize access to "unflushedCount", and by the emitThread to signal that all messages
+  // may have been flushed.
+  private val flushCondition = new AnyRef
+  private var unflushedCount = 0
+  private val queue          = new ArrayBlockingQueue[A](queueSize)
 
   private val emitThread = new Thread(
     abortingRunnable {
       try {
         while (!Thread.currentThread().isInterrupted) {
-          val startMillis = System.currentTimeMillis()
+          // Drain at least one element from the queue.
           val emittableJava = new ju.ArrayList[A]()
+          emittableJava.add(queue.take())
           queue.drainTo(emittableJava)
 
+          // Emit all drained messages.
           val emittableScala = emittableJava.asScala
           if (emittableScala.nonEmpty) {
             try {
-              log.info("Sending %,d queued events.", emittableScala.size)
+              log.info("Sending %,d queued messages.", emittableScala.size)
               val sent = Await.result(beam.propagate(emittableScala.map(converter)))
-              log.info("Sent %,d, ignored %,d queued events.", sent, emittableScala.size - sent)
+              log.info("Sent %,d, ignored %,d queued messages.", sent, emittableScala.size - sent)
               emittableScala foreach listener.ack
-              possiblyFlushedCondition.synchronized {
-                possiblyFlushedCondition.notifyAll()
-              }
             }
             catch {
               case e: Exception =>
-                log.warn(e, "Failed to send %,d queued events.", emittableScala.size)
+                log.warn(e, "Failed to send %,d queued messages.", emittableScala.size)
                 emittableScala foreach listener.fail
             }
-          }
-          val waitMillis = startMillis + emitMillis - System.currentTimeMillis()
-          if (waitMillis > 0) {
-            flushNeededCondition.synchronized {
-              flushNeededCondition.wait(waitMillis)
+
+            // Whether the messages succeeded or failed, they have been flushed.
+            flushCondition.synchronized {
+              unflushedCount -= emittableScala.size
+              flushCondition.notifyAll()
             }
           }
         }
-      } catch {
+      }
+      catch {
         case e: InterruptedException =>
-          // Exit quietly when interrupted; abort on other throwables.
+        // Exit quietly when interrupted; abort on other throwables.
       }
     }
   )
@@ -82,21 +78,16 @@ class BeamPacketizer[A, B](
   }
 
   def send(a: A) {
-    if (!queue.offer(a)) {
-      flushNeededCondition.synchronized {
-        flushNeededCondition.notifyAll()
-      }
-      queue.put(a)
+    flushCondition.synchronized {
+      unflushedCount = unflushedCount + 1
     }
+    queue.put(a)
   }
 
   def flush() {
-    flushNeededCondition.synchronized {
-      flushNeededCondition.notifyAll()
-    }
-    possiblyFlushedCondition.synchronized {
-      while (!queue.isEmpty) {
-        possiblyFlushedCondition.wait()
+    flushCondition.synchronized {
+      while (unflushedCount != 0) {
+        flushCondition.wait()
       }
     }
   }
