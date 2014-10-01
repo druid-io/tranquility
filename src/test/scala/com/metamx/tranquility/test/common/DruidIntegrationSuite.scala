@@ -4,23 +4,16 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.common.base.Charsets
 import com.google.common.io.{CharStreams, Files}
 import com.google.inject.Injector
-import com.metamx.collections.spatial.search.RectangularBound
 import com.metamx.common.scala.concurrent._
-import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.common.scala.untyped._
 import com.metamx.common.scala.{Jackson, Logging}
 import io.druid.cli.{CliBroker, CliOverlord, GuiceRunnable}
-import io.druid.granularity.QueryGranularity
 import io.druid.guice.GuiceInjectors
-import io.druid.query.aggregation.{AggregatorFactory, LongSumAggregatorFactory}
-import io.druid.query.filter.SpatialDimFilter
-import io.druid.query.{Druids, QuerySegmentWalker}
+import io.druid.query.Query
 import io.druid.server.ClientQuerySegmentWalker
 import java.io.{File, InputStreamReader}
 import org.apache.curator.framework.CuratorFramework
-import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
-import scala.collection.JavaConverters._
 import scala.util.Random
 
 trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
@@ -120,7 +113,7 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
     }
   }
 
-  def withTestStack[A](f: (CuratorFramework, DruidServerHandle, DruidServerHandle) => A): A = {
+  def withDruidStack[A](f: (CuratorFramework, DruidServerHandle, DruidServerHandle) => A): A = {
     withLocalCurator {
       curator =>
         curator.create().forPath("/beams")
@@ -134,76 +127,24 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
     }
   }
 
-  def runTestQueriesAndAssertions(druidServer: DruidServerHandle, timekeeper: Timekeeper) {
-    val testQueries = Seq(
-      ((walker: QuerySegmentWalker) => Druids
-        .newTimeBoundaryQueryBuilder()
-        .dataSource("xxx")
-        .build().run(walker),
-        Seq(
-          Map(
-            "timestamp" -> timekeeper.now.toString(),
-            "result" ->
-              Map(
-                "minTime" -> timekeeper.now.toString(),
-                "maxTime" -> (timekeeper.now + 1.minute).toString()
-              )
-          )
-        )),
-      ((walker: QuerySegmentWalker) => Druids
-        .newTimeseriesQueryBuilder()
-        .dataSource("xxx")
-        .granularity(QueryGranularity.MINUTE)
-        .intervals("0000/3000")
-        .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
-        .build().run(walker),
-        Seq(
-          Map(
-            "timestamp" -> timekeeper.now.withZone(DateTimeZone.UTC).toString(),
-            "result" -> Map("barr" -> 2)
-          ),
-          Map(
-            "timestamp" -> (timekeeper.now + 1.minute).withZone(DateTimeZone.UTC).toString(),
-            "result" -> Map("barr" -> 3)
-          )
-        )),
-      ((walker: QuerySegmentWalker) => Druids
-        .newTimeseriesQueryBuilder()
-        .dataSource("xxx")
-        .granularity(QueryGranularity.MINUTE)
-        .intervals("0000/3000")
-        .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
-        .filters(new SpatialDimFilter("coord.geo", new RectangularBound(Array(35f, 120f), Array(40f, 125f))))
-        .build().run(walker),
-        Seq(
-          Map(
-            "timestamp" -> timekeeper.now.withZone(DateTimeZone.UTC).toString(),
-            "result" -> Map("barr" -> 0)
-          ),
-          Map(
-            "timestamp" -> (timekeeper.now + 1.minute).withZone(DateTimeZone.UTC).toString(),
-            "result" -> Map("barr" -> 3)
-          )
-        ))
-    )
-    val walker = druidServer.injector.getInstance(classOf[ClientQuerySegmentWalker])
-    val druidObjectMapper = druidServer.injector.getInstance(classOf[ObjectMapper])
-    // Assertions
-    for ((queryFn, expected) <- testQueries) {
-      var got: Seq[Dict] = null
-      val start = System.currentTimeMillis()
-      while (got != expected && System.currentTimeMillis() < start + 300000L) {
-        got = Jackson.parse[Seq[Dict]](druidObjectMapper.writeValueAsBytes(queryFn(walker)))
-        val gotAsString = got.toString match {
-          case x if x.size > 1024 => x.take(1024) + " ..."
-          case x => x
-        }
-        if (got != expected) {
-          log.info("Query result[%s] != expected result[%s], waiting a bit...", gotAsString, expected)
-          Thread.sleep(1000)
-        }
+  def assertQueryResults(broker: DruidServerHandle, query: Query[_], expected: Seq[Dict]) {
+    val walker = broker.injector.getInstance(classOf[ClientQuerySegmentWalker])
+    val brokerObjectMapper = broker.injector.getInstance(classOf[ObjectMapper])
+
+    var got: Seq[Dict] = null
+    val start = System.currentTimeMillis()
+    while (got != expected && System.currentTimeMillis() < start + 300000L) {
+      got = Jackson.parse[Seq[Dict]](brokerObjectMapper.writeValueAsBytes(query.run(walker)))
+      val gotAsString = got.toString match {
+        case x if x.size > 1024 => x.take(1024) + " ..."
+        case x => x
       }
-      assert(got === expected)
+      if (got != expected) {
+        log.info("Query result[%s] != expected result[%s], waiting a bit...", gotAsString, expected)
+        Thread.sleep(500)
+      }
     }
+    assert(got === expected)
   }
+
 }
