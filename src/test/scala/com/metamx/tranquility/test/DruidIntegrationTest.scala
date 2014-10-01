@@ -23,41 +23,27 @@ import backtype.storm.Config
 import backtype.storm.task.IMetricsContext
 import backtype.storm.topology.TopologyBuilder
 import com.fasterxml.jackson.annotation.JsonValue
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.google.common.base.Charsets
-import com.google.common.io.{CharStreams, Files}
-import com.google.inject.Injector
-import com.metamx.collections.spatial.search.RectangularBound
 import com.metamx.common.Granularity
+import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
-import com.metamx.common.scala.concurrent.loggingThread
 import com.metamx.common.scala.timekeeper.{TestingTimekeeper, Timekeeper}
 import com.metamx.common.scala.untyped.Dict
-import com.metamx.common.scala.{Jackson, Logging}
 import com.metamx.tranquility.beam.{ClusteredBeamTuning, RoundRobinBeam}
-import com.metamx.tranquility.druid.{DruidTuning, DruidBeams, DruidEnvironment, DruidLocation, DruidRollup, MultipleFieldDruidSpatialDimension, SpecificDruidDimensions}
+import com.metamx.tranquility.druid.{DruidBeams, DruidEnvironment, DruidLocation, DruidRollup, MultipleFieldDruidSpatialDimension, SpecificDruidDimensions}
 import com.metamx.tranquility.storm.{BeamBolt, BeamFactory}
 import com.metamx.tranquility.test.DruidIntegrationTest._
 import com.metamx.tranquility.test.common._
 import com.metamx.tranquility.typeclass.Timestamper
 import com.twitter.util.{Await, Future}
-import io.druid.cli.{CliBroker, CliOverlord, GuiceRunnable}
 import io.druid.data.input.impl.TimestampSpec
 import io.druid.granularity.QueryGranularity
-import io.druid.guice.GuiceInjectors
-import io.druid.query.aggregation.{AggregatorFactory, LongSumAggregatorFactory}
-import io.druid.query.filter.SpatialDimFilter
-import io.druid.query.{Query, Druids, QuerySegmentWalker}
-import io.druid.server.ClientQuerySegmentWalker
-import java.io.{File, InputStreamReader}
+import io.druid.query.aggregation.LongSumAggregatorFactory
 import java.{util => ju}
 import org.apache.curator.framework.{CuratorFramework, CuratorFrameworkFactory}
 import org.apache.curator.retry.BoundedExponentialBackoffRetry
-import org.joda.time.{DateTimeZone, DateTime}
+import org.joda.time.DateTime
 import org.scala_tools.time.Implicits._
-import org.scalatest.{BeforeAndAfter, FunSuite}
-import scala.collection.JavaConverters._
-import scala.util.Random
+import org.scalatest.FunSuite
 
 object DruidIntegrationTest
 {
@@ -77,12 +63,15 @@ object DruidIntegrationTest
     val dataSource = "xxx"
     val tuning = ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 1, 1)
     val rollup = DruidRollup(
-      SpecificDruidDimensions(Vector("foo"), Vector(MultipleFieldDruidSpatialDimension("coord.geo", Seq("lat", "lon")))),
+      SpecificDruidDimensions(
+        Vector("foo"),
+        Vector(MultipleFieldDruidSpatialDimension("coord.geo", Seq("lat", "lon")))
+      ),
       IndexedSeq(new LongSumAggregatorFactory("barr", "bar")),
       QueryGranularity.MINUTE
     )
     val druidEnvironment = new DruidEnvironment(
-      "druid/tranquility/indexer" /* Slashes should be converted to colons */,
+      "druid/tranquility/indexer" /* Slashes should be converted to colons */ ,
       "druid:tranquility:firehose:%s"
     )
     val druidLocation = new DruidLocation(druidEnvironment, dataSource)
@@ -127,235 +116,53 @@ object DruidIntegrationTest
 }
 
 class DruidIntegrationTest
-  extends FunSuite with CuratorRequiringSuite with StormRequiringSuite with Logging with BeforeAndAfter
+  extends DruidIntegrationSuite with FunSuite with CuratorRequiringSuite with StormRequiringSuite with Logging
 {
 
-  trait DruidServerHandle
-  {
-    def injector: Injector
-
-    def close()
-  }
-
-  def writeConfig(configResource: String, replacements: Map[String, String]): File = {
-    val stream = ClassLoader.getSystemResourceAsStream(configResource)
-    val text = CharStreams.toString(new InputStreamReader(stream, Charsets.UTF_8))
-    val configFile = File.createTempFile("runtime-", ".properties")
-    Files.write(replacements.foldLeft(text)((a, kv) => a.replace(kv._1, kv._2)), configFile, Charsets.UTF_8)
-    configFile.deleteOnExit()
-    configFile
-  }
-
-  def spawnDruidServer[A <: GuiceRunnable : ClassManifest](configFile: File): DruidServerHandle = {
-    val server = classManifest[A].erasure.newInstance().asInstanceOf[A]
-    val serverName = server.getClass.getName
-    // Would be better to have a way to easily pass Properties into the startup injector.
-    System.setProperty("druid.properties.file", configFile.toString)
-    server.configure(GuiceInjectors.makeStartupInjector())
-    val _injector = server.makeInjector()
-    val lifecycle = server.initLifecycle(_injector)
-    System.clearProperty("druid.properties.file")
-    log.info("Server started up: %s", serverName)
-    val thread = loggingThread {
-      try {
-        lifecycle.join()
-      }
-      catch {
-        case e: Throwable =>
-          log.error(e, "Failed to run server: %s", serverName)
-          throw e
-      }
-    }
-    thread.start()
-    new DruidServerHandle
-    {
-      def injector = _injector
-
-      def close() {
+  test("DruidStandalone") {
+    withTestStack {
+      (curator, broker, overlord) =>
+        val timekeeper = new TestingTimekeeper
+        val indexing = newBuilder(curator, timekeeper).buildService()
         try {
-          lifecycle.stop()
-        }
-        catch {
-          case e: Throwable =>
-            log.error(e, "Failed to stop lifecycle for server: %s", serverName)
-        }
-        thread.interrupt()
-      }
-    }
-  }
-
-  def withBroker[A](curator: CuratorFramework)(f: DruidServerHandle => A): A = {
-    // Randomize, but don't bother checking for conflicts
-    val overlordPort = new Random().nextInt(100) + 28100
-    val configFile = writeConfig(
-      "druid-broker.properties",
-      Map(
-        ":DRUIDPORT:" -> overlordPort.toString,
-        ":ZKCONNECT:" -> curator.getZookeeperClient.getCurrentConnectionString
-      )
-    )
-    val handle = spawnDruidServer[CliBroker](configFile)
-    try {
-      f(handle)
-    }
-    finally {
-      handle.close()
-    }
-  }
-
-  def withOverlord[A](curator: CuratorFramework)(f: DruidServerHandle => A): A = {
-    // Randomize, but don't bother checking for conflicts
-    val overlordPort = new Random().nextInt(100) + 28200
-    val configFile = writeConfig(
-      "druid-overlord.properties",
-      Map(
-        ":DRUIDPORT:" -> overlordPort.toString,
-        ":DRUIDFORKPORT:" -> (overlordPort + 1).toString,
-        ":ZKCONNECT:" -> curator.getZookeeperClient.getCurrentConnectionString
-      )
-    )
-    val handle = spawnDruidServer[CliOverlord](configFile)
-    try {
-      f(handle)
-    }
-    finally {
-      handle.close()
-    }
-  }
-
-  def runTestQueriesAndAssertions(druidServer: DruidServerHandle, timekeeper: Timekeeper) {
-    val testQueries = Seq(
-      ((walker: QuerySegmentWalker) => Druids
-        .newTimeBoundaryQueryBuilder()
-        .dataSource("xxx")
-        .build().run(walker),
-        Seq(
-          Map(
-            "timestamp" -> timekeeper.now.toString(),
-            "result" ->
-              Map(
-                "minTime" -> timekeeper.now.toString(),
-                "maxTime" -> (timekeeper.now + 1.minute).toString()
-              )
+          timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
+          val eventsSent = Await.result(
+            Future.collect(
+              generateEvents(timekeeper.now).map(x => indexing(Seq(x)))
+            ).map(_.sum)
           )
-        )),
-      ((walker: QuerySegmentWalker) => Druids
-        .newTimeseriesQueryBuilder()
-        .dataSource("xxx")
-        .granularity(QueryGranularity.MINUTE)
-        .intervals("0000/3000")
-        .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
-        .build().run(walker),
-        Seq(
-          Map(
-            "timestamp" -> timekeeper.now.withZone(DateTimeZone.UTC).toString(),
-            "result" -> Map("barr" -> 2)
-          ),
-          Map(
-            "timestamp" -> (timekeeper.now + 1.minute).withZone(DateTimeZone.UTC).toString(),
-            "result" -> Map("barr" -> 3)
-          )
-        )),
-      ((walker: QuerySegmentWalker) => Druids
-        .newTimeseriesQueryBuilder()
-        .dataSource("xxx")
-        .granularity(QueryGranularity.MINUTE)
-        .intervals("0000/3000")
-        .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
-        .filters(new SpatialDimFilter("coord.geo", new RectangularBound(Array(35f, 120f), Array(40f, 125f))))
-        .build().run(walker),
-        Seq(
-          Map(
-            "timestamp" -> timekeeper.now.withZone(DateTimeZone.UTC).toString(),
-            "result" -> Map("barr" -> 0)
-          ),
-          Map(
-            "timestamp" -> (timekeeper.now + 1.minute).withZone(DateTimeZone.UTC).toString(),
-            "result" -> Map("barr" -> 3)
-          )
-        ))
-    )
-    val walker = druidServer.injector.getInstance(classOf[ClientQuerySegmentWalker])
-    val druidObjectMapper = druidServer.injector.getInstance(classOf[ObjectMapper])
-    // Assertions
-    for ((queryFn, expected) <- testQueries) {
-      var got: Seq[Dict] = null
-      val start = System.currentTimeMillis()
-      while (got != expected && System.currentTimeMillis() < start + 300000L) {
-        got = Jackson.parse[Seq[Dict]](druidObjectMapper.writeValueAsBytes(queryFn(walker)))
-        val gotAsString = got.toString match {
-          case x if x.size > 1024 => x.take(1024) + " ..."
-          case x => x
+          assert(eventsSent === 2)
+          runTestQueriesAndAssertions(broker, timekeeper)
         }
-        if (got != expected) {
-          log.info("Query result[%s] != expected result[%s], waiting a bit...", gotAsString, expected)
-          Thread.sleep(1000)
-        }
-      }
-      assert(got === expected)
-    }
-  }
-
-  test("DruidStandalone")
-  {
-    withLocalCurator {
-      curator =>
-        curator.create().forPath("/beams")
-        withBroker(curator) {
-          broker =>
-            withOverlord(curator) {
-              overlord =>
-                val timekeeper = new TestingTimekeeper
-                val indexing = newBuilder(curator, timekeeper).buildService()
-                try {
-                  timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
-                  val eventsSent = Await.result(
-                    Future.collect(
-                      generateEvents(timekeeper.now).map(x => indexing(Seq(x)))
-                    ).map(_.sum)
-                  )
-                  assert(eventsSent === 2)
-                  runTestQueriesAndAssertions(broker, timekeeper)
-                }
-                finally {
-                  Await.result(indexing.close())
-                }
-            }
+        finally {
+          Await.result(indexing.close())
         }
     }
   }
 
-  test("StormToDruid")
-  {
-    withLocalCurator {
-      curator =>
+  test("StormToDruid") {
+    withTestStack {
+      (curator, broker, overlord) =>
         val zkConnect = curator.getZookeeperClient.getCurrentConnectionString
-        curator.create().forPath("/beams")
-        withBroker(curator) {
-          broker =>
-            withOverlord(curator) {
-              overlord =>
-                val now = new DateTime().hourOfDay().roundFloorCopy()
-                withLocalStorm {
-                  storm =>
-                    val inputs = generateEvents(now)
-                    val spout = new SimpleSpout[SimpleEvent](inputs)
-                    val conf = new Config
-                    conf.setKryoFactory(classOf[SimpleKryoFactory])
-                    val builder = new TopologyBuilder
-                    builder.setSpout("events", spout)
-                    builder
-                      .setBolt("beam", new BeamBolt[SimpleEvent](newBeamFactory(zkConnect, now)))
-                      .shuffleGrouping("events")
-                    storm.submitTopology("test", conf, builder.createTopology())
-                    runTestQueriesAndAssertions(
-                      broker, new TestingTimekeeper withEffect {
-                        timekeeper =>
-                          timekeeper.now = now
-                      }
-                    )
-                }
-            }
+        val now = new DateTime().hourOfDay().roundFloorCopy()
+        withLocalStorm {
+          storm =>
+            val inputs = generateEvents(now)
+            val spout = new SimpleSpout[SimpleEvent](inputs)
+            val conf = new Config
+            conf.setKryoFactory(classOf[SimpleKryoFactory])
+            val builder = new TopologyBuilder
+            builder.setSpout("events", spout)
+            builder
+              .setBolt("beam", new BeamBolt[SimpleEvent](newBeamFactory(zkConnect, now)))
+              .shuffleGrouping("events")
+            storm.submitTopology("test", conf, builder.createTopology())
+            runTestQueriesAndAssertions(
+              broker, new TestingTimekeeper withEffect {
+                timekeeper =>
+                  timekeeper.now = now
+              }
+            )
         }
     }
   }
