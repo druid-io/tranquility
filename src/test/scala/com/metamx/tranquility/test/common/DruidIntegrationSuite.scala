@@ -23,8 +23,10 @@ import org.scalatest.FunSuite
 import scala.collection.JavaConverters._
 import scala.util.Random
 
-trait DruidIntegrationSuite extends Logging with FunSuite with CuratorRequiringSuite
+trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
 {
+  self: FunSuite =>
+
   trait DruidServerHandle
   {
     def injector: Injector

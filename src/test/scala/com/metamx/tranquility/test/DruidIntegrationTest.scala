@@ -116,7 +116,7 @@ object DruidIntegrationTest
 }
 
 class DruidIntegrationTest
-  extends DruidIntegrationSuite with FunSuite with CuratorRequiringSuite with StormRequiringSuite with Logging
+  extends FunSuite with DruidIntegrationSuite with CuratorRequiringSuite with StormRequiringSuite with Logging
 {
 
   test("DruidStandalone") {
