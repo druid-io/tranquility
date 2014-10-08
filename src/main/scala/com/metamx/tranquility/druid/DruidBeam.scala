@@ -105,6 +105,9 @@ class DruidBeam[A : Timestamper](
           req.headers.set("Content-Length", eventsChunk.length)
           req.setContent(ChannelBuffers.wrappedBuffer(eventsChunk))
       }
+      if (log.isTraceEnabled) {
+        log.trace("Sending POST to task[%s]: %s", task, new String(eventsChunk))
+      }
       val retryable = IndexService.isTransient(config.firehoseRetryPeriod)
       client(eventPost) map {
         response =>
