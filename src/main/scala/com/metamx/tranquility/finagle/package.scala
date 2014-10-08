@@ -19,21 +19,16 @@
 package com.metamx.tranquility
 
 import com.metamx.common.scala.Predef._
-import com.twitter.util.{Duration => TwitterDuration, Timer, Future}
-import org.jboss.netty.handler.codec.http.{HttpRequest, HttpMethod, HttpVersion, DefaultHttpRequest}
+import com.twitter.util.{Future, Timer, Duration => TwitterDuration}
+import org.jboss.netty.handler.codec.http.{DefaultHttpRequest, HttpMethod, HttpRequest, HttpVersion}
 import org.joda.time.Duration
 import org.scala_tools.time.Implicits._
-import org.slf4j.bridge.SLF4JBridgeHandler
 
 package object finagle
 {
   implicit def jodaDurationToTwitterDuration(duration: Duration) = TwitterDuration.fromMilliseconds(duration.millis)
 
-  lazy val FinagleLogger = java.util.logging.Logger.getLogger("finagle") withEffect {
-    _ =>
-      SLF4JBridgeHandler.removeHandlersForRootLogger()
-      SLF4JBridgeHandler.install()
-  }
+  lazy val FinagleLogger = java.util.logging.Logger.getLogger("finagle")
 
   // Call-by-name so we can recreate a future from scratch when it fails
   class FutureRetryOps[A](mkfuture: => Future[A])(implicit timer: Timer)
