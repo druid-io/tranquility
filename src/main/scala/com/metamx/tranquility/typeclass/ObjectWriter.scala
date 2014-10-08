@@ -18,6 +18,8 @@
  */
 package com.metamx.tranquility.typeclass
 
+import scala.collection.JavaConverters._
+
 /**
  * Serializes objects for beaming out to other services (such as Druid).
  */
@@ -26,11 +28,19 @@ trait ObjectWriter[A] extends Serializable
   /**
    * Serialize a single object. When serializing to JSON, this should result in a JSON object.
    */
-  def asBytes(a: A): Array[Byte]
+  def asBytes(obj: A): Array[Byte]
 
   /**
    * Serialize a batch of objects to send all at once. When serializing to JSON, this should result in a JSON array
    * of objects.
    */
-  def batchAsBytes(as: TraversableOnce[A]): Array[Byte]
+  def batchAsBytes(objects: TraversableOnce[A]): Array[Byte]
+}
+
+object ObjectWriter
+{
+  def wrap[A](javaObjectWriter: JavaObjectWriter[A]): ObjectWriter[A] = new ObjectWriter[A] {
+    override def asBytes(obj: A) = javaObjectWriter.asBytes(obj)
+    override def batchAsBytes(objects: TraversableOnce[A]) = javaObjectWriter.batchAsBytes(objects.toIterator.asJava)
+  }
 }

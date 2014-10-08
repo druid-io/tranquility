@@ -30,7 +30,7 @@ import com.metamx.emitter.core.LoggingEmitter
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.beam.{HashPartitionBeam, ClusteredBeam, ClusteredBeamTuning, Beam}
 import com.metamx.tranquility.finagle.{BeamService, FinagleRegistryConfig, FinagleRegistry}
-import com.metamx.tranquility.typeclass.{JsonWriter, ObjectWriter, Timestamper}
+import com.metamx.tranquility.typeclass.{JavaObjectWriter, JsonWriter, ObjectWriter, Timestamper}
 import com.twitter.finagle.Service
 import io.druid.data.input.impl.TimestampSpec
 import java.{lang => jl, util => ju}
@@ -123,6 +123,10 @@ object DruidBeams
     def eventWriter(writer: ObjectWriter[EventType]) = new Builder[EventType](config.copy(_objectWriter = Some(writer)))
 
     def objectWriter(writer: ObjectWriter[EventType]) = new Builder[EventType](config.copy(_objectWriter = Some(writer)))
+
+    def objectWriter(writer: JavaObjectWriter[EventType]) = {
+      new Builder[EventType](config.copy(_objectWriter = Some(ObjectWriter.wrap(writer))))
+    }
 
     def eventTimestamped(timeFn: EventType => DateTime) = new Builder[EventType](
       config.copy(

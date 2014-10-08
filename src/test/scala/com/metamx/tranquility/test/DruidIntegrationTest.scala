@@ -25,16 +25,16 @@ import backtype.storm.topology.TopologyBuilder
 import com.fasterxml.jackson.annotation.JsonValue
 import com.metamx.collections.spatial.search.RectangularBound
 import com.metamx.common.Granularity
-import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.timekeeper.{TestingTimekeeper, Timekeeper}
 import com.metamx.common.scala.untyped.Dict
+import com.metamx.common.scala.{Jackson, Logging}
 import com.metamx.tranquility.beam.{ClusteredBeamTuning, RoundRobinBeam}
 import com.metamx.tranquility.druid.{DruidBeams, DruidEnvironment, DruidLocation, DruidRollup, MultipleFieldDruidSpatialDimension, SpecificDruidDimensions}
 import com.metamx.tranquility.storm.{BeamBolt, BeamFactory}
 import com.metamx.tranquility.test.DruidIntegrationTest._
 import com.metamx.tranquility.test.common._
-import com.metamx.tranquility.typeclass.Timestamper
+import com.metamx.tranquility.typeclass.{JavaObjectWriter, Timestamper}
 import com.twitter.util.{Await, Future}
 import io.druid.data.input.impl.TimestampSpec
 import io.druid.granularity.QueryGranularity
@@ -123,7 +123,7 @@ class DruidIntegrationTest
   extends FunSuite with DruidIntegrationSuite with CuratorRequiringSuite with StormRequiringSuite with Logging
 {
 
-  test("DruidStandalone") {
+  test("Druid standalone") {
     withDruidStack {
       (curator, broker, overlord) =>
         val timekeeper = new TestingTimekeeper
@@ -144,7 +144,36 @@ class DruidIntegrationTest
     }
   }
 
-  test("StormToDruid") {
+  test("Druid standalone - Custom ObjectWriter") {
+    withDruidStack {
+      (curator, broker, overlord) =>
+        val timekeeper = new TestingTimekeeper
+        val indexing = newBuilder(curator, timekeeper).objectWriter(new JavaObjectWriter[SimpleEvent] {
+          override def asBytes(obj: SimpleEvent) = throw new UnsupportedOperationException
+
+          override def batchAsBytes(objects: ju.Iterator[SimpleEvent]) = {
+            val strings = objects.asScala.map(o => Jackson.generate(o.toMap))
+            val packed = "[%s]" format strings.mkString(", ")
+            packed.getBytes
+          }
+        }).buildService()
+        try {
+          timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
+          val eventsSent = Await.result(
+            Future.collect(
+              generateEvents(timekeeper.now).map(x => indexing(Seq(x)))
+            ).map(_.sum)
+          )
+          assert(eventsSent === 2)
+          runTestQueriesAndAssertions(broker, timekeeper)
+        }
+        finally {
+          Await.result(indexing.close())
+        }
+    }
+  }
+
+  test("Storm to Druid") {
     withDruidStack {
       (curator, broker, overlord) =>
         val zkConnect = curator.getZookeeperClient.getCurrentConnectionString
