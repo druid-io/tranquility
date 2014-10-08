@@ -44,7 +44,7 @@ final CuratorFramework curator = CuratorFrameworkFactory
 curator.start();
 
 // Tranquility needs to be able to serialize your object type. By default this is done with Jackson. If you want to
-// provide an alternate serializer, you can provide your own via ```.eventWriter(...)```. In this case, we won't
+// provide an alternate serializer, you can provide your own via ```.objectWriter(...)```. In this case, we won't
 // provide one, so we're just using Jackson:
 final Service<List<Map<String, Object>>, Integer> druidService = DruidBeams
     .builder(timestamper)
@@ -86,7 +86,7 @@ val aggregators = Seq(new CountAggregatorFactory("cnt"), new LongSumAggregatorFa
 val timestamper = (eventMap: Map[String, Any]) => new DateTime(eventMap("timestamp"))
 
 // Tranquility needs to be able to serialize your object type. By default this is done with Jackson. If you want to
-// provide an alternate serializer, you can provide your own via ```.eventWriter(...)```. In this case, we won't
+// provide an alternate serializer, you can provide your own via ```.objectWriter(...)```. In this case, we won't
 // provide one, so we're just using Jackson:
 val druidService = DruidBeams
   .builder(timestamper)

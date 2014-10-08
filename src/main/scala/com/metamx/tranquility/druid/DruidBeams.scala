@@ -30,7 +30,7 @@ import com.metamx.emitter.core.LoggingEmitter
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.beam.{HashPartitionBeam, ClusteredBeam, ClusteredBeamTuning, Beam}
 import com.metamx.tranquility.finagle.{BeamService, FinagleRegistryConfig, FinagleRegistry}
-import com.metamx.tranquility.typeclass.{JsonWriter, Timestamper}
+import com.metamx.tranquility.typeclass.{JsonWriter, ObjectWriter, Timestamper}
 import com.twitter.finagle.Service
 import io.druid.data.input.impl.TimestampSpec
 import java.{lang => jl, util => ju}
@@ -61,7 +61,7 @@ import scala.collection.JavaConverters._
  * }}}
  *
  * Your event type (in this case, {{{Map[String, Any]}}} must be serializable via Jackson to JSON that Druid can
- * understand. If Jackson is not an appropriate choice, you can provide a [[JsonWriter]] via {{{.eventWriter(...)}}}.
+ * understand. If Jackson is not an appropriate choice, you can provide a [[ObjectWriter]] via {{{.objectWriter(...)}}}.
  */
 object DruidBeams
 {
@@ -119,7 +119,10 @@ object DruidBeams
 
     def alertMap(d: Dict) = new Builder[EventType](config.copy(_alertMap = Some(d)))
 
-    def eventWriter(writer: JsonWriter[EventType]) = new Builder[EventType](config.copy(_eventWriter = Some(writer)))
+    @deprecated("use .objectWriter(...)", "0.2.22")
+    def eventWriter(writer: ObjectWriter[EventType]) = new Builder[EventType](config.copy(_objectWriter = Some(writer)))
+
+    def objectWriter(writer: ObjectWriter[EventType]) = new Builder[EventType](config.copy(_objectWriter = Some(writer)))
 
     def eventTimestamped(timeFn: EventType => DateTime) = new Builder[EventType](
       config.copy(
@@ -156,7 +159,7 @@ object DruidBeams
         indexService,
         things.emitter,
         things.timekeeper,
-        things.eventWriter
+        things.objectWriter
       )
       val clusteredBeam = new ClusteredBeam(
         things.clusteredBeamZkBasePath,
@@ -206,7 +209,7 @@ object DruidBeams
     _beamDecorateFn: Option[(Interval, Int) => Beam[EventType] => Beam[EventType]] = None,
     _beamMergeFn: Option[Seq[Beam[EventType]] => Beam[EventType]] = None,
     _alertMap: Option[Dict] = None,
-    _eventWriter: Option[JsonWriter[EventType]] = None,
+    _objectWriter: Option[ObjectWriter[EventType]] = None,
     _timestamper: Option[Timestamper[EventType]] = None
   )
   {
@@ -287,7 +290,7 @@ object DruidBeams
         (beams: Seq[Beam[EventType]]) => new HashPartitionBeam[EventType](beams.toIndexedSeq)
       }
       val alertMap                = _alertMap getOrElse Map.empty
-      val eventWriter             = _eventWriter getOrElse {
+      val objectWriter            = _objectWriter getOrElse {
         new JsonWriter[EventType]
         {
           protected def viaJsonGenerator(a: EventType, jg: JsonGenerator) {

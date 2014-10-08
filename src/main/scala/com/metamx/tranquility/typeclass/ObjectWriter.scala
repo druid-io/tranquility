@@ -18,9 +18,19 @@
  */
 package com.metamx.tranquility.typeclass
 
+/**
+ * Serializes objects for beaming out to other services (such as Druid).
+ */
 trait ObjectWriter[A] extends Serializable
 {
+  /**
+   * Serialize a single object. When serializing to JSON, this should result in a JSON object.
+   */
   def asBytes(a: A): Array[Byte]
 
+  /**
+   * Serialize a batch of objects to send all at once. When serializing to JSON, this should result in a JSON array
+   * of objects.
+   */
   def batchAsBytes(as: TraversableOnce[A]): Array[Byte]
 }

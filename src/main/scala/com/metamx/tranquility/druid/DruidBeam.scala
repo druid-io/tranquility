@@ -51,7 +51,7 @@ class DruidBeam[A : Timestamper](
   indexService: IndexService,
   emitter: ServiceEmitter,
   timekeeper: Timekeeper,
-  eventWriter: ObjectWriter[A]
+  objectWriter: ObjectWriter[A]
 ) extends Beam[A] with Logging
 {
   private[this] implicit val timer = DefaultTimer.twitter
@@ -88,7 +88,7 @@ class DruidBeam[A : Timestamper](
   def propagate(events: Seq[A]) = {
     val eventsChunks = events
       .grouped(config.firehoseChunkSize)
-      .map(xs => (eventWriter.batchAsBytes(xs), xs.size))
+      .map(xs => (objectWriter.batchAsBytes(xs), xs.size))
       .toList
     // Futures will be the number of events pushed, or an exception. Zero events pushed means we gave up on the task.
     val taskChunkFutures: Seq[Future[(DruidTaskPointer, Int)]] = for {

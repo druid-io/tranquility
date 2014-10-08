@@ -25,7 +25,7 @@ import com.metamx.common.scala.untyped._
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.beam.{BeamMaker, ClusteredBeamTuning}
 import com.metamx.tranquility.finagle.FinagleRegistry
-import com.metamx.tranquility.typeclass.{JsonWriter, Timestamper}
+import com.metamx.tranquility.typeclass.{ObjectWriter, Timestamper}
 import com.twitter.util.{Await, Future}
 import io.druid.data.input.impl.{JSONParseSpec, MapInputRowParser, TimestampSpec}
 import io.druid.indexing.common.task.{RealtimeIndexTask, Task, TaskResource}
@@ -35,7 +35,7 @@ import io.druid.segment.realtime.FireDepartment
 import io.druid.segment.realtime.firehose.{ClippedFirehoseFactory, EventReceiverFirehoseFactory, TimedShutoffFirehoseFactory}
 import io.druid.segment.realtime.plumber.NoopRejectionPolicyFactory
 import io.druid.timeline.partition.LinearShardSpec
-import org.joda.time.{DateTimeZone, DateTime, Interval}
+import org.joda.time.{DateTime, DateTimeZone, Interval}
 import org.scala_tools.time.Implicits._
 import scala.util.Random
 
@@ -50,7 +50,7 @@ class DruidBeamMaker[A: Timestamper](
   indexService: IndexService,
   emitter: ServiceEmitter,
   timekeeper: Timekeeper,
-  jsonWriter: JsonWriter[A]
+  objectWriter: ObjectWriter[A]
 ) extends BeamMaker[A, DruidBeam[A]] with Logging
 {
   private def taskObject(
@@ -155,7 +155,7 @@ class DruidBeamMaker[A: Timestamper](
       indexService,
       emitter,
       timekeeper,
-      jsonWriter
+      objectWriter
     )
   }
 
@@ -190,7 +190,7 @@ class DruidBeamMaker[A: Timestamper](
       indexService,
       emitter,
       timekeeper,
-      jsonWriter
+      objectWriter
     )
   }
 
