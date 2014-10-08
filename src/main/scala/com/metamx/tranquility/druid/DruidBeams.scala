@@ -119,7 +119,7 @@ object DruidBeams
 
     def alertMap(d: Dict) = new Builder[EventType](config.copy(_alertMap = Some(d)))
 
-    @deprecated("use .objectWriter(...)", "0.2.22")
+    @deprecated("use .objectWriter(...)", "0.2.21")
     def eventWriter(writer: ObjectWriter[EventType]) = new Builder[EventType](config.copy(_objectWriter = Some(writer)))
 
     def objectWriter(writer: ObjectWriter[EventType]) = new Builder[EventType](config.copy(_objectWriter = Some(writer)))
