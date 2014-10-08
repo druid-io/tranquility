@@ -106,7 +106,13 @@ class DruidBeam[A : Timestamper](
           req.setContent(ChannelBuffers.wrappedBuffer(eventsChunk))
       }
       if (log.isTraceEnabled) {
-        log.trace("Sending POST to task[%s]: %s", task, new String(eventsChunk))
+        log.trace(
+          "Sending %,d events to task[%s], firehose[%s]: %s",
+          eventsChunkSize,
+          task.id,
+          task.firehoseId,
+          new String(eventsChunk)
+        )
       }
       val retryable = IndexService.isTransient(config.firehoseRetryPeriod)
       client(eventPost) map {
@@ -114,17 +120,18 @@ class DruidBeam[A : Timestamper](
           val code = response.getStatus.getCode
           val reason = response.getStatus.getReasonPhrase
           if (code / 100 == 2) {
-            log.info(
-              "Propagated %,d events for %s to firehose[%s], got response: %s",
+            log.trace(
+              "Sent %,d events for %s to task[%s], firehose[%s], got response: %s",
               eventsChunkSize,
               timestamp,
+              task.id,
               task.firehoseId,
               response.getContent.toString(Charsets.UTF_8)
             )
             task -> eventsChunkSize
           } else {
             throw new IOException(
-              "Failed to propagate %,d events for %s: %s %s" format(eventsChunkSize, timestamp, code, reason)
+              "Failed to send %,d events for %s: %s %s" format(eventsChunkSize, timestamp, code, reason)
             )
           }
       } rescue {

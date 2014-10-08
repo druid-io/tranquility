@@ -183,6 +183,8 @@ object DruidBeams
         def propagate(events: Seq[EventType]) = clusteredBeam.propagate(events)
 
         def close() = clusteredBeam.close() map (_ => lifecycle.stop())
+
+        override def toString = clusteredBeam.toString
       }
     }
 

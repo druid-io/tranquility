@@ -37,7 +37,7 @@ class TridentBeamState[EventType](beam: Beam[EventType])
   var txid: Option[Long] = None
 
   def send(events: Seq[EventType]): Int = {
-    log.info("Sending %,d events with txid[%s]", events.size, txid.getOrElse("none"))
+    log.debug("Sending %,d events with txid[%s]", events.size, txid.getOrElse("none"))
     Await.result(beam.propagate(events))
   }
 
