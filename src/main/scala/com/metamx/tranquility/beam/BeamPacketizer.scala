@@ -87,9 +87,9 @@ class BeamPacketizer[A, B](
 
             if (batch.nonEmpty) {
               try {
-                log.debug("Sending %,d queued messages.", batch.size)
+                log.info("Sending %,d queued messages.", batch.size)
                 val sent = Await.result(beam.propagate(batch.map(converter)))
-                log.debug("Sent %,d, ignored %,d queued messages.", sent, batch.size - sent)
+                log.info("Sent %,d, ignored %,d queued messages.", sent, batch.size - sent)
                 batch foreach listener.ack
               }
               catch {
