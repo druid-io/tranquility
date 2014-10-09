@@ -3,6 +3,7 @@ package com.metamx.tranquility.beam
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.concurrent._
 import com.twitter.util.Await
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.{ArrayBlockingQueue, TimeUnit}
 import scala.collection.mutable.ArrayBuffer
 
@@ -32,7 +33,7 @@ class BeamPacketizer[A, B](
   // Used by all threads to synchronize access to "unflushedCount", and by the emitThread to signal that all messages
   // may have been flushed.
   private val flushCondition = new AnyRef
-  private var unflushedMessageCount = 0
+  private val unflushedMessageCount = new AtomicInteger
 
   // Messages that need to be beamed out.
   private val queue = new ArrayBlockingQueue[QueueItem](queueSize)
@@ -99,8 +100,8 @@ class BeamPacketizer[A, B](
               }
 
               // Whether the messages succeeded or failed, they have been flushed.
+              unflushedMessageCount.addAndGet(-1 * batch.size)
               flushCondition.synchronized {
-                unflushedMessageCount -= batch.size
                 flushCondition.notifyAll()
               }
 
@@ -130,17 +131,22 @@ class BeamPacketizer[A, B](
     Await.result(beam.close())
   }
 
+  /**
+   * Asynchronously send a message.
+   */
   def send(a: A) {
-    flushCondition.synchronized {
-      unflushedMessageCount = unflushedMessageCount + 1
-    }
+    unflushedMessageCount.incrementAndGet()
     queue.put(MessageItem(a))
   }
 
+  /**
+   * Wait for all pending messages to be flushed out. Calling "send" while this method is blocking is going to be
+   * counter-productive.
+   */
   def flush() {
     queue.put(FlushItem)
     flushCondition.synchronized {
-      while (unflushedMessageCount != 0) {
+      while (unflushedMessageCount.get() != 0) {
         flushCondition.wait()
       }
     }
