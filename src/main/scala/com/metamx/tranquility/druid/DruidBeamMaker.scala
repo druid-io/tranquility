@@ -33,7 +33,7 @@ import io.druid.segment.indexing.granularity.UniformGranularitySpec
 import io.druid.segment.indexing.{DataSchema, RealtimeIOConfig, RealtimeTuningConfig}
 import io.druid.segment.realtime.FireDepartment
 import io.druid.segment.realtime.firehose.{ClippedFirehoseFactory, EventReceiverFirehoseFactory, TimedShutoffFirehoseFactory}
-import io.druid.segment.realtime.plumber.NoopRejectionPolicyFactory
+import io.druid.segment.realtime.plumber.{ServerTimeRejectionPolicyFactory, NoopRejectionPolicyFactory}
 import io.druid.timeline.partition.LinearShardSpec
 import org.joda.time.{DateTime, DateTimeZone, Interval}
 import org.scala_tools.time.Implicits._
@@ -106,7 +106,15 @@ class DruidBeamMaker[A: Timestamper](
           beamTuning.windowPeriod,
           null,
           null,
-          new NoopRejectionPolicyFactory,
+          if (beamTuning.maxSegmentsPerBeam > 1) {
+            // Experimental setting, can cause tasks to cover many hours. We still want handoff to occur mid-task,
+            // so we need a non-noop rejection policy. Druid won't tell us when it rejects events due to its
+            // rejection policy, so this breaks the contract of Beam.propagate telling the user when events are and
+            // are not dropped. This is bad, so, only use this rejection policy when we absolutely need to.
+            new ServerTimeRejectionPolicyFactory
+          } else {
+            new NoopRejectionPolicyFactory
+          },
           druidTuning.maxPendingPersists,
           shardSpec
         ),

@@ -19,6 +19,7 @@
 package com.metamx.tranquility.beam
 
 import com.metamx.common.Granularity
+import com.metamx.common.scala.Logging
 import org.joda.time.{DateTime, Period}
 
 case class ClusteredBeamTuning(
@@ -29,8 +30,13 @@ case class ClusteredBeamTuning(
   replicants: Int = 1,
   minSegmentsPerBeam: Int = 1,
   maxSegmentsPerBeam: Int = 1
-)
+) extends Logging
 {
+  if (maxSegmentsPerBeam != 1 || minSegmentsPerBeam != 1) {
+    log.warn("minSegmentsPerBeam and maxSegmentsPerBeam are experimental settings; their behavior may change "
+      + "or they may be removed without warning. Be careful!")
+  }
+
   def segmentBucket(ts: DateTime) = segmentGranularity.bucket(ts)
 }
 
