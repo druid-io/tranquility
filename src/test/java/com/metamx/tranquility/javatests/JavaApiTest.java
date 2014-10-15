@@ -103,7 +103,12 @@ public class JavaApiTest
                 )
             )
             .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularity.MINUTE))
-            .tuning(ClusteredBeamTuning.create(Granularity.HOUR, new Period("PT0M"), new Period("PT10M"), 1, 1))
+            .tuning(
+                ClusteredBeamTuning.builder()
+                                   .segmentGranularity(Granularity.HOUR)
+                                   .windowPeriod(new Period("PT10M"))
+                                   .build()
+            )
             .objectWriter(
                 new JavaObjectWriter<Map<String, Object>>()
                 {

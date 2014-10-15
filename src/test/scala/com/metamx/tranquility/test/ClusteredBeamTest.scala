@@ -147,18 +147,11 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
     }
 
     def fromDict(d: Dict) = {
-      val timestamp = intervalFromDict(d).start
-      val partition = partitionFromDict(d)
+      val timestamp = new DateTime(d("timestamp"))
+      val partition = int(d("partition"))
       val uuid = str(d("uuid"))
       new TestingBeam(timestamp, partition, uuid)
     }
-
-    def intervalFromDict(d: Dict) = {
-      val ts = new DateTime(d("timestamp"))
-      ts to ts
-    }
-
-    def partitionFromDict(d: Dict) = int(d("partition"))
   }
 
   def newBeams(curator: CuratorFramework, tuning: ClusteredBeamTuning): TestingBeamsHolder = {
@@ -193,7 +186,15 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
     )
   }
 
-  val tuning = new ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 2, 1)
+  val defaultTuning = ClusteredBeamTuning(
+    segmentGranularity = Granularity.HOUR,
+    warmingPeriod = 0.minutes,
+    windowPeriod = 10.minutes,
+    partitions = 2,
+    replicants = 1,
+    minSegmentsPerBeam = 1,
+    maxSegmentsPerBeam = 1
+  )
 
   before {
     _lock.synchronized {
@@ -205,7 +206,7 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
   test("Expiration") {
     withLocalCurator {
       curator =>
-        val beams = newBeams(curator, tuning)
+        val beams = newBeams(curator, defaultTuning)
 
         // First set of events
         beams.timekeeper.now = start
@@ -239,8 +240,8 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
   test("Multi") {
     withLocalCurator {
       curator =>
-        val beamsA = newBeams(curator, tuning)
-        val beamsB = newBeams(curator, tuning)
+        val beamsA = newBeams(curator, defaultTuning)
+        val beamsB = newBeams(curator, defaultTuning)
 
         beamsA.timekeeper.now = start
         beamsB.timekeeper.now = start
@@ -262,9 +263,9 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
   test("Failover") {
     withLocalCurator {
       curator =>
-        val beamsA = newBeams(curator, tuning)
-        val beamsB = newBeams(curator, tuning)
-        val beamsC = newBeams(curator, tuning)
+        val beamsA = newBeams(curator, defaultTuning)
+        val beamsB = newBeams(curator, defaultTuning)
+        val beamsC = newBeams(curator, defaultTuning)
 
         beamsA.timekeeper.now = start
         beamsB.timekeeper.now = start
@@ -286,7 +287,7 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
   test("ScaleUp") {
     withLocalCurator {
       curator =>
-        val oldTuning = tuning
+        val oldTuning = defaultTuning
         val newTuning = oldTuning.copy(partitions = oldTuning.partitions + 1)
 
         val beamsA = newBeams(curator, oldTuning)
@@ -320,7 +321,7 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
   test("ScaleDown") {
     withLocalCurator {
       curator =>
-        val oldTuning = tuning
+        val oldTuning = defaultTuning
         val newTuning = oldTuning.copy(partitions = oldTuning.partitions - 1)
 
         val beamsA = newBeams(curator, oldTuning)
@@ -346,7 +347,7 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
   test("DefunctBeam") {
     withLocalCurator {
       curator =>
-        val beams = newBeams(curator, tuning)
+        val beams = newBeams(curator, defaultTuning)
         beams.timekeeper.now = start
         assert(beams.blockagate(Seq("b", "c") map events) === 2)
         assert(beams.blockagate(Seq("defunct") map events) === 0)
@@ -364,7 +365,7 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
   test("Warming") {
     withLocalCurator {
       curator =>
-        val beams = newBeams(curator, tuning.copy(warmingPeriod = 10.minutes, windowPeriod = 6.minutes))
+        val beams = newBeams(curator, defaultTuning.copy(warmingPeriod = 10.minutes, windowPeriod = 6.minutes))
         beams.timekeeper.now = new DateTime("2012-01-01T00:55Z")
         assert(beams.blockagate(Seq("b") map events) === 1)
         assert(buffers === Set(
@@ -385,8 +386,8 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
   test("WarmingConcurrency") {
     withLocalCurator {
       curator =>
-        val beamsA = newBeams(curator, tuning.copy(warmingPeriod = 10.minutes, windowPeriod = 6.minutes))
-        val beamsB = newBeams(curator, tuning.copy(windowPeriod = 6.minutes))
+        val beamsA = newBeams(curator, defaultTuning.copy(warmingPeriod = 10.minutes, windowPeriod = 6.minutes))
+        val beamsB = newBeams(curator, defaultTuning.copy(windowPeriod = 6.minutes))
         beamsA.timekeeper.now = new DateTime("2012-01-01T00:55Z")
         beamsB.timekeeper.now = new DateTime("2012-01-01T00:55Z")
         assert(beamsA.blockagate(Seq("b") map events) === 1)
@@ -423,7 +424,7 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
   test("NoBeamNecromancy") {
     withLocalCurator {
       curator =>
-        val beams = newBeams(curator, tuning)
+        val beams = newBeams(curator, defaultTuning)
 
         beams.timekeeper.now = start
         beams.blockagate(Seq("c") map events)
@@ -465,7 +466,7 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
   test("NoBeamNecromancyWhenRestarting") {
     withLocalCurator {
       curator =>
-        val beams = newBeams(curator, tuning)
+        val beams = newBeams(curator, defaultTuning)
 
         beams.timekeeper.now = start
         beams.blockagate(Seq("c") map events)
@@ -483,7 +484,7 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
 
         Await.result(beams.close())
 
-        val beams2 = newBeams(curator, tuning)
+        val beams2 = newBeams(curator, defaultTuning)
         beams2.timekeeper.now = start + 2.hours
         beams2.blockagate(Seq("g") map events)
         beams2.blockagate(Seq("g") map events)
@@ -501,6 +502,54 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
           (new DateTime("2012-01-01T01Z"), 1, false, Seq("d") map events),
           (new DateTime("2012-01-01T03Z"), 0, true, Seq("g") map events),
           (new DateTime("2012-01-01T03Z"), 1, true, Seq("g") map events)
+        ))
+    }
+  }
+
+  test("SegmentsPerBeam") {
+    withLocalCurator {
+      curator =>
+        val tuning = defaultTuning.copy(minSegmentsPerBeam = 3, maxSegmentsPerBeam = 3, windowPeriod = 5.hours)
+        val beams = newBeams(curator, tuning)
+
+        beams.timekeeper.now = start
+        beams.blockagate(Seq("b", "c") map events)
+        beams.blockagate(Seq("d", "g") map events)
+        beams.blockagate(Seq("d", "h") map events)
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "c", "d") map events),
+          (new DateTime("2012-01-01T00Z"), 1, true, Seq("d") map events),
+          (new DateTime("2012-01-01T03Z"), 0, true, Seq("g") map events),
+          (new DateTime("2012-01-01T03Z"), 1, true, Seq("h") map events)
+        ))
+    }
+  }
+
+  test("SegmentsPerBeam, Restoring") {
+    withLocalCurator {
+      curator =>
+        val tuning = defaultTuning.copy(minSegmentsPerBeam = 3, maxSegmentsPerBeam = 3, windowPeriod = 5.hours)
+        val beamsA = newBeams(curator, tuning)
+        val beamsB = newBeams(curator, tuning)
+
+        beamsA.timekeeper.now = start
+        beamsB.timekeeper.now = start
+
+        beamsA.blockagate(Seq("b") map events)
+        Await.result(beamsA.close())
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, false, Seq("b") map events),
+          (new DateTime("2012-01-01T00Z"), 1, false, Nil)
+        ))
+
+        beamsB.blockagate(Seq("c") map events)
+        beamsB.blockagate(Seq("d", "g") map events)
+        beamsB.blockagate(Seq("d", "h") map events)
+        assert(buffers === Set(
+          (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "c", "d") map events),
+          (new DateTime("2012-01-01T00Z"), 1, true, Seq("d") map events),
+          (new DateTime("2012-01-01T03Z"), 0, true, Seq("g") map events),
+          (new DateTime("2012-01-01T03Z"), 1, true, Seq("h") map events)
         ))
     }
   }

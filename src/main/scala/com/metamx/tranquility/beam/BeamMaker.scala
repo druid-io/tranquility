@@ -34,8 +34,4 @@ trait BeamMaker[A, BeamType <: Beam[A]]
   def toDict(beam: BeamType): Dict
 
   def fromDict(d: Dict): BeamType
-
-  def intervalFromDict(d: Dict): Interval
-
-  def partitionFromDict(d: Dict): Int
 }

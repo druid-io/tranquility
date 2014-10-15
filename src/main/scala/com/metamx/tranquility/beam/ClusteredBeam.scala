@@ -38,6 +38,9 @@ import org.apache.curator.framework.recipes.locks.InterProcessSemaphoreMutex
 import org.apache.zookeeper.KeeperException.NodeExistsException
 import org.joda.time.{DateTime, Interval}
 import org.scala_tools.time.Implicits._
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.util.Random
 
 /**
  * Beam composed of a stack of smaller beams. The smaller beams are split across two axes: timestamp (time shard
@@ -83,6 +86,8 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
 ) extends Beam[EventType] with Logging
 {
   require(tuning.partitions > 0, "tuning.partitions > 0")
+  require(tuning.minSegmentsPerBeam > 0, "tuning.minSegmentsPerBeam > 0")
+  require(tuning.maxSegmentsPerBeam >= tuning.minSegmentsPerBeam, "tuning.maxSegmentsPerBeam >= tuning.minSegmentsPerBeam")
 
   // Thread pool for blocking zk operations
   private[this] val zkFuturePool = FuturePool(
@@ -121,7 +126,9 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
   // that we thought were closed.
   @volatile private[this] var localLatestCloseTime = new DateTime(0)
 
-  // Beams we are currently aware of, interval start millis -> beam.
+  private[this] val rand = new Random
+
+  // Merged beams we are currently aware of, interval start millis -> merged beam.
   private[this] val beams = ConcurrentMap[Long, Beam[EventType]]()
 
   // Lock updates to "localLatestCloseTime" and "beams" to prevent races.
@@ -180,14 +187,14 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
       case None if timestamp <= localLatestCloseTime => Future.value(None)
       case None if !creationInterval.overlaps(bucket) => Future.value(None)
       case None =>
-        // We may want to create a new beam. Acquire the zk mutex and examine the situation.
+        // We may want to create new merged beam(s). Acquire the zk mutex and examine the situation.
         // This could be more efficient, but it's happening infrequently so it's probably not a big deal.
         data.modify {
           prev =>
             val prevBeamDicts = prev.beamDictss.getOrElse(timestamp.millis, Nil)
             if (prevBeamDicts.size >= tuning.partitions) {
               log.info(
-                "Beams already created for identifier[%s] timestamp[%s], with sufficient partitions (target = %d, actual = %d)",
+                "Merged beam already created for identifier[%s] timestamp[%s], with sufficient partitions (target = %d, actual = %d)",
                 identifier,
                 timestamp,
                 tuning.partitions,
@@ -196,7 +203,7 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
               prev
             } else if (timestamp <= prev.latestCloseTime) {
               log.info(
-                "Global latestCloseTime[%s] for identifier[%s] has moved past timestamp[%s], not creating beams",
+                "Global latestCloseTime[%s] for identifier[%s] has moved past timestamp[%s], not creating merged beam",
                 prev.latestCloseTime,
                 identifier,
                 timestamp
@@ -205,29 +212,43 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
             } else {
               assert(prevBeamDicts.size < tuning.partitions)
               assert(timestamp > prev.latestCloseTime)
-              log.info(
-                "Creating new beams for identifier[%s] timestamp[%s] (target = %d, actual = %d)",
-                identifier,
-                timestamp,
-                tuning.partitions,
-                prevBeamDicts.size
-              )
-              val newBeamDicts = prevBeamDicts ++ ((prevBeamDicts.size until tuning.partitions) map {
-                partition =>
-                  // Create beams and then immediately close them, just so we can get their dict representations.
-                  // Close asynchronously, ignore return value.
-                  beamMaker.newBeam(bucket, partition).withFinally(_.close()) {
-                    beam =>
-                      val beamDict = beamMaker.toDict(beam)
-                      log.info("Created beam: %s", objectMapper.writeValueAsString(beamDict))
-                      beamDict
-                  }
-              })
-              val newBeamDictss = (prev.beamDictss filterNot {
-                case (ts, beam) =>
+
+              // We might want to cover multiple time segments in advance.
+              val numSegmentsToCover = tuning.minSegmentsPerBeam +
+                rand.nextInt(tuning.maxSegmentsPerBeam - tuning.minSegmentsPerBeam + 1)
+              val intervalToCover = timestamp to tuning.segmentGranularity.increment(timestamp, numSegmentsToCover)
+              val timestampsToCover = tuning.segmentGranularity.getIterable(intervalToCover).asScala.map(_.start)
+
+              // OK, create them where needed.
+              val newInnerBeamDictsByPartition = new mutable.HashMap[Int, Dict]
+              val newBeamDictss: Map[Long, Seq[Dict]] = (prev.beamDictss filterNot {
+                case (millis, beam) =>
                   // Expire old beamDicts
-                  tuning.segmentGranularity.increment(new DateTime(ts)) + tuning.windowPeriod < now
-              }) ++ Map(timestamp.millis -> newBeamDicts)
+                  tuning.segmentGranularity.increment(new DateTime(millis)) + tuning.windowPeriod < now
+              }) ++ (for (ts <- timestampsToCover) yield {
+                val tsPrevDicts = prev.beamDictss.getOrElse(ts.millis, Nil)
+                log.info(
+                  "Creating new merged beam for identifier[%s] timestamp[%s] (target = %d, actual = %d)",
+                  identifier,
+                  ts,
+                  tuning.partitions,
+                  tsPrevDicts.size
+                )
+                val tsNewDicts = tsPrevDicts ++ ((tsPrevDicts.size until tuning.partitions) map {
+                  partition =>
+                    newInnerBeamDictsByPartition.getOrElseUpdate(partition, {
+                      // Create sub-beams and then immediately close them, just so we can get the dict representations.
+                      // Close asynchronously, ignore return value.
+                      beamMaker.newBeam(intervalToCover, partition).withFinally(_.close()) {
+                        beam =>
+                          val beamDict = beamMaker.toDict(beam)
+                          log.info("Created beam: %s", objectMapper.writeValueAsString(beamDict))
+                          beamDict
+                      }
+                    })
+                })
+                (ts.millis, tsNewDicts)
+              })
               val newLatestCloseTime = new DateTime(
                 (Seq(prev.latestCloseTime.millis) ++ (prev.beamDictss.keySet -- newBeamDictss.keySet)).max
               )
@@ -249,19 +270,17 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
             beamWriteMonitor.synchronized {
               localLatestCloseTime = meta.latestCloseTime
               // Only add the beams we actually wanted at this time. This is because there might be other beams in ZK
-              // that we don't want to add just yet, on account of maybe they need their partitions expanded.
+              // that we don't want to add just yet, on account of maybe they need their partitions expanded (this only
+              // happens when they are the necessary ones).
               if (!beams.contains(timestamp.millis) && meta.beamDictss.contains(timestamp.millis)) {
                 val beamDicts = meta.beamDictss(timestamp.millis)
                 log.info("Adding beams for identifier[%s] timestamp[%s]: %s", identifier, timestamp, beamDicts)
                 // Should have better handling of unparseable zk data. Changing BeamMaker implementations currently
                 // just causes exceptions until the old dicts are cleared out.
                 beams(timestamp.millis) = beamMergeFn(
-                  beamDicts map {
-                    beamDict =>
-                      val decorate = beamDecorateFn(
-                        beamMaker.intervalFromDict(beamDict),
-                        beamMaker.partitionFromDict(beamDict)
-                      )
+                  beamDicts.zipWithIndex map {
+                    case (beamDict, partitionNum) =>
+                      val decorate = beamDecorateFn(tuning.segmentBucket(timestamp), partitionNum)
                       decorate(beamMaker.fromDict(beamDict))
                   }
                 )
@@ -322,7 +341,7 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
     val countFutures = for ((timestamp, eventGroup) <- grouped) yield {
       beam(timestamp, timekeeper.now) onFailure {
         e =>
-          emitAlert(e, log, emitter, WARN, "Failed to create beams: %s" format identifier, alertMap)
+          emitAlert(e, log, emitter, WARN, "Failed to create merged beam: %s" format identifier, alertMap)
       } flatMap {
         beam =>
           // We expect beams to handle retries, so if we get an exception here let's drop the batch
@@ -331,7 +350,7 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
               // Just drop data until the next segment starts. At some point we should look at doing something
               // more intelligent.
               emitAlert(
-                e, log, emitter, WARN, "Beams defunct: %s" format identifier,
+                e, log, emitter, WARN, "Beam defunct: %s" format identifier,
                 alertMap ++
                   Dict(
                     "eventCount" -> eventGroup.size,

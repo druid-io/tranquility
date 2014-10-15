@@ -26,7 +26,7 @@ import com.metamx.common.scala.event.emit.emitAlert
 import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.common.scala.untyped._
 import com.metamx.emitter.service.ServiceEmitter
-import com.metamx.tranquility.beam.{DefunctBeamException, Beam}
+import com.metamx.tranquility.beam.{Beam, DefunctBeamException}
 import com.metamx.tranquility.finagle._
 import com.metamx.tranquility.typeclass.{ObjectWriter, Timestamper}
 import com.twitter.finagle.Service
@@ -34,15 +34,14 @@ import com.twitter.finagle.util.DefaultTimer
 import com.twitter.util.Future
 import java.io.IOException
 import org.jboss.netty.buffer.ChannelBuffers
-import org.jboss.netty.handler.codec.http.{HttpResponse, HttpRequest}
-import org.joda.time.DateTime
-import org.scala_tools.time.Implicits._
+import org.jboss.netty.handler.codec.http.{HttpRequest, HttpResponse}
+import org.scala_tools.time.Imports._
 
 /**
  * A Beam that writes all events to a fixed set of Druid RealtimeIndexTasks. All events are sent to all tasks.
  */
 class DruidBeam[A : Timestamper](
-  private[druid] val timestamp: DateTime,
+  private[druid] val interval: Interval,
   private[druid] val partition: Int,
   private[druid] val tasks: Seq[DruidTaskPointer],
   location: DruidLocation,
@@ -121,9 +120,8 @@ class DruidBeam[A : Timestamper](
           val reason = response.getStatus.getReasonPhrase
           if (code / 100 == 2) {
             log.trace(
-              "Sent %,d events for %s to task[%s], firehose[%s], got response: %s",
+              "Sent %,d events to task[%s], firehose[%s], got response: %s",
               eventsChunkSize,
-              timestamp,
               task.id,
               task.firehoseId,
               response.getContent.toString(Charsets.UTF_8)
@@ -131,7 +129,7 @@ class DruidBeam[A : Timestamper](
             task -> eventsChunkSize
           } else {
             throw new IOException(
-              "Failed to send %,d events for %s: %s %s" format(eventsChunkSize, timestamp, code, reason)
+              "Failed to send %,d events to task[%s]: %s %s" format(eventsChunkSize, task.id, code, reason)
             )
           }
       } rescue {
@@ -185,22 +183,22 @@ class DruidBeam[A : Timestamper](
 
   def close() = {
     log.info(
-      "Closing Druid beam for datasource[%s] timestamp[%s] (tasks = %s)",
+      "Closing Druid beam for datasource[%s] interval[%s] (tasks = %s)",
       location.dataSource,
-      timestamp,
+      interval,
       tasks.map(_.id).mkString(", ")
     )
     // Timeout due to https://github.com/twitter/finagle/issues/200
     val closeTimeout = 10.seconds.standardDuration
     val futures = clients.values.toList map (taskClient => taskClient.client.close().within(closeTimeout) handle {
       case e: Exception =>
-        log.warn("Unable to close Druid client within %s: %s", closeTimeout, taskClient.task.id)
+        log.warn(e, "Unable to close Druid client within %s: %s", closeTimeout, taskClient.task.id)
     })
     Future.collect(futures) map (_ => ())
   }
 
-  override def toString = "DruidBeam(timestamp = %s, partition = %s, tasks = [%s])" format
-    (timestamp, partition, clients.values.map(t => "%s/%s" format(t.task.id, t.task.firehoseId)).mkString("; "))
+  override def toString = "DruidBeam(interval = %s, partition = %s, tasks = [%s])" format
+    (interval, partition, clients.values.map(t => "%s/%s" format(t.task.id, t.task.firehoseId)).mkString("; "))
 }
 
 case class DruidTaskPointer(id: String, firehoseId: String)

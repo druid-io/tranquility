@@ -54,7 +54,7 @@ class DruidBeamMaker[A: Timestamper](
 ) extends BeamMaker[A, DruidBeam[A]] with Logging
 {
   private def taskObject(
-    ts: DateTime,
+    interval: Interval,
     availabilityGroup: String,
     firehoseId: String,
     partition: Int,
@@ -63,9 +63,9 @@ class DruidBeamMaker[A: Timestamper](
   {
     // Randomize suffix to allow creation of multiple tasks with the same parameters (useful for testing)
     val rand = Random.nextInt()
+    val dataSource = location.dataSource
     val suffix = (0 until 8).map(i => (rand >> (i * 4)) & 0x0F).map(n => ('a' + n).toChar).mkString
-    val taskId = "index_realtime_%s_%s_%s_%s_%s" format(location.dataSource, ts, partition, replicant, suffix)
-    val interval = beamTuning.segmentBucket(ts)
+    val taskId = "index_realtime_%s_%s_%s_%s_%s" format(dataSource, interval.start, partition, replicant, suffix)
     val shutoffTime = interval.end + beamTuning.windowPeriod + config.firehoseGracePeriod
     val shardSpec = new LinearShardSpec(partition)
     val parser = {
@@ -82,7 +82,7 @@ class DruidBeamMaker[A: Timestamper](
       new TaskResource(availabilityGroup, 1),
       new FireDepartment(
         new DataSchema(
-          location.dataSource,
+          dataSource,
           parser,
           rollup.aggregators.toArray,
           new UniformGranularitySpec(beamTuning.segmentGranularity, rollup.indexGranularity, null, null)
@@ -128,7 +128,7 @@ class DruidBeamMaker[A: Timestamper](
 
   override def newBeam(interval: Interval, partition: Int) = {
     require(
-      beamTuning.segmentBucket(interval.start) == interval,
+      beamTuning.segmentGranularity.widen(interval) == interval,
       "Interval does not match segmentGranularity[%s]: %s" format(beamTuning.segmentGranularity, interval)
     )
     val availabilityGroup = DruidBeamMaker.generateBaseFirehoseId(
@@ -139,14 +139,14 @@ class DruidBeamMaker[A: Timestamper](
     )
     val futureTasks = for (replicant <- 0 until beamTuning.replicants) yield {
       val firehoseId = "%s-%04d" format(availabilityGroup, replicant)
-      indexService.submit(taskObject(interval.start, availabilityGroup, firehoseId, partition, replicant)) map {
+      indexService.submit(taskObject(interval, availabilityGroup, firehoseId, partition, replicant)) map {
         taskId =>
           DruidTaskPointer(taskId, firehoseId)
       }
     }
     val tasks = Await.result(Future.collect(futureTasks))
     new DruidBeam(
-      interval.start,
+      interval,
       partition,
       tasks,
       location,
@@ -159,29 +159,39 @@ class DruidBeamMaker[A: Timestamper](
     )
   }
 
-  override def toDict(beam: DruidBeam[A]) = Dict(
-    "timestamp" -> beam.timestamp.toString(),
-    "partition" -> beam.partition,
-    "tasks" -> (beam.tasks map {
-      task =>
-        Dict("id" -> task.id, "firehoseId" -> task.firehoseId)
-    })
-  )
+  override def toDict(beam: DruidBeam[A]) = {
+    // At some point we started allowing beams to cover more than one segment.
+    // We'll attempt to be backwards compatible when possible.
+    val canBeBackwardsCompatible = beamTuning.segmentBucket(beam.interval.start) == beam.interval
+    Dict(
+      "interval" -> beam.interval.toString(),
+      "partition" -> beam.partition,
+      "tasks" -> (beam.tasks map {
+        task =>
+          Dict("id" -> task.id, "firehoseId" -> task.firehoseId)
+      })
+    ) ++ (if (canBeBackwardsCompatible) Dict("timestamp" -> beam.interval.start.toString()) else Map.empty)
+  }
 
   override def fromDict(d: Dict) = {
-    val ts = new DateTime(d("timestamp"))
+    val interval = if (d contains "interval") {
+      new Interval(d("interval"))
+    } else {
+      // Backwards compatibility (see toDict).
+      beamTuning.segmentBucket(new DateTime(d("timestamp")))
+    }
     require(
-      beamTuning.segmentGranularity.truncate(ts) == ts,
-      "Timestamp does not match segmentGranularity[%s]: %s" format(beamTuning.segmentGranularity, ts)
+      beamTuning.segmentGranularity.widen(interval) == interval,
+      "Interval does not match segmentGranularity[%s]: %s" format(beamTuning.segmentGranularity, interval)
     )
-    val partition = partitionFromDict(d)
+    val partition = int(d("partition"))
     val tasks = if (d contains "tasks") {
       list(d("tasks")).map(dict(_)).map(d => DruidTaskPointer(str(d("id")), str(d("firehoseId"))))
     } else {
       Seq(DruidTaskPointer(str(d("taskId")), str(d("firehoseId"))))
     }
     new DruidBeam(
-      ts,
+      interval,
       partition,
       tasks,
       location,
@@ -193,10 +203,6 @@ class DruidBeamMaker[A: Timestamper](
       objectWriter
     )
   }
-
-  override def intervalFromDict(d: Dict) = beamTuning.segmentBucket(new DateTime(d("timestamp")))
-
-  override def partitionFromDict(d: Dict) = int(d("partition"))
 }
 
 object DruidBeamMaker

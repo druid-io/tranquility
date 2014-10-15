@@ -58,7 +58,15 @@ final Service<List<Map<String, Object>>, Integer> druidService = DruidBeams
         )
     )
     .rollup(DruidRollup.create(DruidDimensions.specific(dimensions), aggregators, QueryGranularity.MINUTE))
-    .tuning(ClusteredBeamTuning.create(Granularity.HOUR, new Period("PT0M"), new Period("PT10M"), 1, 1))
+    .tuning(
+      ClusteredBeamTuning
+        .builder()
+        .segmentGranularity(Granularity.HOUR)
+        .windowPeriod(new Period("PT10M"))
+        .partitions(1)
+        .replicants(1)
+        .build()
+    )
     .buildJavaService();
 
 // Send events to Druid:
@@ -94,7 +102,14 @@ val druidService = DruidBeams
   .discoveryPath(discoveryPath)
   .location(DruidLocation(indexService, firehosePattern, dataSource))
   .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularity.MINUTE))
-  .tuning(ClusteredBeamTuning(Granularity.HOUR, 10.minutes, 1, 1))
+  .tuning(
+    ClusteredBeamTuning(
+      segmentGranularity = Granularity.HOUR,
+      windowPeriod = new Period("PT10M"),
+      partitions = 1,
+      replicants = 1
+    )
+  )
   .buildService()
 
 // Send events to Druid:
@@ -137,7 +152,14 @@ class MyBeamFactory extends BeamFactory[Map[String, Any]]
       .discoveryPath(discoveryPath)
       .location(DruidLocation(indexService, firehosePattern, dataSource))
       .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularity.MINUTE))
-      .tuning(ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 1, 1))
+      .tuning(
+        ClusteredBeamTuning(
+          segmentGranularity = Granularity.HOUR,
+          windowPeriod = new Period("PT10M"),
+          partitions = 1,
+          replicants = 1
+        )
+      )
       .buildBeam()
   }
 }

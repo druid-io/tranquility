@@ -61,7 +61,7 @@ import scala.collection.JavaConverters._
  * }}}
  *
  * Your event type (in this case, {{{Map[String, Any]}}} must be serializable via Jackson to JSON that Druid can
- * understand. If Jackson is not an appropriate choice, you can provide a [[ObjectWriter]] via {{{.objectWriter(...)}}}.
+ * understand. If Jackson is not an appropriate choice, you can provide an ObjectWriter via {{{.objectWriter(...)}}}.
  */
 object DruidBeams
 {
@@ -236,7 +236,7 @@ object DruidBeams
         }
       )
       val tuning                  = _tuning getOrElse {
-        new ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 1, 1)
+        ClusteredBeamTuning()
       }
       val druidTuning             = _druidTuning getOrElse {
         new DruidTuning(75000, 10.minutes, 1)
