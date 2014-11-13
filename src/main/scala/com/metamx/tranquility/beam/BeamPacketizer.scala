@@ -1,153 +1,109 @@
 package com.metamx.tranquility.beam
 
 import com.metamx.common.scala.Logging
-import com.metamx.common.scala.concurrent._
 import com.twitter.util.Await
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.{ArrayBlockingQueue, TimeUnit}
+import com.twitter.util.Future
+import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 /**
- * Wraps a Beam and exposes a single-message API rather than the future-batch-based API. Internally uses a queue and
- * single thread for sending data.
+ * Wraps a Beam and exposes a single-message API rather than the future-batch-based API. Not thread-safe.
  *
+ * @param beam The wrapped Beam.
+ * @param listener Handler for successfully and unsuccessfully sent messages. Will be called from the same thread
+ *                 that you use to call 'send' or 'flush'.
  * @param batchSize Send a batch after receiving this many messages. Set to 1 to send messages as soon as they arrive.
- * @param queueSize Maximum number of messages to keep in the beam queue.
- * @param emitMillis Send a batch after this much elapsed time. Set to 0 or negative to disable time-based sending.
+ * @param maxPendingBatches Maximum number of batches that may be in flight before we block and wait for one to finish.
  */
-class BeamPacketizer[A, B](
-  beam: Beam[B],
-  converter: A => B,
+class BeamPacketizer[A](
+  beam: Beam[A],
   listener: BeamPacketizerListener[A],
   batchSize: Int,
-  queueSize: Int,
-  emitMillis: Long
+  maxPendingBatches: Int
 ) extends Logging
 {
-  require(batchSize <= queueSize, "batchSize <= queueSize")
+  require(maxPendingBatches >= 1, "maxPendingBatches >= 1")
 
-  sealed trait QueueItem
-  case class MessageItem(message: A) extends QueueItem
-  case object FlushItem extends QueueItem
-
-  // Used by all threads to synchronize access to "unflushedCount", and by the emitThread to signal that all messages
-  // may have been flushed.
-  private val flushCondition = new AnyRef
-  private val unflushedMessageCount = new AtomicInteger
-
-  // Messages that need to be beamed out.
-  private val queue = new ArrayBlockingQueue[QueueItem](queueSize)
-
-  private val emitThread = new Thread(
-    abortingRunnable {
-      try {
-        var startMillis = System.currentTimeMillis()
-        val batch = new ArrayBuffer[A](batchSize)
-        val itemIterator = Iterator.continually {
-          if (emitMillis <= 0) {
-            Some(queue.take())
-          } else {
-            val waitMillis = startMillis + emitMillis - System.currentTimeMillis()
-            if (waitMillis > 0) {
-              // queue.poll returns null when timed out
-              Option(queue.poll(waitMillis, TimeUnit.MILLISECONDS))
-            } else {
-              None
-            }
-          }
-        }
-        for (item <- itemIterator) {
-          if (Thread.currentThread().isInterrupted) {
-            throw new InterruptedException
-          }
-
-          val shouldFlush = item match {
-            case Some(MessageItem(m)) =>
-              // Side effect: insert message into current batch.
-              batch += m
-              batch.size >= batchSize
-
-            case None | Some(FlushItem) =>
-              // Timeout, or flush command. Either way, we should flush.
-              true
-          }
-
-          // Send a batch on timeout (null message) or full batch
-          if (shouldFlush) {
-            startMillis = System.currentTimeMillis()
-
-            // Drain the remainder of the queue, up to batchSize.
-            for (item <- Iterator.continually(queue.poll()).take(batchSize - batch.size).takeWhile(_ != null)) {
-              item match {
-                case MessageItem(m) =>
-                  batch += m
-                case FlushItem =>
-                  // Do nothing. We're already flushing.
-              }
-            }
-
-            if (batch.nonEmpty) {
-              try {
-                log.info("Sending %,d queued messages.", batch.size)
-                val sent = Await.result(beam.propagate(batch.map(converter)))
-                log.info("Sent %,d, ignored %,d queued messages.", sent, batch.size - sent)
-                batch foreach listener.ack
-              }
-              catch {
-                case e: Exception =>
-                  log.warn(e, "Failed to send %,d queued messages.", batch.size)
-                  batch foreach listener.fail
-              }
-
-              // Whether the messages succeeded or failed, they have been flushed.
-              unflushedMessageCount.addAndGet(-1 * batch.size)
-              flushCondition.synchronized {
-                flushCondition.notifyAll()
-              }
-
-              batch.clear()
-            }
-          }
-        }
-      }
-      catch {
-        case e: InterruptedException =>
-        // Exit quietly when interrupted; abort on other throwables.
-      }
-    }
-  )
+  var started       : Boolean                               = false
+  var buffer        : mutable.Buffer[A]                     = new ArrayBuffer[A]()
+  val pendingBatches: mutable.Buffer[(Seq[A], Future[Int])] = new java.util.LinkedList[(Seq[A], Future[Int])]().asScala
 
   def start() {
-    log.info("Starting send thread for: %s" format beam)
-
-    emitThread.setName("BeamPacketizer[%s]" format beam)
-    emitThread.setDaemon(true)
-    emitThread.start()
+    started = true
   }
 
-  def stop() {
+  /**
+   * Send a single message. May block if maxPendingBatches has been reached.
+   */
+  def send(message: A) {
+    requireStarted()
+    buffer += message
+    if (buffer.size >= batchSize) {
+      swap()
+      if (pendingBatches.size >= maxPendingBatches) {
+        awaitPendingBatches(1)
+      }
+    }
+  }
+
+  def flush() = {
+    requireStarted()
+    if (buffer.nonEmpty) {
+      swap()
+    }
+    if (pendingBatches.nonEmpty) {
+      awaitPendingBatches(pendingBatches.size)
+    }
+  }
+
+  def close() {
     flush()
-    emitThread.interrupt()
+    started = false
     Await.result(beam.close())
   }
 
-  /**
-   * Asynchronously send a message.
-   */
-  def send(a: A) {
-    unflushedMessageCount.incrementAndGet()
-    queue.put(MessageItem(a))
+  private def requireStarted() {
+    if (!started) {
+      throw new IllegalStateException("Not started")
+    }
   }
 
-  /**
-   * Wait for all pending messages to be flushed out. Calling "send" while this method is blocking is going to be
-   * counter-productive.
-   */
-  def flush() {
-    queue.put(FlushItem)
-    flushCondition.synchronized {
-      while (unflushedMessageCount.get() != 0) {
-        flushCondition.wait()
+  private def swap() {
+    pendingBatches += ((buffer, beam.propagate(buffer)))
+    buffer = new ArrayBuffer[A]()
+  }
+
+  private def awaitPendingBatches(count: Int) {
+    require(count > 0, "count > 0")
+    val batches = new ArrayBuffer[(Seq[A], Future[Int])](count)
+    for (i <- 0 until count) {
+      batches += pendingBatches.remove(0)
+    }
+
+    val batchResultsFuture: Future[Seq[(Option[Exception], Int, Seq[A])]] = Future.collect(
+      batches map {
+        case (batch, future) =>
+          future map {
+            i =>
+              (None, i, batch)
+          } handle {
+            case e: Exception =>
+              (Some(e), 0, batch)
+          }
+      }
+    )
+
+    val batchResults = Await.result(batchResultsFuture)
+    for ((eOption, actuallySent, batch) <- batchResults) {
+      eOption match {
+        case Some(e) =>
+          log.warn("%s: Failed to send %,d messages.", beam, batch.size)
+          batch.foreach(listener.fail(e, _))
+
+        case None =>
+          log.info("%s: Flushed %,d, ignored %,d messages.", beam, actuallySent, batch.size - actuallySent)
+          batch.foreach(listener.ack)
       }
     }
   }
@@ -157,5 +113,5 @@ trait BeamPacketizerListener[A]
 {
   def ack(a: A)
 
-  def fail(a: A)
+  def fail(e: Throwable, a: A)
 }

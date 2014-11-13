@@ -18,53 +18,93 @@
  */
 package com.metamx.tranquility.storm
 
-import backtype.storm.task.{OutputCollector, TopologyContext}
+import backtype.storm.task.OutputCollector
+import backtype.storm.task.TopologyContext
 import backtype.storm.topology.OutputFieldsDeclarer
 import backtype.storm.topology.base.BaseRichBolt
-import backtype.storm.tuple.{Fields, Tuple}
+import backtype.storm.tuple.Fields
+import backtype.storm.tuple.Tuple
 import com.metamx.common.scala.Logging
-import com.metamx.tranquility.beam.{BeamPacketizer, BeamPacketizerListener}
+import com.metamx.common.scala.concurrent.abortingThread
+import com.metamx.tranquility.beam.Beam
+import com.metamx.tranquility.beam.BeamPacketizer
+import com.metamx.tranquility.beam.BeamPacketizerListener
 import java.{util => ju}
 
 /**
  * A Storm Bolt for using a Beam to propagate tuples.
- * @param beamFactory a factory for creating the beam we will use
- * @param queueSize maximum number of tuples to keep in the beam queue
+ *
+ * @param beamFactory Factory for creating the Beam we will use.
+ * @param batchSize Send a batch after receiving this many messages. Set to 1 to send messages as soon as they arrive.
+ * @param queueSize Maximum number of pending messages allowed at any one time.
+ * @param emitMillis Force a flush this often.
  */
-class BeamBolt[EventType](beamFactory: BeamFactory[EventType], batchSize: Int, queueSize: Int, emitMillis: Long)
-  extends BaseRichBolt with Logging
+class BeamBolt[EventType](
+  beamFactory: BeamFactory[EventType],
+  batchSize: Int,
+  queueSize: Int,
+  emitMillis: Long
+) extends BaseRichBolt with Logging
 {
-  def this(beamFactory: BeamFactory[EventType]) = this(beamFactory, 200, 10000, 5000)
+  def this(beamFactory: BeamFactory[EventType]) = this(beamFactory, 1000, 10000, 5000)
 
-  @volatile private var packetizer: BeamPacketizer[Tuple, EventType] = null
-  @volatile private var lock      : AnyRef                           = null
+  @volatile private var running    : Boolean               = false
+  @volatile private var lock       : AnyRef                = null
+  @volatile private var flushThread: Thread                = null
+  @volatile private var packetizer : BeamPacketizer[Tuple] = null
 
   override def prepare(conf: ju.Map[_, _], context: TopologyContext, collector: OutputCollector) {
-    require(packetizer == null && lock == null, "WTF?! Already initialized, but prepare was called anyway.")
+    require(lock == null, "WTF?! Already initialized, but prepare was called anyway.")
     lock = new AnyRef
-    val beam = beamFactory.makeBeam(conf, context)
-    val listener = new BeamPacketizerListener[Tuple] {
-      override def ack(a: Tuple) = collector.ack(a)
-
-      override def fail(a: Tuple) = collector.fail(a)
+    lock.synchronized {
+      val beam = beamFactory.makeBeam(conf, context)
+      flushThread = abortingThread {
+        try {
+          while (!Thread.currentThread().isInterrupted && running) {
+            lock.synchronized {
+              if (running) {
+                packetizer.flush()
+              }
+            }
+            Thread.sleep(emitMillis)
+          }
+        } catch {
+          case e: InterruptedException => // Exit peacefully
+        }
+      }
+      flushThread.setDaemon(true)
+      flushThread.setName("FlushThread-%s" format beam)
+      val tupleBeam = new Beam[Tuple] {
+        override def propagate(events: Seq[Tuple]) = beam.propagate(events.map(_.getValue(0).asInstanceOf[EventType]))
+        override def close() = beam.close()
+      }
+      val listener = new BeamPacketizerListener[Tuple] {
+        override def ack(a: Tuple) = collector.ack(a)
+        override def fail(e: Throwable, a: Tuple) = collector.fail(a)
+      }
+      packetizer = new BeamPacketizer[Tuple](
+        tupleBeam,
+        listener,
+        batchSize,
+        if (queueSize > batchSize) queueSize / batchSize else 1
+      )
+      running = true
+      packetizer.start()
+      flushThread.start()
     }
-    packetizer = new BeamPacketizer[Tuple, EventType](
-      beam,
-      t => t.getValue(0).asInstanceOf[EventType],
-      listener,
-      batchSize,
-      queueSize,
-      emitMillis
-    )
-    packetizer.start()
   }
 
   override def execute(tuple: Tuple) {
-    packetizer.send(tuple)
+    lock.synchronized {
+      packetizer.send(tuple)
+    }
   }
 
   override def cleanup() {
-    packetizer.stop()
+    lock.synchronized {
+      packetizer.close()
+      running = false
+    }
   }
 
   override def declareOutputFields(declarer: OutputFieldsDeclarer) {

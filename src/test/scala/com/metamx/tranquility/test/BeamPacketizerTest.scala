@@ -2,31 +2,44 @@ package com.metamx.tranquility.test
 
 import com.fasterxml.jackson.core.JsonGenerator
 import com.metamx.common.scala.untyped.Dict
-import com.metamx.common.scala.{Jackson, Logging}
-import com.metamx.tranquility.beam.{BeamPacketizer, BeamPacketizerListener, MemoryBeam}
+import com.metamx.common.scala.Jackson
+import com.metamx.common.scala.Logging
+import com.metamx.tranquility.beam.Beam
+import com.metamx.tranquility.beam.BeamPacketizer
+import com.metamx.tranquility.beam.BeamPacketizerListener
+import com.metamx.tranquility.beam.MemoryBeam
 import com.metamx.tranquility.typeclass.JsonWriter
+import com.twitter.util.Future
 import java.util.concurrent.atomic.AtomicLong
-import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
-import org.scalatest.exceptions.TestFailedException
 
 class BeamPacketizerTest extends FunSuite with Logging
 {
   def newPacketizer(
     batchSize: Int,
-    queueSize: Int,
-    emitMillis: Long
-  ): (AtomicLong, AtomicLong, BeamPacketizer[String, Dict]) =
+    maxPendingBatches: Int
+  ): (AtomicLong, AtomicLong, BeamPacketizer[String]) =
   {
-    val beam = new MemoryBeam[Dict](
+    val memoryBeam = new MemoryBeam[String](
       "foo",
-      new JsonWriter[Dict]
+      new JsonWriter[String]
       {
-        override protected def viaJsonGenerator(a: Dict, jg: JsonGenerator): Unit = {
-          Jackson.generate(a, jg)
+        override protected def viaJsonGenerator(a: String, jg: JsonGenerator): Unit = {
+          Jackson.generate(Dict("bar" -> a), jg)
         }
       }
     )
+    val beam = new Beam[String] {
+      override def propagate(events: Seq[String]) = {
+        if (events.contains("__fail__")) {
+          Future.exception(new IllegalStateException("fail!"))
+        } else {
+          memoryBeam.propagate(events)
+        }
+      }
+
+      override def close() = memoryBeam.close()
+    }
 
     val acked = new AtomicLong()
     val failed = new AtomicLong()
@@ -35,23 +48,43 @@ class BeamPacketizerTest extends FunSuite with Logging
         acked.incrementAndGet()
       }
 
-      override def fail(a: String): Unit = {
+      override def fail(e: Throwable, a: String): Unit = {
         failed.incrementAndGet()
       }
     }
 
     (acked, failed,
-      new BeamPacketizer[String, Dict](beam, s => Dict("bar" -> s), listener, batchSize, queueSize, emitMillis))
+      new BeamPacketizer[String](beam, listener, batchSize, maxPendingBatches))
   }
 
-  test("Send by flush()") {
-    for (batchSize <- Seq(1, 2, 100); queueSize <- Seq(1000); emitMillis <- Seq(0L, 1L, 300000000L)) {
+  test("Send by batchSize") {
+    for (batchSize <- Seq(1, 2); maxPendingBatches <- Seq(1)) {
       MemoryBeam.clear()
-      val (acked, failed, packetizer) = newPacketizer(batchSize, queueSize, emitMillis)
-      val desc = "(batchSize = %d, queueSize = %d, emitMillis = %d)" format (batchSize, queueSize, emitMillis)
+      val (acked, failed, packetizer) = newPacketizer(batchSize, maxPendingBatches)
+      val desc = "(batchSize = %d, maxPendingBatches = %d)" format (batchSize, maxPendingBatches)
       packetizer.start()
       packetizer.send("hey")
       packetizer.send("what")
+      assert(acked.get() === 2, "acked (%s)" format desc)
+      assert(failed.get() === 0, "failed (%s)" format desc)
+      assert(
+        MemoryBeam.get("foo") === Seq(Dict("bar" -> "hey"), Dict("bar" -> "what")),
+        "output (%s)" format desc
+      )
+      packetizer.close()
+    }
+  }
+
+  test("Send by flush()") {
+    for (batchSize <- Seq(1, 2, 100); maxPendingBatches <- Seq(200)) {
+      MemoryBeam.clear()
+      val (acked, failed, packetizer) = newPacketizer(batchSize, maxPendingBatches)
+      val desc = "(batchSize = %d, maxPendingBatches = %d)" format (batchSize, maxPendingBatches)
+      packetizer.start()
+      packetizer.send("hey")
+      packetizer.send("what")
+      assert(acked.get() === 0, "acked (%s)" format desc)
+      assert(failed.get() === 0, "failed (%s)" format desc)
       packetizer.flush()
       assert(acked.get() === 2, "acked (%s)" format desc)
       assert(failed.get() === 0, "failed (%s)" format desc)
@@ -59,66 +92,35 @@ class BeamPacketizerTest extends FunSuite with Logging
         MemoryBeam.get("foo") === Seq(Dict("bar" -> "hey"), Dict("bar" -> "what")),
         "output (%s)" format desc
       )
-      packetizer.stop()
+      packetizer.close()
     }
   }
 
-  test("Send by batchSize") {
-    for (batchSize <- Seq(1, 2); queueSize <- Seq(2, 1000); emitMillis <- Seq(0L, 1L, 300000000L)) {
+  test("Send with failures (single event batches)") {
+    for (batchSize <- Seq(1); maxPendingBatches <- Seq(1)) {
       MemoryBeam.clear()
-      val (acked, failed, packetizer) = newPacketizer(batchSize, queueSize, emitMillis)
-      val desc = "(batchSize = %d, queueSize = %d, emitMillis = %d)" format (batchSize, queueSize, emitMillis)
+      val (acked, failed, packetizer) = newPacketizer(batchSize, maxPendingBatches)
+      val desc = "(batchSize = %d, maxPendingBatches = %d)" format (batchSize, maxPendingBatches)
       packetizer.start()
       packetizer.send("hey")
-      packetizer.send("what")
-      within(10.seconds) {
-        assert(acked.get() === 2, "acked (%s)" format desc)
-        assert(failed.get() === 0, "failed (%s)" format desc)
-        assert(
-          MemoryBeam.get("foo") === Seq(Dict("bar" -> "hey"), Dict("bar" -> "what")),
-          "output (%s)" format desc
-        )
-      }
-      packetizer.stop()
+      packetizer.send("__fail__")
+      assert(acked.get() === 1, "acked (%s)" format desc)
+      assert(failed.get() === 1, "failed (%s)" format desc)
+      packetizer.close()
     }
   }
 
-  test("Send by emitMillis") {
-    for (batchSize <- Seq(1000); queueSize <- Seq(1000); emitMillis <- Seq(1L, 500L)) {
+  test("Send with failures (multi event batches)") {
+    for (batchSize <- Seq(2); maxPendingBatches <- Seq(1)) {
       MemoryBeam.clear()
-      val (acked, failed, packetizer) = newPacketizer(batchSize, queueSize, emitMillis)
-      val desc = "(batchSize = %d, queueSize = %d, emitMillis = %d)" format (batchSize, queueSize, emitMillis)
+      val (acked, failed, packetizer) = newPacketizer(batchSize, maxPendingBatches)
+      val desc = "(batchSize = %d, maxPendingBatches = %d)" format (batchSize, maxPendingBatches)
       packetizer.start()
       packetizer.send("hey")
-      packetizer.send("what")
-      within(10.seconds) {
-        assert(acked.get() === 2, "acked (%s)" format desc)
-        assert(failed.get() === 0, "failed (%s)" format desc)
-        assert(
-          MemoryBeam.get("foo") === Seq(Dict("bar" -> "hey"), Dict("bar" -> "what")),
-          "output (%s)" format desc
-        )
-      }
-      packetizer.stop()
+      packetizer.send("__fail__")
+      assert(acked.get() === 0, "acked (%s)" format desc)
+      assert(failed.get() === 2, "failed (%s)" format desc)
+      packetizer.close()
     }
-  }
-
-  def within[A](timeout: Period)(f: => A): A = {
-    val end = DateTime.now + timeout
-    var result: Option[A] = None
-    while (result.isEmpty) {
-      try {
-        result = Some(f)
-      } catch {
-        case e: TestFailedException =>
-          if (DateTime.now <= end) {
-            // Suppress, try again soon.
-            Thread.sleep(100)
-          } else {
-            throw e
-          }
-      }
-    }
-    result.get
   }
 }
