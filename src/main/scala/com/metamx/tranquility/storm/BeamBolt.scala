@@ -36,7 +36,7 @@ import scala.collection.mutable.ArrayBuffer
  * A Storm Bolt for using a Beam to propagate tuples.
  *
  * @param beamFactory Factory for creating the Beam we will use.
- * @param batchSize Number of events to send per call to Beam.propagate.
+ * @param batchSize Maximum number of events to send per call to Beam.propagate.
  */
 class BeamBolt[EventType](
   beamFactory: BeamFactory[EventType],
@@ -106,11 +106,9 @@ class BeamBolt[EventType](
   }
 
   override def cleanup() {
-    lock.synchronized {
-      running = false
-      sendThread.interrupt()
-      Await.result(beam.close())
-    }
+    running = false
+    sendThread.interrupt()
+    Await.result(beam.close())
   }
 
   override def declareOutputFields(declarer: OutputFieldsDeclarer) {
