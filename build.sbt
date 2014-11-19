@@ -33,7 +33,7 @@ releaseSettings
 // When updating Jackson, watch out for: https://github.com/FasterXML/jackson-module-scala/issues/148
 val jacksonOneVersion = "1.9.13"
 val jacksonTwoVersion = "2.2.2"
-val druidVersion = "0.6.146"
+val druidVersion = "0.6.160"
 
 libraryDependencies ++= Seq(
   "com.metamx" %% "scala-util" % "1.8.29" force(),
