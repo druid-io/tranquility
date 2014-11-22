@@ -8,4 +8,4 @@ dist/
 *.sublime-project
 .DS_Store
 /conf
-log
+/log
