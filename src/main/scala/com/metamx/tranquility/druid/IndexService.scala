@@ -54,7 +54,7 @@ class IndexService(
 
   def submit(task: Task): Future[TaskId] = {
     val taskJson = druidObjectMapper.writeValueAsBytes(task)
-    val taskRequest = HttpPost("/druid/indexer/v1/index") withEffect {
+    val taskRequest = HttpPost("/druid/indexer/v1/task") withEffect {
       req =>
         req.headers.set("Content-Type", "application/json")
         req.headers.set("Content-Length", taskJson.length)
