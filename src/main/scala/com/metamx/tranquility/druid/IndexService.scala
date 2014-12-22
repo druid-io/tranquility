@@ -18,9 +18,9 @@
  */
 package com.metamx.tranquility.druid
 
-import IndexService.TaskId
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.common.base.Charsets
+import com.metamx.common.Backoff
 import com.metamx.common.lifecycle.Lifecycle
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Predef._
@@ -28,9 +28,12 @@ import com.metamx.common.scala.control._
 import com.metamx.common.scala.exception._
 import com.metamx.common.scala.lifecycle._
 import com.metamx.common.scala.untyped._
+import com.metamx.tranquility.druid.IndexService.TaskId
 import com.metamx.tranquility.finagle._
 import com.twitter.finagle.util.DefaultTimer
-import com.twitter.util.{Timer, Await, Future}
+import com.twitter.util.Await
+import com.twitter.util.Future
+import com.twitter.util.Timer
 import io.druid.indexing.common.task.Task
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http.HttpRequest
@@ -80,38 +83,40 @@ class IndexService(
 
   private def call(req: HttpRequest): Future[Dict] = {
     val retryable = IndexService.isTransient(config.indexRetryPeriod)
-    client(req) map {
-      response =>
-        response.getStatus.getCode match {
-          case code if code / 100 == 2 || code == 404 =>
-            // 2xx or 404 generally mean legitimate responses from the index service
-            Jackson.parse[Dict](response.getContent.toString(Charsets.UTF_8)) mapException {
-              case e: Exception => new IndexServicePermanentException(e, "Failed to parse response")
-            }
+    FutureRetry.onErrors(Seq(retryable), Backoff.standard()) {
+      client(req) map {
+        response =>
+          response.getStatus.getCode match {
+            case code if code / 100 == 2 || code == 404 =>
+              // 2xx or 404 generally mean legitimate responses from the index service
+              Jackson.parse[Dict](response.getContent.toString(Charsets.UTF_8)) mapException {
+                case e: Exception => new IndexServicePermanentException(e, "Failed to parse response")
+              }
 
-          case code if code / 100 == 3 =>
-            // Index service can issue redirects temporarily, and HttpClient won't follow them, so treat
-            // them as generic errors that can be retried
-            throw new IndexServiceTransientException(
-              "Service temporarily unreachable: %s %s" format
-                (code, response.getStatus.getReasonPhrase)
-            )
+            case code if code / 100 == 3 =>
+              // Index service can issue redirects temporarily, and HttpClient won't follow them, so treat
+              // them as generic errors that can be retried
+              throw new IndexServiceTransientException(
+                "Service temporarily unreachable: %s %s" format
+                  (code, response.getStatus.getReasonPhrase)
+              )
 
-          case code if code / 100 == 5 =>
-            // Server-side errors can be retried
-            throw new IndexServiceTransientException(
-              "Service call failed with status: %s %s" format
-                (code, response.getStatus.getReasonPhrase)
-            )
+            case code if code / 100 == 5 =>
+              // Server-side errors can be retried
+              throw new IndexServiceTransientException(
+                "Service call failed with status: %s %s" format
+                  (code, response.getStatus.getReasonPhrase)
+              )
 
-          case code =>
-            // All other responses should not be retried (including non-404 client errors)
-            throw new IndexServicePermanentException(
-              "Service call failed with status: %s %s" format
-                (code, response.getStatus.getReasonPhrase)
-            )
-        }
-    } retryWhen retryable
+            case code =>
+              // All other responses should not be retried (including non-404 client errors)
+              throw new IndexServicePermanentException(
+                "Service call failed with status: %s %s" format
+                  (code, response.getStatus.getReasonPhrase)
+              )
+          }
+      }
+    }
   }
 }
 

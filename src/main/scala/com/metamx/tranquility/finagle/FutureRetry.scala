@@ -21,7 +21,10 @@ package com.metamx.tranquility.finagle
 import com.metamx.common.Backoff
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
-import com.twitter.util.{Promise, Time, Timer, Future}
+import com.twitter.util.Future
+import com.twitter.util.Promise
+import com.twitter.util.Time
+import com.twitter.util.Timer
 import org.scala_tools.time.Implicits._
 
 object FutureRetry extends Logging
@@ -34,10 +37,10 @@ object FutureRetry extends Logging
    * @param timer use this timer for scheduling retries
    */
   def onErrors[A](
-    mkfuture: => Future[A],
     isTransients: Seq[Exception => Boolean],
     backoff: Backoff = Backoff.standard()
-  )(implicit timer: Timer): Future[A] = {
+  )(mkfuture: => Future[A])(implicit timer: Timer): Future[A] =
+  {
     mkfuture rescue {
       case e: Exception if isTransients.exists(_(e)) =>
         new Promise[A] withEffect {
@@ -46,7 +49,7 @@ object FutureRetry extends Logging
             backoff.incr()
             log.warn(e, "Transient error, will try again in %s ms", next)
             timer.schedule(Time.now + next.toDuration) {
-              promise.become(onErrors(mkfuture, isTransients, backoff))
+              promise.become(onErrors(isTransients, backoff)(mkfuture))
             }
         }
     }

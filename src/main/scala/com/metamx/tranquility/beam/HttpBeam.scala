@@ -20,6 +20,7 @@ package com.metamx.tranquility.beam
 
 import com.google.common.base.Charsets
 import com.google.common.io.BaseEncoding
+import com.metamx.common.Backoff
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.control._
@@ -125,7 +126,7 @@ class HttpBeam[A: Timestamper](
     val responses = events.grouped(HttpBeam.DefaultBatchSize) map {
       eventsChunk =>
         val retryable = isTransient(HttpBeam.DefaultRetryPeriod)
-        val response = {
+        val response = FutureRetry.onErrors(Seq(retryable), Backoff.standard()) {
           client(request(eventsChunk)) map {
             response =>
               response.getStatus.getCode match {
@@ -139,7 +140,7 @@ class HttpBeam[A: Timestamper](
                       (uri, code, response.getStatus.getReasonPhrase)
                   )
               }
-          } retryWhen retryable
+          }
         }
         response rescue {
           case e: Exception =>

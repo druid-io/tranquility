@@ -19,24 +19,21 @@
 package com.metamx.tranquility
 
 import com.metamx.common.scala.Predef._
-import com.twitter.util.{Future, Timer, Duration => TwitterDuration}
-import org.jboss.netty.handler.codec.http.{DefaultHttpRequest, HttpMethod, HttpRequest, HttpVersion}
+import com.twitter.util.{Duration => TwitterDuration}
+import org.jboss.netty.handler.codec.http.DefaultHttpRequest
+import org.jboss.netty.handler.codec.http.HttpMethod
+import org.jboss.netty.handler.codec.http.HttpRequest
+import org.jboss.netty.handler.codec.http.HttpVersion
 import org.joda.time.Duration
 import org.scala_tools.time.Implicits._
 
 package object finagle
 {
-  implicit def jodaDurationToTwitterDuration(duration: Duration) = TwitterDuration.fromMilliseconds(duration.millis)
-
-  lazy val FinagleLogger = java.util.logging.Logger.getLogger("finagle")
-
-  // Call-by-name so we can recreate a future from scratch when it fails
-  class FutureRetryOps[A](mkfuture: => Future[A])(implicit timer: Timer)
-  {
-    def retryWhen(isTransients: (Exception => Boolean)*) = FutureRetry.onErrors(mkfuture, isTransients)
+  implicit def jodaDurationToTwitterDuration(duration: Duration): TwitterDuration = {
+    TwitterDuration.fromMilliseconds(duration.millis)
   }
 
-  implicit def FutureRetryOps[A](mkfuture: => Future[A])(implicit timer: Timer) = new FutureRetryOps(mkfuture)
+  lazy val FinagleLogger = java.util.logging.Logger.getLogger("finagle")
 
   def HttpPost(path: String) = {
     new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, path) withEffect {

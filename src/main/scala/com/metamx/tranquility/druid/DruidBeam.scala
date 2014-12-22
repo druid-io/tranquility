@@ -19,6 +19,7 @@
 package com.metamx.tranquility.druid
 
 import com.google.common.base.Charsets
+import com.metamx.common.Backoff
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.event.WARN
@@ -26,15 +27,18 @@ import com.metamx.common.scala.event.emit.emitAlert
 import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.common.scala.untyped._
 import com.metamx.emitter.service.ServiceEmitter
-import com.metamx.tranquility.beam.{Beam, DefunctBeamException}
+import com.metamx.tranquility.beam.Beam
+import com.metamx.tranquility.beam.DefunctBeamException
 import com.metamx.tranquility.finagle._
-import com.metamx.tranquility.typeclass.{ObjectWriter, Timestamper}
+import com.metamx.tranquility.typeclass.ObjectWriter
+import com.metamx.tranquility.typeclass.Timestamper
 import com.twitter.finagle.Service
 import com.twitter.finagle.util.DefaultTimer
 import com.twitter.util.Future
 import java.io.IOException
 import org.jboss.netty.buffer.ChannelBuffers
-import org.jboss.netty.handler.codec.http.{HttpRequest, HttpResponse}
+import org.jboss.netty.handler.codec.http.HttpRequest
+import org.jboss.netty.handler.codec.http.HttpResponse
 import org.scala_tools.time.Imports._
 
 /**
@@ -114,53 +118,55 @@ class DruidBeam[A : Timestamper](
         )
       }
       val retryable = IndexService.isTransient(config.firehoseRetryPeriod)
-      client(eventPost) map {
-        response =>
-          val code = response.getStatus.getCode
-          val reason = response.getStatus.getReasonPhrase
-          if (code / 100 == 2) {
-            log.trace(
-              "Sent %,d events to task[%s], firehose[%s], got response: %s",
-              eventsChunkSize,
-              task.id,
-              task.firehoseId,
-              response.getContent.toString(Charsets.UTF_8)
-            )
-            task -> eventsChunkSize
-          } else {
-            throw new IOException(
-              "Failed to send %,d events to task[%s]: %s %s" format(eventsChunkSize, task.id, code, reason)
-            )
-          }
-      } rescue {
-        case e: Exception if retryable(e) =>
-          // This is a retryable exception. Possibly give up by returning false if the task has disappeared.
-          (if (!client.active) {
-            Future(client.status)
-          } else {
-            indexService.status(task.id)
-          }) map {
-            status =>
-              client.status = status
-              if (!client.active) {
-                // Task inactive, let's give up
-                emitAlert(
-                  log, emitter, WARN, "Loss of Druid redundancy: %s" format location.dataSource, Dict(
-                    "task" -> task.id,
-                    "status" -> client.status.toString,
-                    "remaining" -> clients.values.count(_.active)
+      FutureRetry.onErrors(Seq(retryable), Backoff.standard()) {
+        client(eventPost) map {
+          response =>
+            val code = response.getStatus.getCode
+            val reason = response.getStatus.getReasonPhrase
+            if (code / 100 == 2) {
+              log.trace(
+                "Sent %,d events to task[%s], firehose[%s], got response: %s",
+                eventsChunkSize,
+                task.id,
+                task.firehoseId,
+                response.getContent.toString(Charsets.UTF_8)
+              )
+              task -> eventsChunkSize
+            } else {
+              throw new IOException(
+                "Failed to send %,d events to task[%s]: %s %s" format(eventsChunkSize, task.id, code, reason)
+              )
+            }
+        } rescue {
+          case e: Exception if retryable(e) =>
+            // This is a retryable exception. Possibly give up by returning false if the task has disappeared.
+            (if (!client.active) {
+              Future(client.status)
+            } else {
+              indexService.status(task.id)
+            }) map {
+              status =>
+                client.status = status
+                if (!client.active) {
+                  // Task inactive, let's give up
+                  emitAlert(
+                    log, emitter, WARN, "Loss of Druid redundancy: %s" format location.dataSource, Dict(
+                      "task" -> task.id,
+                      "status" -> client.status.toString,
+                      "remaining" -> clients.values.count(_.active)
+                    )
                   )
-                )
-                task -> 0
-              } else {
-                // Task still active, allow retry
-                throw new IOException(
-                  "Unable to push events to task: %s (status = %s)" format(task.id, clients(task).status),
-                  e
-                )
-              }
-          }
-      } retryWhen retryable
+                  task -> 0
+                } else {
+                  // Task still active, allow retry
+                  throw new IOException(
+                    "Unable to push events to task: %s (status = %s)" format(task.id, clients(task).status),
+                    e
+                  )
+                }
+            }
+        }
+      }
     }
     val taskSuccessesFuture: Future[Map[DruidTaskPointer, Int]] = Future.collect(taskChunkFutures) map {
       xs =>
