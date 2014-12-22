@@ -83,7 +83,7 @@ class IndexService(
 
   private def call(req: HttpRequest): Future[Dict] = {
     val retryable = IndexService.isTransient(config.indexRetryPeriod)
-    FutureRetry.onErrors(Seq(retryable), Backoff.standard()) {
+    FutureRetry.onErrors(Seq(retryable), new Backoff(15000, 2, 60000)) {
       client(req) map {
         response =>
           response.getStatus.getCode match {
