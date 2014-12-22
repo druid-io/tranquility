@@ -70,13 +70,15 @@ public class JavaApiTest
     @Override
     public Beam<Map<String, Object>> makeBeam(Map<?, ?> conf, IMetricsContext metrics)
     {
-      try {
-        final TestingCluster cluster = new TestingCluster(1);
-        final CuratorFramework curator = CuratorFrameworkFactory
-            .builder()
-            .connectString(cluster.getConnectString())
-            .retryPolicy(new RetryOneTime(1000))
-            .build();
+      try (
+          final TestingCluster cluster = new TestingCluster(1);
+          final CuratorFramework curator = CuratorFrameworkFactory.builder()
+                                                                  .connectString(cluster.getConnectString())
+                                                                  .retryPolicy(
+                                                                      new RetryOneTime(1000)
+                                                                  )
+                                                                  .build()
+      ) {
         cluster.start();
         curator.start();
 
