@@ -19,24 +19,25 @@
 
 package com.metamx.tranquility.test.common
 
-import org.apache.curator.framework.{CuratorFramework, CuratorFrameworkFactory}
+import com.metamx.common.scala.Predef._
+import org.apache.curator.framework.CuratorFramework
+import org.apache.curator.framework.CuratorFrameworkFactory
 import org.apache.curator.retry.BoundedExponentialBackoffRetry
 import org.apache.curator.test.TestingCluster
 
 trait CuratorRequiringSuite
 {
   def withLocalCurator[A](f: CuratorFramework => A): A = {
-    val cluster = new TestingCluster(1)
-    val curator = CuratorFrameworkFactory.newClient(
-      cluster.getConnectString,
-      new BoundedExponentialBackoffRetry(100, 1000, 5)
-    )
-    cluster.start()
-    curator.start()
-    try f(curator)
-    finally {
-      curator.close()
-      cluster.close()
+    new TestingCluster(1).withFinally(_.close()) {
+      cluster =>
+        cluster.start()
+        CuratorFrameworkFactory
+          .newClient(cluster.getConnectString, new BoundedExponentialBackoffRetry(100, 1000, 5))
+          .withFinally(_.close()) {
+          curator =>
+            curator.start()
+            f(curator)
+        }
     }
   }
 }
