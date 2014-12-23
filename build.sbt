@@ -36,7 +36,7 @@ val jacksonTwoVersion = "2.2.2"
 val druidVersion = "0.6.164"
 
 libraryDependencies ++= Seq(
-  "com.metamx" %% "scala-util" % "1.8.29" force(),
+  "com.metamx" %% "scala-util" % "1.8.43" force() exclude("org.scalatest", "scalatest_2.9.2"),
   "com.metamx" % "java-util" % "0.26.6" force()
 )
 
@@ -105,7 +105,7 @@ libraryDependencies <++= scalaVersion {
 // Need druid-services for the test-everything integration test.
 libraryDependencies ++= Seq(
   "io.druid" % "druid-services" % druidVersion % "test" force(),
-  "org.apache.curator" % "curator-test" % "2.4.0" % "test" force(),
+  "org.apache.curator" % "curator-test" % "2.6.0" % "test" force(),
   "com.sun.jersey" % "jersey-servlet" % "1.17.1" % "test" force(),
   "junit" % "junit" % "4.11" % "test",
   "com.novocode" % "junit-interface" % "0.11-RC1" % "test"
