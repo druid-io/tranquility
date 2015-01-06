@@ -43,9 +43,13 @@ final CuratorFramework curator = CuratorFrameworkFactory
     .build();
 curator.start();
 
-// Tranquility needs to be able to serialize your object type. By default this is done with Jackson. If you want to
-// provide an alternate serializer, you can provide your own via ```.objectWriter(...)```. In this case, we won't
-// provide one, so we're just using Jackson:
+// The JSON serialization of your object must have a timestamp field in a format that Druid understands. By default,
+// Druid expects the field to be called "timestamp" and to be an ISO8601 timestamp.
+final TimestampSpec timestampSpec = new TimestampSpec("timestamp", "auto");
+
+// Tranquility needs to be able to serialize your object type to JSON for transmission to Druid. By default this is
+// done with Jackson. If you want to provide an alternate serializer, you can provide your own via ```.objectWriter(...)```.
+// In this case, we won't provide one, so we're just using Jackson.
 final Service<List<Map<String, Object>>, Integer> druidService = DruidBeams
     .builder(timestamper)
     .curator(curator)
@@ -57,6 +61,7 @@ final Service<List<Map<String, Object>>, Integer> druidService = DruidBeams
             dataSource
         )
     )
+    .timestampSpec(timestampSpec)
     .rollup(DruidRollup.create(DruidDimensions.specific(dimensions), aggregators, QueryGranularity.MINUTE))
     .tuning(
       ClusteredBeamTuning
