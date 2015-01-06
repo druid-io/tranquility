@@ -35,6 +35,8 @@ sealed abstract class DruidDimensions
   def spec: DimensionsSpec
 
   def spatialDimensions: IndexedSeq[DruidSpatialDimension]
+
+  def withSpatialDimensions(xs: java.util.List[DruidSpatialDimension]): DruidDimensions
 }
 
 sealed abstract class DruidSpatialDimension
@@ -70,7 +72,7 @@ case class SpecificDruidDimensions(
   /**
    * Convenience method for Java users. Scala users should use "copy".
    */
-  def withSpatialDimensions(xs: java.util.List[DruidSpatialDimension]) = copy(
+  override def withSpatialDimensions(xs: java.util.List[DruidSpatialDimension]) = copy(
     spatialDimensions = xs
       .asScala
       .toIndexedSeq
@@ -94,7 +96,7 @@ case class SchemalessDruidDimensions(
   /**
    * Convenience method for Java users. Scala users should use "copy".
    */
-  def withSpatialDimensions(xs: java.util.List[DruidSpatialDimension]) = copy(
+  override def withSpatialDimensions(xs: java.util.List[DruidSpatialDimension]) = copy(
     spatialDimensions = xs
       .asScala
       .toIndexedSeq
@@ -171,5 +173,22 @@ object DruidDimensions
    */
   def schemalessWithExclusions(dimensionExclusions: java.util.List[String]): DruidDimensions = {
     SchemalessDruidDimensions(dimensionExclusions.asScala.toIndexedSeq, Vector.empty)
+  }
+}
+
+object DruidSpatialDimension
+{
+  /**
+   * Builder for Java users.
+   */
+  def singleField(name: String): DruidSpatialDimension = {
+    new SingleFieldDruidSpatialDimension(name)
+  }
+
+  /**
+   * Builder for Java users.
+   */
+  def multipleField(name: String, fieldNames: java.util.List[String]): DruidSpatialDimension = {
+    new MultipleFieldDruidSpatialDimension(name, fieldNames.asScala)
   }
 }

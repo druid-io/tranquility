@@ -24,6 +24,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.metamx.common.Granularity;
 import com.metamx.tranquility.beam.Beam;
 import com.metamx.tranquility.beam.ClusteredBeamTuning;
@@ -31,6 +32,8 @@ import com.metamx.tranquility.druid.DruidBeams;
 import com.metamx.tranquility.druid.DruidDimensions;
 import com.metamx.tranquility.druid.DruidLocation;
 import com.metamx.tranquility.druid.DruidRollup;
+import com.metamx.tranquility.druid.DruidSpatialDimension;
+import com.metamx.tranquility.druid.MultipleFieldDruidSpatialDimension;
 import com.metamx.tranquility.druid.SchemalessDruidDimensions;
 import com.metamx.tranquility.druid.SpecificDruidDimensions;
 import com.metamx.tranquility.storm.BeamBolt;
@@ -186,6 +189,27 @@ public class JavaApiTest
     );
     Assert.assertTrue(rollup.dimensions() instanceof SchemalessDruidDimensions);
     Assert.assertEquals("column", ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().apply(0));
+  }
+
+  @Test
+  public void testSchemalessDimensionsWithExclusionsAndSpatialDimensionsRollupConfiguration() throws Exception
+  {
+    final DruidRollup rollup = DruidRollup.create(
+        DruidDimensions.schemalessWithExclusions(dimensions)
+                       .withSpatialDimensions(
+                           Lists.newArrayList(
+                               DruidSpatialDimension.multipleField(
+                                   "coord.geo",
+                                   Lists.newArrayList("lat", "lon")
+                               )
+                           )
+                       ),
+        aggregators,
+        QueryGranularity.MINUTE
+    );
+    Assert.assertTrue(rollup.dimensions() instanceof SchemalessDruidDimensions);
+    Assert.assertEquals("column", ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().apply(0));
+    Assert.assertEquals("coord.geo", ((MultipleFieldDruidSpatialDimension)rollup.dimensions().spatialDimensions().apply(0)).schema().getDimName());
   }
 
   @Test
