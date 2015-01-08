@@ -20,6 +20,8 @@
 package com.metamx.tranquility.test.common
 
 import com.metamx.common.scala.Predef._
+import com.metamx.common.scala.control._
+import java.net.BindException
 import org.apache.curator.framework.CuratorFramework
 import org.apache.curator.framework.CuratorFrameworkFactory
 import org.apache.curator.retry.BoundedExponentialBackoffRetry
@@ -28,16 +30,27 @@ import org.apache.curator.test.TestingCluster
 trait CuratorRequiringSuite
 {
   def withLocalCurator[A](f: CuratorFramework => A): A = {
-    new TestingCluster(1).withFinally(_.close()) {
-      cluster =>
-        cluster.start()
+    withZkCluster {
+      connectString =>
         CuratorFrameworkFactory
-          .newClient(cluster.getConnectString, new BoundedExponentialBackoffRetry(100, 1000, 5))
+          .newClient(connectString, new BoundedExponentialBackoffRetry(100, 1000, 5))
           .withFinally(_.close()) {
           curator =>
             curator.start()
             f(curator)
         }
+    }
+  }
+
+  def withZkCluster[A](f: String => A): A = {
+    // TestingCluster has a race where it first selects an available port, then closes it, then binds to it again.
+    val cluster = retryOnErrors(ifException[BindException]) {
+      new TestingCluster(1).withEffect(_.start())
+    }
+    try {
+      f(cluster.getConnectString)
+    } finally {
+      cluster.close()
     }
   }
 }
