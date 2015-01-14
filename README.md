@@ -15,9 +15,9 @@ other alternative is the Storm API, described in the next section.)
 You can set up and use a Finagle Service like this:
 
 ```java
-final String indexService = "druid:overlord"; // Your overlord's service name.
+final String indexService = "overlord"; // Your overlord's service name.
 final String firehosePattern = "druid:firehose:%s"; // Make up a service pattern, include %s somewhere in it.
-final String discoveryPath = "/discovery"; // Your overlord's druid.discovery.curator.path
+final String discoveryPath = "/druid/discovery"; // Your overlord's druid.discovery.curator.path
 final String dataSource = "foo";
 final List<String> dimensions = ImmutableList.of("bar", "qux");
 final List<AggregatorFactory> aggregators = ImmutableList.of(
@@ -88,9 +88,9 @@ curator.close();
 Or in Scala:
 
 ```scala
-val indexService = "druid:overlord" // Your overlord's druid.service, with slashes replaced by colons.
+val indexService = "overlord" // Your overlord's druid.service, with slashes replaced by colons.
 val firehosePattern = "druid:firehose:%s" // Make up a service pattern, include %s somewhere in it.
-val discoveryPath = "/discovery" // Your overlord's druid.discovery.curator.path.
+val discoveryPath = "/druid/discovery" // Your overlord's druid.discovery.curator.path.
 val dataSource = "foo"
 val dimensions = Seq("bar", "qux")
 val aggregators = Seq(new CountAggregatorFactory("cnt"), new LongSumAggregatorFactory("baz", "baz"))
@@ -144,9 +144,9 @@ class MyBeamFactory extends BeamFactory[Map[String, Any]]
     )
     curator.start()
 
-    val indexService = "druid:overlord" // Your overlord's druid.service, with slashes replaced by colons.
+    val indexService = "overlord" // Your overlord's druid.service, with slashes replaced by colons.
     val firehosePattern = "druid:firehose:%s" // Make up a service pattern, include %s somewhere in it.
-    val discoveryPath = "/discovery" // Your overlord's druid.discovery.curator.path.
+    val discoveryPath = "/druid/discovery" // Your overlord's druid.discovery.curator.path.
     val dataSource = "foo"
     val dimensions = Seq("bar")
     val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
