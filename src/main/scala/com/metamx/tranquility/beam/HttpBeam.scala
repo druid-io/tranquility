@@ -26,20 +26,25 @@ import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.control._
 import com.metamx.common.scala.event.WARN
 import com.metamx.common.scala.event.emit.emitAlert
+import com.metamx.common.scala.net.finagle.InetAddressResolver
 import com.metamx.common.scala.net.uri._
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.finagle._
-import com.metamx.tranquility.typeclass.{ObjectWriter, Timestamper}
+import com.metamx.tranquility.typeclass.ObjectWriter
+import com.metamx.tranquility.typeclass.Timestamper
+import com.twitter.finagle.Group
 import com.twitter.finagle.builder.ClientBuilder
 import com.twitter.finagle.http.Http
 import com.twitter.finagle.util.DefaultTimer
-import com.twitter.finagle.{InetResolver, Group}
-import com.twitter.util.{Future, Timer}
-import java.io.{ByteArrayOutputStream, IOException}
+import com.twitter.util.Future
+import com.twitter.util.Timer
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.util.zip.GZIPOutputStream
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http.HttpRequest
-import org.joda.time.{Duration, Period}
+import org.joda.time.Duration
+import org.joda.time.Period
 import org.scala_tools.time.Implicits._
 
 /**
@@ -73,7 +78,7 @@ class HttpBeam[A: Timestamper](
     val preTlsClientBuilder = ClientBuilder()
       .name(uri.toString)
       .codec(Http())
-      .group(Group.fromVarAddr(InetResolver.bind(hostAndPort)))
+      .group(Group.fromVarAddr(InetAddressResolver.default.bind(hostAndPort)))
       .hostConnectionLimit(2)
       .hostConnectionMaxLifeTime(HttpBeam.DefaultConnectionMaxLifeTime)
       .tcpConnectTimeout(HttpBeam.DefaultConnectTimeout)
