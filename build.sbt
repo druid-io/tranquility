@@ -41,7 +41,7 @@ libraryDependencies ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "io.netty" % "netty" % "3.9.0.Final" force()
+  "io.netty" % "netty" % "3.9.5.Final" force()
 )
 
 libraryDependencies ++= Seq(
