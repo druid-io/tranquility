@@ -191,7 +191,7 @@ The current stable version is:
   <artifactId>tranquility_2.10</artifactId>
   <!-- Or for scala 2.9: -->
   <!-- <artifactId>tranquility_2.9.1</artifactId> -->
-  <version>0.2.16</version>
+  <version>0.2.37</version>
 </dependency>
 ```
 
