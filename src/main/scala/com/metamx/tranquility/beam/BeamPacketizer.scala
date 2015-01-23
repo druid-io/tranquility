@@ -102,7 +102,7 @@ class BeamPacketizer[A](
           batch.foreach(listener.fail(e, _))
 
         case None =>
-          log.info("%s: Flushed %,d, ignored %,d messages.", beam, actuallySent, batch.size - actuallySent)
+          log.debug("%s: Flushed %,d, ignored %,d messages.", beam, actuallySent, batch.size - actuallySent)
           batch.foreach(listener.ack)
       }
     }
