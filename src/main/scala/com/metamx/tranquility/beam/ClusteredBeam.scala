@@ -30,16 +30,19 @@ import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.common.scala.untyped._
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.typeclass.Timestamper
-import com.twitter.util.{Future, FuturePool}
+import com.twitter.util.Future
+import com.twitter.util.FuturePool
 import java.util.UUID
 import java.util.concurrent.Executors
 import org.apache.curator.framework.CuratorFramework
 import org.apache.curator.framework.recipes.locks.InterProcessSemaphoreMutex
 import org.apache.zookeeper.KeeperException.NodeExistsException
-import org.joda.time.{DateTime, Interval}
+import org.joda.time.DateTime
+import org.joda.time.Interval
 import org.scala_tools.time.Implicits._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.language.reflectiveCalls
 import scala.util.Random
 
 /**

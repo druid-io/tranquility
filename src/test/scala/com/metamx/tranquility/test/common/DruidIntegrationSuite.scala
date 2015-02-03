@@ -2,18 +2,35 @@ package com.metamx.tranquility.test.common
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.common.base.Charsets
-import com.google.common.io.{CharStreams, Files}
+import com.google.common.io.CharStreams
+import com.google.common.io.Files
 import com.google.inject.Injector
+import com.metamx.collections.spatial.search.RectangularBound
+import com.metamx.common.scala.Jackson
+import com.metamx.common.scala.Logging
 import com.metamx.common.scala.concurrent._
+import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.common.scala.untyped._
-import com.metamx.common.scala.{Jackson, Logging}
-import io.druid.cli.{CliBroker, CliOverlord, GuiceRunnable}
+import io.druid.cli.CliBroker
+import io.druid.cli.CliOverlord
+import io.druid.cli.GuiceRunnable
+import io.druid.granularity.QueryGranularity
 import io.druid.guice.GuiceInjectors
+import io.druid.query.Druids
 import io.druid.query.Query
+import io.druid.query.aggregation.AggregatorFactory
+import io.druid.query.aggregation.LongSumAggregatorFactory
+import io.druid.query.filter.SpatialDimFilter
 import io.druid.server.ClientQuerySegmentWalker
-import java.io.{File, InputStreamReader}
+import java.io.File
+import java.io.InputStreamReader
 import org.apache.curator.framework.CuratorFramework
+import org.scala_tools.time.Imports.DateTimeZone
+import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
+import scala.collection.JavaConverters._
+import scala.reflect.ClassTag
+import scala.reflect.classTag
 import scala.util.Random
 
 trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
@@ -36,8 +53,8 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
     configFile
   }
 
-  def spawnDruidServer[A <: GuiceRunnable : ClassManifest](configFile: File): DruidServerHandle = {
-    val server = classManifest[A].erasure.newInstance().asInstanceOf[A]
+  def spawnDruidServer[A <: GuiceRunnable : ClassTag](configFile: File): DruidServerHandle = {
+    val server = classTag[A].runtimeClass.newInstance().asInstanceOf[A]
     val serverName = server.getClass.getName
     // Would be better to have a way to easily pass Properties into the startup injector.
     System.setProperty("druid.properties.file", configFile.toString)
@@ -145,6 +162,63 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
       }
     }
     assert(got === expected)
+  }
+
+  def runTestQueriesAndAssertions(broker: DruidServerHandle, timekeeper: Timekeeper) {
+    val testQueries = Seq(
+      (Druids
+        .newTimeBoundaryQueryBuilder()
+        .dataSource("xxx")
+        .build(),
+        Seq(
+          Map(
+            "timestamp" -> timekeeper.now.toString(),
+            "result" ->
+              Map(
+                "minTime" -> timekeeper.now.toString(),
+                "maxTime" -> (timekeeper.now + 1.minute).toString()
+              )
+          )
+        )),
+      (Druids
+        .newTimeseriesQueryBuilder()
+        .dataSource("xxx")
+        .granularity(QueryGranularity.MINUTE)
+        .intervals("0000/3000")
+        .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
+        .build(),
+        Seq(
+          Map(
+            "timestamp" -> timekeeper.now.withZone(DateTimeZone.UTC).toString(),
+            "result" -> Map("barr" -> 2)
+          ),
+          Map(
+            "timestamp" -> (timekeeper.now + 1.minute).withZone(DateTimeZone.UTC).toString(),
+            "result" -> Map("barr" -> 3)
+          )
+        )),
+      (Druids
+        .newTimeseriesQueryBuilder()
+        .dataSource("xxx")
+        .granularity(QueryGranularity.MINUTE)
+        .intervals("0000/3000")
+        .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
+        .filters(new SpatialDimFilter("coord.geo", new RectangularBound(Array(35f, 120f), Array(40f, 125f))))
+        .build(),
+        Seq(
+          Map(
+            "timestamp" -> timekeeper.now.withZone(DateTimeZone.UTC).toString(),
+            "result" -> Map("barr" -> 0)
+          ),
+          Map(
+            "timestamp" -> (timekeeper.now + 1.minute).withZone(DateTimeZone.UTC).toString(),
+            "result" -> Map("barr" -> 3)
+          )
+        ))
+    )
+    for ((query, expected) <- testQueries) {
+      assertQueryResults(broker, query, expected)
+    }
   }
 
 }

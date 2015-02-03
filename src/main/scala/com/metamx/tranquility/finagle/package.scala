@@ -26,6 +26,7 @@ import org.jboss.netty.handler.codec.http.HttpRequest
 import org.jboss.netty.handler.codec.http.HttpVersion
 import org.joda.time.Duration
 import org.scala_tools.time.Implicits._
+import scala.language.implicitConversions
 
 package object finagle
 {

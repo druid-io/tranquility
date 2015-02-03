@@ -29,6 +29,7 @@ import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.druid.DruidBeams
 import com.metamx.tranquility.storm.{BeamBolt, BeamFactory}
 import com.metamx.tranquility.test.BeamBoltTest.{SimpleBeam, SimpleBeamFactory, SimpleEvent}
+import com.metamx.tranquility.test.common.JulUtils
 import com.metamx.tranquility.test.common.{CuratorRequiringSuite, SimpleKryoFactory, SimpleSpout, StormRequiringSuite}
 import com.twitter.util.Future
 import java.{util => ju}
@@ -73,6 +74,8 @@ object BeamBoltTest
 
 class BeamBoltTest extends FunSuite with CuratorRequiringSuite with StormRequiringSuite with Logging
 {
+
+  JulUtils.routeJulThroughSlf4j()
 
   test("Storm BeamBolt") {
     withLocalCurator {

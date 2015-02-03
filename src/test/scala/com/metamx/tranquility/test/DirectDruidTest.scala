@@ -19,31 +19,32 @@
 
 package com.metamx.tranquility.test
 
-import backtype.storm.Config
-import backtype.storm.task.IMetricsContext
-import backtype.storm.topology.TopologyBuilder
 import com.fasterxml.jackson.annotation.JsonValue
-import com.metamx.collections.spatial.search.RectangularBound
 import com.metamx.common.Granularity
-import com.metamx.common.scala.Predef._
-import com.metamx.common.scala.timekeeper.{TestingTimekeeper, Timekeeper}
+import com.metamx.common.scala.Jackson
+import com.metamx.common.scala.Logging
+import com.metamx.common.scala.timekeeper.TestingTimekeeper
+import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.common.scala.untyped.Dict
-import com.metamx.common.scala.{Jackson, Logging}
-import com.metamx.tranquility.beam.{ClusteredBeamTuning, RoundRobinBeam}
-import com.metamx.tranquility.druid.{DruidBeams, DruidEnvironment, DruidLocation, DruidRollup, MultipleFieldDruidSpatialDimension, SpecificDruidDimensions}
-import com.metamx.tranquility.storm.{BeamBolt, BeamFactory}
+import com.metamx.tranquility.beam.ClusteredBeamTuning
+import com.metamx.tranquility.beam.RoundRobinBeam
+import com.metamx.tranquility.druid.DruidBeams
+import com.metamx.tranquility.druid.DruidEnvironment
+import com.metamx.tranquility.druid.DruidLocation
+import com.metamx.tranquility.druid.DruidRollup
+import com.metamx.tranquility.druid.MultipleFieldDruidSpatialDimension
+import com.metamx.tranquility.druid.SpecificDruidDimensions
 import com.metamx.tranquility.test.DruidIntegrationTest._
 import com.metamx.tranquility.test.common._
-import com.metamx.tranquility.typeclass.{JavaObjectWriter, Timestamper}
-import com.twitter.util.{Await, Future}
+import com.metamx.tranquility.typeclass.JavaObjectWriter
+import com.metamx.tranquility.typeclass.Timestamper
+import com.twitter.util.Await
+import com.twitter.util.Future
 import io.druid.data.input.impl.TimestampSpec
 import io.druid.granularity.QueryGranularity
-import io.druid.query.Druids
-import io.druid.query.aggregation.{AggregatorFactory, LongSumAggregatorFactory}
-import io.druid.query.filter.SpatialDimFilter
+import io.druid.query.aggregation.LongSumAggregatorFactory
 import java.{util => ju}
-import org.apache.curator.framework.{CuratorFramework, CuratorFrameworkFactory}
-import org.apache.curator.retry.BoundedExponentialBackoffRetry
+import org.apache.curator.framework.CuratorFramework
 import org.joda.time.DateTime
 import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
@@ -89,25 +90,6 @@ object DruidIntegrationTest
       .beamMergeFn(beams => new RoundRobinBeam(beams.toIndexedSeq))
   }
 
-  def newBeamFactory(zkConnect: String, now: DateTime): BeamFactory[SimpleEvent] = {
-    new BeamFactory[SimpleEvent]
-    {
-      override def makeBeam(conf: ju.Map[_, _], metrics: IMetricsContext) = {
-        val aDifferentCurator = CuratorFrameworkFactory.newClient(
-          zkConnect,
-          new BoundedExponentialBackoffRetry(100, 1000, 5)
-        )
-        aDifferentCurator.start()
-        newBuilder(
-          aDifferentCurator, new TestingTimekeeper withEffect {
-            timekeeper =>
-              timekeeper.now = now
-          }
-        ).buildBeam()
-      }
-    }
-  }
-
   case class SimpleEvent(ts: DateTime, fields: Dict)
   {
     @JsonValue
@@ -122,6 +104,8 @@ object DruidIntegrationTest
 class DruidIntegrationTest
   extends FunSuite with DruidIntegrationSuite with CuratorRequiringSuite with StormRequiringSuite with Logging
 {
+
+  JulUtils.routeJulThroughSlf4j()
 
   test("Druid standalone") {
     withDruidStack {
@@ -173,87 +157,10 @@ class DruidIntegrationTest
     }
   }
 
-  test("Storm to Druid") {
+  test("Samza to Druid") {
     withDruidStack {
       (curator, broker, overlord) =>
-        val zkConnect = curator.getZookeeperClient.getCurrentConnectionString
-        val now = new DateTime().hourOfDay().roundFloorCopy()
-        withLocalStorm {
-          storm =>
-            val inputs = generateEvents(now)
-            val spout = new SimpleSpout[SimpleEvent](inputs)
-            val conf = new Config
-            conf.setKryoFactory(classOf[SimpleKryoFactory])
-            val builder = new TopologyBuilder
-            builder.setSpout("events", spout)
-            builder
-              .setBolt("beam", new BeamBolt[SimpleEvent](newBeamFactory(zkConnect, now)))
-              .shuffleGrouping("events")
-            storm.submitTopology("test", conf, builder.createTopology())
-            runTestQueriesAndAssertions(
-              broker, new TestingTimekeeper withEffect {
-                timekeeper =>
-                  timekeeper.now = now
-              }
-            )
-        }
-    }
-  }
 
-  def runTestQueriesAndAssertions(broker: DruidServerHandle, timekeeper: Timekeeper) {
-    val testQueries = Seq(
-      (Druids
-        .newTimeBoundaryQueryBuilder()
-        .dataSource("xxx")
-        .build(),
-        Seq(
-          Map(
-            "timestamp" -> timekeeper.now.toString(),
-            "result" ->
-              Map(
-                "minTime" -> timekeeper.now.toString(),
-                "maxTime" -> (timekeeper.now + 1.minute).toString()
-              )
-          )
-        )),
-      (Druids
-        .newTimeseriesQueryBuilder()
-        .dataSource("xxx")
-        .granularity(QueryGranularity.MINUTE)
-        .intervals("0000/3000")
-        .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
-        .build(),
-        Seq(
-          Map(
-            "timestamp" -> timekeeper.now.withZone(DateTimeZone.UTC).toString(),
-            "result" -> Map("barr" -> 2)
-          ),
-          Map(
-            "timestamp" -> (timekeeper.now + 1.minute).withZone(DateTimeZone.UTC).toString(),
-            "result" -> Map("barr" -> 3)
-          )
-        )),
-      (Druids
-        .newTimeseriesQueryBuilder()
-        .dataSource("xxx")
-        .granularity(QueryGranularity.MINUTE)
-        .intervals("0000/3000")
-        .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
-        .filters(new SpatialDimFilter("coord.geo", new RectangularBound(Array(35f, 120f), Array(40f, 125f))))
-        .build(),
-        Seq(
-          Map(
-            "timestamp" -> timekeeper.now.withZone(DateTimeZone.UTC).toString(),
-            "result" -> Map("barr" -> 0)
-          ),
-          Map(
-            "timestamp" -> (timekeeper.now + 1.minute).withZone(DateTimeZone.UTC).toString(),
-            "result" -> Map("barr" -> 3)
-          )
-        ))
-    )
-    for ((query, expected) <- testQueries) {
-      assertQueryResults(broker, query, expected)
     }
   }
 

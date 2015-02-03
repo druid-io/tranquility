@@ -26,6 +26,8 @@ import io.druid.guice.{DruidSecondaryModule, ExtensionsConfig, FirehoseModule, G
 import io.druid.initialization.{DruidModule, Initialization}
 import io.druid.server.DruidNode
 import scala.collection.JavaConverters._
+import scala.reflect.ClassTag
+import scala.reflect.classTag
 
 object DruidGuicer
 {
@@ -88,7 +90,7 @@ object DruidGuicer
     Guice.createInjector(Modules.`override`(baseModules : _*).`with`(moreModules ++ extensionModules : _*))
   }
 
-  def get[A: ClassManifest]: A = injector.getInstance(classManifest[A].erasure.asInstanceOf[Class[A]])
+  def get[A: ClassTag]: A = injector.getInstance(classTag[A].runtimeClass.asInstanceOf[Class[A]])
 
   def objectMapper = get[ObjectMapper]
 }

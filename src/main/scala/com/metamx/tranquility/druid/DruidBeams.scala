@@ -19,25 +19,37 @@
 package com.metamx.tranquility.druid
 
 import com.fasterxml.jackson.core.JsonGenerator
-import com.metamx.common.Granularity
 import com.metamx.common.lifecycle.Lifecycle
 import com.metamx.common.logger.Logger
 import com.metamx.common.scala.Jackson
-import com.metamx.common.scala.net.curator.{DiscoConfig, Disco}
-import com.metamx.common.scala.timekeeper.{SystemTimekeeper, Timekeeper}
+import com.metamx.common.scala.net.curator.Disco
+import com.metamx.common.scala.net.curator.DiscoConfig
+import com.metamx.common.scala.timekeeper.SystemTimekeeper
+import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.common.scala.untyped.Dict
 import com.metamx.emitter.core.LoggingEmitter
 import com.metamx.emitter.service.ServiceEmitter
-import com.metamx.tranquility.beam.{HashPartitionBeam, ClusteredBeam, ClusteredBeamTuning, Beam}
-import com.metamx.tranquility.finagle.{BeamService, FinagleRegistryConfig, FinagleRegistry}
-import com.metamx.tranquility.typeclass.{JavaObjectWriter, JsonWriter, ObjectWriter, Timestamper}
+import com.metamx.tranquility.beam.Beam
+import com.metamx.tranquility.beam.ClusteredBeam
+import com.metamx.tranquility.beam.ClusteredBeamTuning
+import com.metamx.tranquility.beam.HashPartitionBeam
+import com.metamx.tranquility.finagle.BeamService
+import com.metamx.tranquility.finagle.FinagleRegistry
+import com.metamx.tranquility.finagle.FinagleRegistryConfig
+import com.metamx.tranquility.typeclass.JavaObjectWriter
+import com.metamx.tranquility.typeclass.JsonWriter
+import com.metamx.tranquility.typeclass.ObjectWriter
+import com.metamx.tranquility.typeclass.Timestamper
 import com.twitter.finagle.Service
 import io.druid.data.input.impl.TimestampSpec
-import java.{lang => jl, util => ju}
+import java.{lang => jl}
+import java.{util => ju}
 import org.apache.curator.framework.CuratorFramework
-import org.joda.time.{DateTime, Interval}
+import org.joda.time.DateTime
+import org.joda.time.Interval
 import org.scala_tools.time.Implicits._
 import scala.collection.JavaConverters._
+import scala.language.reflectiveCalls
 
 /**
  * Builds Beams or Finagle services that send events to the Druid indexing service.
