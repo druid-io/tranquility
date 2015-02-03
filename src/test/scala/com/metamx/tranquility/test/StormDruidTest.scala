@@ -24,8 +24,8 @@ import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.timekeeper.TestingTimekeeper
 import com.metamx.tranquility.storm.BeamBolt
 import com.metamx.tranquility.storm.BeamFactory
-import com.metamx.tranquility.test.DruidIntegrationTest.SimpleEvent
-import com.metamx.tranquility.test.StormIntegrationTest._
+import com.metamx.tranquility.test.DirectDruidTest.SimpleEvent
+import com.metamx.tranquility.test.StormDruidTest._
 import com.metamx.tranquility.test.common.CuratorRequiringSuite
 import com.metamx.tranquility.test.common.DruidIntegrationSuite
 import com.metamx.tranquility.test.common.JulUtils
@@ -40,7 +40,7 @@ import org.junit.runner.RunWith
 import org.scalatest.FunSuite
 import org.scalatest.junit.JUnitRunner
 
-object StormIntegrationTest
+object StormDruidTest
 {
 
   def newBeamFactory(zkConnect: String, now: DateTime): BeamFactory[SimpleEvent] = {
@@ -52,7 +52,7 @@ object StormIntegrationTest
           new BoundedExponentialBackoffRetry(100, 1000, 5)
         )
         aDifferentCurator.start()
-        DruidIntegrationTest.newBuilder(
+        DirectDruidTest.newBuilder(
           aDifferentCurator, new TestingTimekeeper withEffect {
             timekeeper =>
               timekeeper.now = now
@@ -65,7 +65,7 @@ object StormIntegrationTest
 }
 
 @RunWith(classOf[JUnitRunner])
-class StormIntegrationTest
+class StormDruidTest
   extends FunSuite with DruidIntegrationSuite with CuratorRequiringSuite with StormRequiringSuite with Logging
 {
 
@@ -78,7 +78,7 @@ class StormIntegrationTest
         val now = new DateTime().hourOfDay().roundFloorCopy()
         withLocalStorm {
           storm =>
-            val inputs = DruidIntegrationTest.generateEvents(now)
+            val inputs = DirectDruidTest.generateEvents(now)
             val spout = new SimpleSpout[SimpleEvent](inputs)
             val conf = new Config
             conf.setKryoFactory(classOf[SimpleKryoFactory])

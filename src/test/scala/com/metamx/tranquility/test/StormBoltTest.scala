@@ -26,7 +26,7 @@ import com.metamx.common.scala.untyped.Dict
 import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.druid.DruidBeams
 import com.metamx.tranquility.storm.{BeamBolt, BeamFactory}
-import com.metamx.tranquility.test.BeamBoltTest.{SimpleBeam, SimpleBeamFactory, SimpleEvent}
+import com.metamx.tranquility.test.StormBoltTest.{SimpleBeam, SimpleBeamFactory, SimpleEvent}
 import com.metamx.tranquility.test.common.JulUtils
 import com.metamx.tranquility.test.common.{CuratorRequiringSuite, SimpleKryoFactory, SimpleSpout, StormRequiringSuite}
 import com.twitter.util.Future
@@ -37,7 +37,7 @@ import org.scalatest.FunSuite
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-object BeamBoltTest
+object StormBoltTest
 {
 
   case class SimpleEvent(ts: DateTime, fields: Dict)
@@ -70,7 +70,7 @@ object BeamBoltTest
 
 }
 
-class BeamBoltTest extends FunSuite with CuratorRequiringSuite with StormRequiringSuite with Logging
+class StormBoltTest extends FunSuite with CuratorRequiringSuite with StormRequiringSuite with Logging
 {
 
   JulUtils.routeJulThroughSlf4j()

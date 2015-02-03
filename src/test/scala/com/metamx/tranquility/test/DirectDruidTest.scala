@@ -32,7 +32,7 @@ import com.metamx.tranquility.druid.DruidLocation
 import com.metamx.tranquility.druid.DruidRollup
 import com.metamx.tranquility.druid.MultipleFieldDruidSpatialDimension
 import com.metamx.tranquility.druid.SpecificDruidDimensions
-import com.metamx.tranquility.test.DruidIntegrationTest._
+import com.metamx.tranquility.test.DirectDruidTest._
 import com.metamx.tranquility.test.common._
 import com.metamx.tranquility.typeclass.JavaObjectWriter
 import com.metamx.tranquility.typeclass.Timestamper
@@ -48,7 +48,7 @@ import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
 import scala.collection.JavaConverters._
 
-object DruidIntegrationTest
+object DirectDruidTest
 {
   val TimeColumn = "ts"
   val TimeFormat = "posix"
@@ -99,7 +99,7 @@ object DruidIntegrationTest
   }
 }
 
-class DruidIntegrationTest
+class DirectDruidTest
   extends FunSuite with DruidIntegrationSuite with CuratorRequiringSuite with StormRequiringSuite with Logging
 {
 
@@ -152,13 +152,6 @@ class DruidIntegrationTest
         finally {
           Await.result(indexing.close())
         }
-    }
-  }
-
-  test("Samza to Druid") {
-    withDruidStack {
-      (curator, broker, overlord) =>
-
     }
   }
 

@@ -48,7 +48,7 @@ import org.scalatest.FunSuite
 import org.scalatest.junit.JUnitRunner
 import scala.collection.JavaConverters._
 
-class SamzaIntegrationTestBeamFactory extends BeamFactory
+class SamzaDruidTestBeamFactory extends BeamFactory
 {
   override def makeBeam(stream: SystemStream, config: Config) = {
     val zkConnect = config.get("tranquility.zkConnect")
@@ -58,7 +58,7 @@ class SamzaIntegrationTestBeamFactory extends BeamFactory
       new BoundedExponentialBackoffRetry(100, 1000, 5)
     )
     curator.start()
-    DruidIntegrationTest.newBuilder(
+    DirectDruidTest.newBuilder(
       curator, new TestingTimekeeper withEffect {
         timekeeper =>
           timekeeper.now = now
@@ -67,7 +67,7 @@ class SamzaIntegrationTestBeamFactory extends BeamFactory
   }
 }
 
-class SamzaIntegrationTestTask extends StreamTask
+class SamzaDruidTestTask extends StreamTask
 {
   override def process(
     envelope: IncomingMessageEnvelope,
@@ -85,7 +85,7 @@ class SamzaIntegrationTestTask extends StreamTask
   }
 }
 
-class SamzaIntegrationTestInputSystemFactory extends SystemFactory
+class SamzaDruidTestInputSystemFactory extends SystemFactory
 {
   override def getConsumer(systemName: String, config: Config, registry: MetricsRegistry) = {
     new BlockingEnvelopeMap()
@@ -93,7 +93,7 @@ class SamzaIntegrationTestInputSystemFactory extends SystemFactory
       override def start() {
         val now = new DateTime(config.get("tranquility.now"))
         val ssp = new SystemStreamPartition("dummyin", "dummy", new Partition(0))
-        val incoming = DruidIntegrationTest.generateEvents(now).zipWithIndex map { case (message, index) =>
+        val incoming = DirectDruidTest.generateEvents(now).zipWithIndex map { case (message, index) =>
           new IncomingMessageEnvelope(ssp, index.toString, null, message)
         }
         putAll(ssp, incoming.asJava)
@@ -113,7 +113,7 @@ class SamzaIntegrationTestInputSystemFactory extends SystemFactory
 }
 
 @RunWith(classOf[JUnitRunner])
-class SamzaIntegrationTest
+class SamzaDruidTest
   extends FunSuite with DruidIntegrationSuite with CuratorRequiringSuite with Logging
 {
 
@@ -128,13 +128,13 @@ class SamzaIntegrationTest
           Map(
             "job.name" -> "dummy",
             "job.factory.class" -> classOf[ThreadJobFactory].getCanonicalName,
-            "task.class" -> classOf[SamzaIntegrationTestTask].getCanonicalName,
+            "task.class" -> classOf[SamzaDruidTestTask].getCanonicalName,
             "task.inputs" -> "dummyin.dummy",
             "tranquility.now" -> now.toString(),
             "tranquility.zkConnect" -> zkConnect,
-            "systems.dummyin.samza.factory" -> classOf[SamzaIntegrationTestInputSystemFactory].getCanonicalName,
+            "systems.dummyin.samza.factory" -> classOf[SamzaDruidTestInputSystemFactory].getCanonicalName,
             "systems.drood.samza.factory" -> "com.metamx.tranquility.samza.BeamSystemFactory",
-            "systems.drood.beam.factory" -> classOf[SamzaIntegrationTestBeamFactory].getCanonicalName,
+            "systems.drood.beam.factory" -> classOf[SamzaDruidTestBeamFactory].getCanonicalName,
             "systems.drood.beam.batchSize" -> "1"
           ).asJava
         )
