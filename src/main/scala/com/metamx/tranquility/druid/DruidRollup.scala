@@ -27,6 +27,26 @@ class DruidRollup(
   val aggregators: IndexedSeq[AggregatorFactory],
   val indexGranularity: QueryGranularity
 )
+{
+  validate()
+
+  def validate() {
+    val dimensionNames = if (dimensions.spec.hasCustomDimensions) dimensions.spec.getDimensions.asScala else Nil
+    val spatialDimensionNames = dimensions.spec.getSpatialDimensions.asScala.map(_.getDimName)
+    val metricNames = aggregators.map(_.getName)
+
+    val allColumnNames = Seq(DruidRollup.InternalTimeColumnName) ++
+      dimensionNames ++
+      spatialDimensionNames ++
+      metricNames
+
+    val duplicateColumns = allColumnNames.groupBy(identity).filter(_._2.size > 1).keySet
+
+    if (duplicateColumns.nonEmpty) {
+      throw new IllegalArgumentException("Duplicate columns: %s" format duplicateColumns.mkString(", "))
+    }
+  }
+}
 
 sealed abstract class DruidDimensions
 {
@@ -103,6 +123,8 @@ case class SchemalessDruidDimensions(
 
 object DruidRollup
 {
+  private val InternalTimeColumnName = "__time"
+
   /**
    * Builder for Scala users. Accepts a druid dimensions object and can be used to build rollups based on specific
    * or schemaless dimensions.
