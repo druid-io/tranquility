@@ -31,7 +31,7 @@ scalacOptions += "-Yresolve-term-conflict:object"
 releaseSettings
 
 val jacksonOneVersion = "1.9.13"
-val jacksonTwoVersion = "2.5.0"
+val jacksonTwoVersion = "2.4.4"
 val druidVersion = "0.6.164"
 val samzaVersion = "0.8.0"
 
