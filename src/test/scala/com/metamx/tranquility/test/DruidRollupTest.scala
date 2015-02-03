@@ -55,7 +55,7 @@ class DruidRollupTest extends FunSuite with MustMatchers
         QueryGranularity.NONE
       )
     }
-    e.getMessage must be("Duplicate columns: hey")
+    e.getMessage must be("Duplicate columns: what")
   }
 
   test("Validations: Two metrics with the same name") {
