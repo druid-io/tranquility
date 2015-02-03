@@ -17,13 +17,12 @@
 package com.metamx.tranquility.samza
 
 import com.metamx.common.scala.Logging
-import com.metamx.tranquility.beam.Beam
 import org.apache.samza.config.Config
 import org.apache.samza.metrics.MetricsRegistry
 import org.apache.samza.system.SystemFactory
 import org.apache.samza.util.SinglePartitionWithoutOffsetsSystemAdmin
 
-class BeamSystemFactory[A, BeamType <: Beam[A]] extends SystemFactory with Logging
+class BeamSystemFactory extends SystemFactory with Logging
 {
   override def getConsumer(systemName: String, config: Config, registry: MetricsRegistry) = {
     throw new UnsupportedOperationException("Can't consume from a beam!")

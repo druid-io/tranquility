@@ -23,7 +23,7 @@ import org.apache.samza.system.SystemStream
 /**
  * Implement this class to link up Samza with Tranquility.
  */
-abstract class BeamFactory
+trait BeamFactory
 {
   /**
    * Create a Beam given a particular Samza SystemStream and Config. The Config is not subsetted; it's the config for
