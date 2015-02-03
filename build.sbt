@@ -2,13 +2,13 @@ organization := "com.metamx"
 
 name := "tranquility"
 
-scalaVersion := "2.9.1"
-
-crossScalaVersions := Seq("2.9.1", "2.10.4")
+scalaVersion := "2.10.4"
 
 lazy val root = project.in(file("."))
 
 net.virtualvoid.sbt.graph.Plugin.graphSettings
+
+scalacOptions := Seq("-feature", "-deprecation")
 
 resolvers ++= Seq(
   "Metamarkets Releases" at "https://metamx.artifactoryonline.com/metamx/libs-releases/",
@@ -30,14 +30,14 @@ scalacOptions += "-Yresolve-term-conflict:object"
 
 releaseSettings
 
-// When updating Jackson, watch out for: https://github.com/FasterXML/jackson-module-scala/issues/148
 val jacksonOneVersion = "1.9.13"
-val jacksonTwoVersion = "2.2.2"
+val jacksonTwoVersion = "2.5.0"
 val druidVersion = "0.6.164"
+val samzaVersion = "0.8.0"
 
 libraryDependencies ++= Seq(
-  "com.metamx" %% "scala-util" % "1.8.43" force() exclude("org.scalatest", "scalatest_2.9.2"),
-  "com.metamx" % "java-util" % "0.26.6" force()
+  "com.metamx" %% "scala-util" % "1.8.43" exclude("log4j", "log4j") force(),
+  "com.metamx" % "java-util" % "0.26.6" exclude("log4j", "log4j") force()
 )
 
 libraryDependencies ++= Seq(
@@ -57,17 +57,17 @@ libraryDependencies ++= Seq(
 
 // We use Jackson 2.x internally (and so does Druid).
 libraryDependencies ++= Seq(
-  "com.fasterxml.jackson.core" % "jackson-core" % jacksonTwoVersion force(),
-  "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonTwoVersion force(),
-  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonTwoVersion force(),
-  "com.fasterxml.jackson.dataformat" % "jackson-dataformat-smile" % jacksonTwoVersion force(),
-  "com.fasterxml.jackson.datatype" % "jackson-datatype-joda" % jacksonTwoVersion force(),
-  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonTwoVersion force()
+  "com.fasterxml.jackson.core" % "jackson-core" % jacksonTwoVersion,
+  "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonTwoVersion,
+  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonTwoVersion,
+  "com.fasterxml.jackson.dataformat" % "jackson-dataformat-smile" % jacksonTwoVersion,
+  "com.fasterxml.jackson.datatype" % "jackson-datatype-joda" % jacksonTwoVersion,
+  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonTwoVersion
 )
 
 libraryDependencies ++= Seq(
-  "io.druid" % "druid-server" % druidVersion force(),
-  "io.druid" % "druid-indexing-service" % druidVersion force(),
+  "io.druid" % "druid-server" % druidVersion exclude("org.slf4j", "slf4j-log4j12") exclude("log4j", "log4j") force(),
+  "io.druid" % "druid-indexing-service" % druidVersion exclude("org.slf4j", "slf4j-log4j12") exclude("log4j", "log4j") force(),
   "com.google.inject" % "guice" % "4.0-beta" force(),
   "com.google.inject.extensions" % "guice-servlet" % "4.0-beta" force(),
   "com.google.inject.extensions" % "guice-multibindings" % "4.0-beta" force(),
@@ -83,30 +83,35 @@ libraryDependencies ++= Seq(
     exclude("javax.jms", "jms")
     exclude("org.slf4j", "log4j-over-slf4j")
     force(),
-  "com.twitter" % "chill" % "0.3.1" % "optional" cross CrossVersion.binaryMapped {
-    case "2.9.1" => "2.9.3"
-    case x => x
-  }
+  "com.twitter" %% "chill" % "0.3.1" % "optional"
+)
+
+//
+// Samza (optional)
+//
+
+libraryDependencies ++= Seq(
+  "org.apache.samza" % "samza-api" % samzaVersion % "optional"
 )
 
 //
 // Test stuff
 //
 
-libraryDependencies <++= scalaVersion {
-  case "2.9.1" => Seq(
-    "org.scalatest" % "scalatest_2.9.1" % "2.0.M5b" % "test"
-  )
-  case "2.10.4" => Seq(
-    "org.scalatest" % "scalatest_2.10" % "2.2.0" % "test"
-  )
-}
-
-// Need druid-services for the test-everything integration test.
 libraryDependencies ++= Seq(
-  "io.druid" % "druid-services" % druidVersion % "test" force(),
-  "org.apache.curator" % "curator-test" % "2.6.0" % "test" force(),
+  "org.scalatest" % "scalatest_2.10" % "2.2.0" % "test"
+)
+
+// Need druid-services and samza-core for integration tests.
+libraryDependencies ++= Seq(
+  "io.druid" % "druid-services" % druidVersion % "test" exclude("org.slf4j", "slf4j-log4j12") exclude("log4j", "log4j") force(),
+  "org.apache.samza" %% "samza-core" % samzaVersion % "test",
+  "org.apache.curator" % "curator-test" % "2.6.0" % "test" exclude("log4j", "log4j") force(),
   "com.sun.jersey" % "jersey-servlet" % "1.17.1" % "test" force(),
   "junit" % "junit" % "4.11" % "test",
-  "com.novocode" % "junit-interface" % "0.11-RC1" % "test"
+  "com.novocode" % "junit-interface" % "0.11-RC1" % "test",
+  "ch.qos.logback" % "logback-core" % "1.1.2" % "test",
+  "ch.qos.logback" % "logback-classic" % "1.1.2" % "test",
+  "org.slf4j" % "log4j-over-slf4j" % "1.7.6" % "test",
+  "org.slf4j" % "jul-to-slf4j" % "1.7.6" % "test"
 )

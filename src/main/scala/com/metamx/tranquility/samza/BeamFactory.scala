@@ -14,12 +14,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.metamx.tranquility.typeclass
+package com.metamx.tranquility.samza
 
-import org.joda.time.DateTime
+import com.metamx.tranquility.beam.Beam
+import org.apache.samza.config.Config
+import org.apache.samza.system.SystemStream
 
-trait Timestamper[A] extends Serializable
+/**
+ * Implement this class to link up Samza with Tranquility.
+ */
+trait BeamFactory
 {
-  def timestamp(a: A): DateTime
+  /**
+   * Create a Beam given a particular Samza SystemStream and Config. The Config is not subsetted; it's the config for
+   * the entire job.
+   *
+   * @param stream stream for this beam
+   * @param config config for this job
+   * @return beam for a BeamProducer
+   */
+  def makeBeam(stream: SystemStream, config: Config): Beam[Any]
 }
-

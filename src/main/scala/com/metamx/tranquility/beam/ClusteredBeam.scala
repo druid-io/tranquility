@@ -1,20 +1,18 @@
 /*
  * Tranquility.
- * Copyright (C) 2013, 2014  Metamarkets Group Inc.
+ * Copyright 2013, 2014, 2015  Metamarkets Group, Inc.
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.metamx.tranquility.beam
 
@@ -30,16 +28,19 @@ import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.common.scala.untyped._
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.typeclass.Timestamper
-import com.twitter.util.{Future, FuturePool}
+import com.twitter.util.Future
+import com.twitter.util.FuturePool
 import java.util.UUID
 import java.util.concurrent.Executors
 import org.apache.curator.framework.CuratorFramework
 import org.apache.curator.framework.recipes.locks.InterProcessSemaphoreMutex
 import org.apache.zookeeper.KeeperException.NodeExistsException
-import org.joda.time.{DateTime, Interval}
+import org.joda.time.DateTime
+import org.joda.time.Interval
 import org.scala_tools.time.Implicits._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.language.reflectiveCalls
 import scala.util.Random
 
 /**

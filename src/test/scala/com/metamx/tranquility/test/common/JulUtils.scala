@@ -14,12 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.metamx.tranquility.typeclass
+package com.metamx.tranquility.test.common
 
-import org.joda.time.DateTime
+import org.slf4j.bridge.SLF4JBridgeHandler
 
-trait Timestamper[A] extends Serializable
+object JulUtils
 {
-  def timestamp(a: A): DateTime
+  def routeJulThroughSlf4j() {
+    SLF4JBridgeHandler.removeHandlersForRootLogger()
+    SLF4JBridgeHandler.install()
+  }
 }
-

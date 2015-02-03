@@ -2,15 +2,15 @@
 
 Tranquility helps you send event streams to Druid, the raddest data store ever (http://druid.io/), in real-time. It
 handles partitioning, replication, service discovery, and schema rollover for you, seamlessly and without downtime.
-Tranquility is written in Scala, and bundles idiomatic Java and Scala APIs that work nicely with Finagle, Storm, and
-Trident.
+Tranquility is written in Scala, and bundles idiomatic Java and Scala APIs that work nicely with Finagle, Samza, Storm,
+and Trident.
 
 This project is a friend of Druid. For discussion, feel free to use the normal Druid channels: http://druid.io/community.html
 
 ## Direct API
 
 If you want to write a program that sends data to Druid, you'll likely end up using the direct Finagle-based API. (The
-other alternative is the Storm API, described in the next section.)
+other alternatives are the Samza and Storm APIs, described in the following sections.)
 
 You can set up and use a Finagle Service like this:
 
@@ -124,11 +124,105 @@ val numSentFuture: Future[Int] = druidService(listOfEvents)
 val numSent = Await.result(numSentFuture)
 ```
 
+## Samza
+
+If you're using Samza to process your event stream, you have two options for sending a stream to Druid:
+
+- Use Samza's builtin Kafka support to write messages to a Kafka topic, then use Druid's
+[Kafka 0.8 support](http://druid.io/docs/latest/Kafka-Eight.html) to read from the same Kafka topic. This method does
+not involve Tranquility at all.
+- Use Tranquility's builtin Samza SystemFactory to send data to Druid over HTTP.
+
+Since this is the Tranquility documentation, we'll talk about the second method. You can set up a Samza job with the
+following properties:
+
+```
+systems.druid.samza.factory: com.metamx.tranquility.samza.BeamSystemFactory
+systems.druid.beam.factory: com.example.MyBeamFactory
+systems.druid.beam.batchSize: 2000 # Optional; we'll send batches of this size to Druid
+systems.druid.beam.maxPendingBatches: 5 # Optional; maximum number of in-flight batches before the producer blocks
+```
+
+To make this work, you need to implement com.example.MyBeamFactory. For example:
+
+```java
+import com.google.common.collect.ImmutableList;
+import com.metamx.common.Granularity;
+import com.metamx.tranquility.beam.Beam;
+import com.metamx.tranquility.beam.ClusteredBeamTuning;
+import com.metamx.tranquility.druid.DruidBeams;
+import com.metamx.tranquility.druid.DruidLocation;
+import com.metamx.tranquility.druid.DruidRollup;
+import com.metamx.tranquility.samza.BeamFactory;
+import com.metamx.tranquility.typeclass.Timestamper;
+import io.druid.granularity.QueryGranularity;
+import io.druid.query.aggregation.AggregatorFactory;
+import io.druid.query.aggregation.CountAggregatorFactory;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.samza.config.Config;
+import org.apache.samza.system.SystemStream;
+import org.joda.time.DateTime;
+import org.joda.time.Period;
+
+import java.util.List;
+import java.util.Map;
+
+public class MyBeamFactory implements BeamFactory
+{
+
+  @Override
+  public Beam<Object> makeBeam(SystemStream stream, Config config)
+  {
+    final String zkConnect = "localhost";
+    final String dataSource = stream.getStream();
+
+    final List<String> dimensions = ImmutableList.of("column");
+    final List<AggregatorFactory> aggregators = ImmutableList.<AggregatorFactory>of(
+        new CountAggregatorFactory("cnt")
+    );
+
+    // The Timestamper should return the timestamp of the class your Samza task produces. Samza envelopes contain
+    // Objects, so you'll generally have to cast them here.
+    final Timestamper<Object> timestamper = new Timestamper<Object>()
+    {
+      @Override
+      public DateTime timestamp(Object obj)
+      {
+        final Map<String, Object> theMap = (Map<String, Object>) obj;
+        return new DateTime(theMap.get("timestamp"));
+      }
+    };
+
+    final CuratorFramework curator = CuratorFrameworkFactory.builder()
+                                                            .connectString(zkConnect)
+                                                            .retryPolicy(new ExponentialBackoffRetry(500, 15, 10000))
+                                                            .build();
+    curator.start();
+
+    return DruidBeams
+        .builder(timestamper)
+        .curator(curator)
+        .discoveryPath("/druid/discovery")
+        .location(DruidLocation.create("overlord", "druid:firehose:%s", dataSource))
+        .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularity.MINUTE))
+        .tuning(
+            ClusteredBeamTuning.builder()
+                               .segmentGranularity(Granularity.HOUR)
+                               .windowPeriod(new Period("PT10M"))
+                               .build()
+        )
+        .buildBeam();
+  }
+}
+```
+
 ## Storm
 
-If you're using Storm to generate your event stream, you can use Tranquility's builtin Bolt adapter. This Bolt expects
-to receive tuples in which the zeroth element is your event type (in this case, Scala Maps). It does not emit any
-tuples of its own.
+If you're using Storm to process your event stream, you can use Tranquility's builtin Bolt adapter to send data to
+Druid. This Bolt expects to receive tuples in which the zeroth element is your event type (in this case, Scala Maps).
+It does not emit any tuples of its own.
 
 It must be supplied with a BeamFactory. You can implement one of these using the DruidBeams builder's "buildBeam()"
 method. For example:
@@ -189,8 +283,6 @@ The current stable version is:
 <dependency>
   <groupId>com.metamx</groupId>
   <artifactId>tranquility_2.10</artifactId>
-  <!-- Or for scala 2.9: -->
-  <!-- <artifactId>tranquility_2.9.1</artifactId> -->
   <version>0.2.37</version>
 </dependency>
 ```
@@ -231,8 +323,8 @@ may be lost.
 exhausted during that period, or the period lasts longer than your windowPeriod, some events will be dropped.
 - If there is an issue that prevents Tranquility from receiving an acknowledgement from the indexing service, it will
 retry the batch, which can lead to duplicated events.
-- If you are using Tranquility inside Storm, various parts of the Storm architecture have an at-least-once design and
-can lead to duplicated events.
+- If you are using Tranquility inside Storm or Samza, various parts of the both architectures have an at-least-once
+design and can lead to duplicated events.
 
 Our approach at Metamarkets is to send all of our data through Tranquility in real-time, but to also mitigate these
 risks by storing a copy in S3 and following up with a nightly Hadoop batch indexing job to re-ingest the data. This
