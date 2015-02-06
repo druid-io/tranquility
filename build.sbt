@@ -81,6 +81,7 @@ libraryDependencies ++= Seq(
 libraryDependencies ++= Seq(
   "org.apache.storm" % "storm-core" % "0.9.2-incubating-mmx1" % "optional"
     exclude("javax.jms", "jms")
+    exclude("ch.qos.logback", "logback-classic")
     exclude("org.slf4j", "log4j-over-slf4j")
     force(),
   "com.twitter" %% "chill" % "0.3.1" % "optional"
