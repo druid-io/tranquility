@@ -125,7 +125,7 @@ class DruidBeamMaker[A: Timestamper](
       null,
       null,
       null,
-      0,
+      druidTuning.maxPendingPersists,
       null,
       null,
       null

@@ -249,7 +249,7 @@ object DruidBeams
         ClusteredBeamTuning()
       }
       val druidTuning             = _druidTuning getOrElse {
-        new DruidTuning(75000, 10.minutes, 1)
+        new DruidTuning(75000, 10.minutes, 0)
       }
       val location                = _location getOrElse {
         throw new IllegalArgumentException("Missing 'location'")
