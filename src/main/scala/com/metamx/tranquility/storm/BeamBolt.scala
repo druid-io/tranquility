@@ -70,7 +70,7 @@ class BeamBolt[EventType](
               beam.propagate(batch.map(_.getValue(0).asInstanceOf[EventType]))
             }).toList
             val sent: Int = Await.result(Future.collect(futures.toList)).sum
-            log.info("%s: Flushed %,d, ignored %,d messages.", beam, sent, tuples.size - sent)
+            log.debug("%s: Flushed %,d, ignored %,d messages.", beam, sent, tuples.size - sent)
             true
           }
           catch {
