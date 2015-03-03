@@ -20,12 +20,16 @@ import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.net.curator._
 import com.metamx.common.scala.net.finagle.DiscoResolver
+import com.twitter.finagle.Name
 import com.twitter.finagle.builder.ClientBuilder
 import com.twitter.finagle.http.Http
-import com.twitter.finagle.{Group, ServiceProxy, Service}
-import com.twitter.util.{Future, Time}
+import com.twitter.finagle.Service
+import com.twitter.finagle.ServiceProxy
+import com.twitter.util.Future
+import com.twitter.util.Time
 import java.util.concurrent.atomic.AtomicBoolean
-import org.jboss.netty.handler.codec.http.{HttpRequest, HttpResponse}
+import org.jboss.netty.handler.codec.http.HttpRequest
+import org.jboss.netty.handler.codec.http.HttpResponse
 import org.scala_tools.time.Implicits._
 import scala.collection.mutable
 
@@ -45,7 +49,7 @@ class FinagleRegistry(config: FinagleRegistryConfig, disco: Disco) extends Loggi
     val client = ClientBuilder()
       .name(service)
       .codec(Http())
-      .group(Group.fromVarAddr(resolver.bind(service)))
+      .dest(Name.Bound(resolver.bind(service), "%s!%s" format (resolver.scheme, service)))
       .hostConnectionLimit(config.finagleHttpConnectionsPerHost)
       .timeout(config.finagleHttpTimeout.standardDuration)
       .logger(FinagleLogger)

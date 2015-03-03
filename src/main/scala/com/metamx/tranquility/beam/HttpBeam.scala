@@ -30,7 +30,7 @@ import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.finagle._
 import com.metamx.tranquility.typeclass.ObjectWriter
 import com.metamx.tranquility.typeclass.Timestamper
-import com.twitter.finagle.Group
+import com.twitter.finagle.Name
 import com.twitter.finagle.builder.ClientBuilder
 import com.twitter.finagle.http.Http
 import com.twitter.finagle.util.DefaultTimer
@@ -73,10 +73,11 @@ class HttpBeam[A: Timestamper](
   private[this] val hostAndPort = "%s:%s" format(uri.host, port)
 
   private[this] val client = {
+    val resolver = InetAddressResolver.default
     val preTlsClientBuilder = ClientBuilder()
       .name(uri.toString)
       .codec(Http())
-      .group(Group.fromVarAddr(InetAddressResolver.default.bind(hostAndPort)))
+      .dest(Name.Bound(resolver.bind(hostAndPort), "%s!%s" format (resolver.scheme, hostAndPort)))
       .hostConnectionLimit(2)
       .hostConnectionMaxLifeTime(HttpBeam.DefaultConnectionMaxLifeTime)
       .tcpConnectTimeout(HttpBeam.DefaultConnectTimeout)
