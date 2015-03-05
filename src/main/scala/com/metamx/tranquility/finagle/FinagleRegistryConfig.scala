@@ -23,4 +23,6 @@ trait FinagleRegistryConfig
   def finagleHttpTimeout: Period
 
   def finagleHttpConnectionsPerHost: Int
+
+  def finagleEnableFailedFastExceptions: Boolean
 }
