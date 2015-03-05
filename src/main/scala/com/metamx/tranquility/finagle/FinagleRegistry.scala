@@ -44,8 +44,6 @@ class FinagleRegistry(config: FinagleRegistryConfig, disco: Disco) extends Loggi
   private[this] val clients  = mutable.HashMap[String, SharedService[HttpRequest, HttpResponse]]()
 
   private[this] def mkclient(service: String) = {
-    // Note that clients do not perform proper closing of Vars.
-    // https://github.com/twitter/finagle/issues/240
     val client = ClientBuilder()
       .name(service)
       .codec(Http())
@@ -54,6 +52,7 @@ class FinagleRegistry(config: FinagleRegistryConfig, disco: Disco) extends Loggi
       .timeout(config.finagleHttpTimeout.standardDuration)
       .logger(FinagleLogger)
       .daemon(true)
+      .failFast(false) // Generally only one server behind each service (there's one service per Druid task)
       .build()
     new SharedService(
       new ServiceProxy(client)
