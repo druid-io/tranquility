@@ -295,7 +295,7 @@ object DruidBeams
 
             override def finagleHttpConnectionsPerHost = 2
 
-            override def finagleEnableFailedFastExceptions = true
+            override def finagleEnableFailFast = true
           },
           disco
         )

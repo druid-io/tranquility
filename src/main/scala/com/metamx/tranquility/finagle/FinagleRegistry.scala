@@ -52,7 +52,7 @@ class FinagleRegistry(config: FinagleRegistryConfig, disco: Disco) extends Loggi
       .timeout(config.finagleHttpTimeout.standardDuration)
       .logger(FinagleLogger)
       .daemon(true)
-      .failFast(config.finagleEnableFailedFastExceptions)
+      .failFast(config.finagleEnableFailFast)
       .build()
     new SharedService(
       new ServiceProxy(client)

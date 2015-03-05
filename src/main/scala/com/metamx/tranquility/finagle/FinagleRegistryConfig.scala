@@ -24,5 +24,5 @@ trait FinagleRegistryConfig
 
   def finagleHttpConnectionsPerHost: Int
 
-  def finagleEnableFailedFastExceptions: Boolean
+  def finagleEnableFailFast: Boolean
 }
