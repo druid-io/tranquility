@@ -52,7 +52,7 @@ class FinagleRegistry(config: FinagleRegistryConfig, disco: Disco) extends Loggi
       .timeout(config.finagleHttpTimeout.standardDuration)
       .logger(FinagleLogger)
       .daemon(true)
-      .failFast(false) // Generally only one server behind each service (there's one service per Druid task)
+      .failFast(config.finagleEnableFailFast)
       .build()
     new SharedService(
       new ServiceProxy(client)

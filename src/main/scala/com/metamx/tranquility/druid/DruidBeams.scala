@@ -294,6 +294,8 @@ object DruidBeams
             override def finagleHttpTimeout = 90.seconds
 
             override def finagleHttpConnectionsPerHost = 2
+
+            override def finagleEnableFailFast = true
           },
           disco
         )
