@@ -168,7 +168,9 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
     var got: Seq[Dict] = null
     val start = System.currentTimeMillis()
     while (got != expected && System.currentTimeMillis() < start + 300000L) {
-      got = Jackson.parse[Seq[Dict]](brokerObjectMapper.writeValueAsBytes(query.run(walker)))
+      got = Jackson.parse[Seq[Dict]](
+        brokerObjectMapper.writeValueAsBytes(query.run(walker, Map.empty[String, AnyRef].asJava))
+      )
       val gotAsString = got.toString match {
         case x if x.size > 1024 => x.take(1024) + " ..."
         case x => x

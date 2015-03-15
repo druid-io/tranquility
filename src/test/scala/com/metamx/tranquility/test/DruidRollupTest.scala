@@ -17,6 +17,7 @@
 
 package com.metamx.tranquility.test
 
+import com.metamx.common.parsers.ParseException
 import com.metamx.tranquility.druid.DruidRollup
 import com.metamx.tranquility.druid.SpecificDruidDimensions
 import io.druid.granularity.QueryGranularity
@@ -48,14 +49,14 @@ class DruidRollupTest extends FunSuite with MustMatchers
   }
 
   test("Validations: Two dimensions with the same name") {
-    val e = the[IllegalArgumentException] thrownBy {
+    val e = the[ParseException] thrownBy {
       DruidRollup(
         SpecificDruidDimensions(Vector("what", "what"), Vector.empty),
         Seq(new CountAggregatorFactory("hey")),
         QueryGranularity.NONE
       )
     }
-    e.getMessage must be("Duplicate columns: what")
+    e.getMessage must be("Duplicate column entries found : [what]")
   }
 
   test("Validations: Two metrics with the same name") {

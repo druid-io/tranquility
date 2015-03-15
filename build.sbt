@@ -10,18 +10,36 @@ net.virtualvoid.sbt.graph.Plugin.graphSettings
 
 scalacOptions := Seq("-feature", "-deprecation")
 
-resolvers ++= Seq(
-  "Metamarkets Releases" at "https://metamx.artifactoryonline.com/metamx/libs-releases/",
-  "clojars" at "http://clojars.org/repo/"
-)
+resolvers ++= Seq("clojars" at "http://clojars.org/repo/")
+
+licenses := Seq("Apache License, Version 2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
+
+homepage := Some(url("https://github.com/metamx/tranquility"))
 
 publishMavenStyle := true
 
-publishTo := Some("pub-libs" at "https://metamx.artifactoryonline.com/metamx/pub-libs-releases-local")
+publishTo := Some("releases" at "https://oss.sonatype.org/service/local/staging/deploy/maven2/")
+
+pomIncludeRepository := { _ => false }
+
+pomExtra := (
+  <scm>
+    <url>https://github.com/metamx/tranquility.git</url>
+    <connection>scm:git:git@github.com:metamx/tranquility.git</connection>
+  </scm>
+    <developers>
+      <developer>
+        <name>Gian Merlino</name>
+        <organization>Metamarkets Group Inc.</organization>
+        <organizationUrl>https://www.metamarkets.com</organizationUrl>
+      </developer>
+    </developers>)
 
 parallelExecution in Test := false
 
 fork in Test := true
+
+javaOptions ++= Seq("-XX:MaxPermSize=256M")
 
 publishArtifact in (Test, packageBin) := true
 
@@ -30,14 +48,16 @@ scalacOptions += "-Yresolve-term-conflict:object"
 
 releaseSettings
 
+ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
+
 val jacksonOneVersion = "1.9.13"
 val jacksonTwoVersion = "2.4.4"
-val druidVersion = "0.6.164"
+val druidVersion = "0.7.0"
 val samzaVersion = "0.8.0"
 
 libraryDependencies ++= Seq(
-  "com.metamx" %% "scala-util" % "1.8.43" exclude("log4j", "log4j") force(),
-  "com.metamx" % "java-util" % "0.26.6" exclude("log4j", "log4j") force()
+  "com.metamx" %% "scala-util" % "1.9.2" exclude("log4j", "log4j") force(),
+  "com.metamx" % "java-util" % "0.26.14" exclude("log4j", "log4j") force()
 )
 
 libraryDependencies ++= Seq(
@@ -66,8 +86,22 @@ libraryDependencies ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "io.druid" % "druid-server" % druidVersion exclude("org.slf4j", "slf4j-log4j12") exclude("log4j", "log4j") force(),
-  "io.druid" % "druid-indexing-service" % druidVersion exclude("org.slf4j", "slf4j-log4j12") exclude("log4j", "log4j") force(),
+  "io.druid" % "druid-server" % druidVersion
+    exclude("org.slf4j", "slf4j-log4j12")
+    exclude("log4j", "log4j")
+    exclude("org.apache.logging.log4j", "log4j-core")
+    exclude("org.apache.logging.log4j", "log4j-api")
+    exclude("org.apache.logging.log4j", "log4j-slf4j-impl")
+    exclude("com.lmax", "disruptor") // Pulled in by log4j2, conflicts with the one Storm wants.
+    force(),
+  "io.druid" % "druid-indexing-service" % druidVersion
+    exclude("org.slf4j", "slf4j-log4j12")
+    exclude("log4j", "log4j")
+    exclude("org.apache.logging.log4j", "log4j-core")
+    exclude("org.apache.logging.log4j", "log4j-api")
+    exclude("org.apache.logging.log4j", "log4j-slf4j-impl")
+    exclude("com.lmax", "disruptor") // Pulled in by log4j2, conflicts with the one Storm wants.
+    force(),
   "com.google.inject" % "guice" % "4.0-beta" force(),
   "com.google.inject.extensions" % "guice-servlet" % "4.0-beta" force(),
   "com.google.inject.extensions" % "guice-multibindings" % "4.0-beta" force(),
@@ -79,7 +113,7 @@ libraryDependencies ++= Seq(
 //
 
 libraryDependencies ++= Seq(
-  "org.apache.storm" % "storm-core" % "0.9.2-incubating-mmx1" % "optional"
+  "org.apache.storm" % "storm-core" % "0.9.3" % "optional"
     exclude("javax.jms", "jms")
     exclude("ch.qos.logback", "logback-classic")
     exclude("org.slf4j", "log4j-over-slf4j")
@@ -105,7 +139,14 @@ libraryDependencies ++= Seq(
 
 // Need druid-services and samza-core for integration tests.
 libraryDependencies ++= Seq(
-  "io.druid" % "druid-services" % druidVersion % "test" exclude("org.slf4j", "slf4j-log4j12") exclude("log4j", "log4j") force(),
+  "io.druid" % "druid-services" % druidVersion % "test"
+    exclude("org.slf4j", "slf4j-log4j12")
+    exclude("log4j", "log4j")
+    exclude("org.apache.logging.log4j", "log4j-core")
+    exclude("org.apache.logging.log4j", "log4j-api")
+    exclude("org.apache.logging.log4j", "log4j-slf4j-impl")
+    exclude("com.lmax", "disruptor") // Pulled in by log4j2, conflicts with the one Storm wants.
+    force(),
   "org.apache.samza" %% "samza-core" % samzaVersion % "test",
   "org.apache.curator" % "curator-test" % "2.6.0" % "test" exclude("log4j", "log4j") force(),
   "com.sun.jersey" % "jersey-servlet" % "1.17.1" % "test" force(),
@@ -113,6 +154,7 @@ libraryDependencies ++= Seq(
   "com.novocode" % "junit-interface" % "0.11-RC1" % "test",
   "ch.qos.logback" % "logback-core" % "1.1.2" % "test",
   "ch.qos.logback" % "logback-classic" % "1.1.2" % "test",
+  "org.apache.logging.log4j" % "log4j-to-slf4j" % "2.1" % "test",
   "org.slf4j" % "log4j-over-slf4j" % "1.7.6" % "test",
   "org.slf4j" % "jul-to-slf4j" % "1.7.6" % "test"
 )

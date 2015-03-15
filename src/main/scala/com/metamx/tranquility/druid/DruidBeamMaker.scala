@@ -73,11 +73,7 @@ class DruidBeamMaker[A: Timestamper](
     val shardSpec = new LinearShardSpec(partition)
     val parser = {
       new MapInputRowParser(
-        new JSONParseSpec(timestampSpec, rollup.dimensions.spec),
-        null,
-        null,
-        null,
-        null
+        new JSONParseSpec(timestampSpec, rollup.dimensions.spec)
       )
     }
     new RealtimeIndexTask(
@@ -88,7 +84,7 @@ class DruidBeamMaker[A: Timestamper](
           dataSource,
           parser,
           rollup.aggregators.toArray,
-          new UniformGranularitySpec(beamTuning.segmentGranularity, rollup.indexGranularity, null, null)
+          new UniformGranularitySpec(beamTuning.segmentGranularity, rollup.indexGranularity, null)
         ),
         new RealtimeIOConfig(
           new ClippedFirehoseFactory(
@@ -96,7 +92,6 @@ class DruidBeamMaker[A: Timestamper](
               new EventReceiverFirehoseFactory(
                 location.environment.firehoseServicePattern format firehoseId,
                 null,
-                parser,
                 null
               ), shutoffTime
             ), interval
@@ -119,21 +114,12 @@ class DruidBeamMaker[A: Timestamper](
             new NoopRejectionPolicyFactory
           },
           druidTuning.maxPendingPersists,
-          shardSpec
-        ),
-        null,
-        null,
-        null,
-        null
-      ),
-      null,
-      null,
-      null,
-      null,
-      druidTuning.maxPendingPersists,
-      null,
-      null,
-      null
+          shardSpec,
+          null,
+          null,
+          null
+        )
+      )
     )
   }
 
