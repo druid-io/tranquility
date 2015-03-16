@@ -59,11 +59,16 @@ class DruidBeamMaker[A: Timestamper](
     replicant: Int
   ): Task =
   {
-    // Randomize suffix to allow creation of multiple tasks with the same parameters (useful for testing)
-    val rand = Random.nextInt()
     val dataSource = location.dataSource
-    val suffix = (0 until 8).map(i => (rand >> (i * 4)) & 0x0F).map(n => ('a' + n).toChar).mkString
-    val taskId = "index_realtime_%s_%s_%s_%s_%s" format(dataSource, interval.start, partition, replicant, suffix)
+    val suffix = if (config.randomizeTaskId) {
+      // Randomize suffix to allow creation of multiple tasks with the same parameters (useful for testing)
+      val rand = Random.nextInt()
+      val suffix0 = (0 until 8).map(i => (rand >> (i * 4)) & 0x0F).map(n => ('a' + n).toChar).mkString
+      "_%s" format suffix0
+    } else {
+      ""
+    }
+    val taskId = "index_realtime_%s_%s_%s_%s%s" format(dataSource, interval.start, partition, replicant, suffix)
     val shutoffTime = interval.end + beamTuning.windowPeriod + config.firehoseGracePeriod
     val shardSpec = new LinearShardSpec(partition)
     val parser = {

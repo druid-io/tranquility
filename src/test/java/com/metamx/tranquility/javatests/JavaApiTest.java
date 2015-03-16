@@ -19,16 +19,17 @@ package com.metamx.tranquility.javatests;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.metamx.tranquility.druid.DruidBeamConfig;
 import com.metamx.tranquility.druid.DruidDimensions;
 import com.metamx.tranquility.druid.DruidRollup;
 import com.metamx.tranquility.druid.DruidSpatialDimension;
-import com.metamx.tranquility.druid.MultipleFieldDruidSpatialDimension;
 import com.metamx.tranquility.druid.SchemalessDruidDimensions;
 import com.metamx.tranquility.druid.SpecificDruidDimensions;
 import io.druid.granularity.QueryGranularity;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.CountAggregatorFactory;
 import junit.framework.Assert;
+import org.joda.time.Period;
 import org.junit.Test;
 
 import java.util.List;
@@ -96,6 +97,26 @@ public class JavaApiTest
     );
     Assert.assertTrue(rollup.dimensions() instanceof SchemalessDruidDimensions);
     Assert.assertEquals("column", ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().apply(0));
-    Assert.assertEquals("coord.geo", ((MultipleFieldDruidSpatialDimension)rollup.dimensions().spatialDimensions().apply(0)).schema().getDimName());
+    Assert.assertEquals("coord.geo", rollup.dimensions().spatialDimensions().apply(0).schema().getDimName());
+  }
+
+  @Test
+  public void testDruidBeamConfig()
+  {
+    final DruidBeamConfig druidBeamConfig = DruidBeamConfig.builder()
+                                                           .randomizeTaskId(true)
+                                                           .firehoseChunkSize(1234)
+                                                           .firehoseGracePeriod(new Period(1))
+                                                           .firehoseQuietPeriod(new Period(2))
+                                                           .firehoseRetryPeriod(new Period(3))
+                                                           .indexRetryPeriod(new Period(4))
+                                                           .build();
+
+    Assert.assertEquals(1234, druidBeamConfig.firehoseChunkSize());
+    Assert.assertEquals(true, druidBeamConfig.randomizeTaskId());
+    Assert.assertEquals(new Period(1), druidBeamConfig.firehoseGracePeriod());
+    Assert.assertEquals(new Period(2), druidBeamConfig.firehoseQuietPeriod());
+    Assert.assertEquals(new Period(3), druidBeamConfig.firehoseRetryPeriod());
+    Assert.assertEquals(new Period(4), druidBeamConfig.indexRetryPeriod());
   }
 }

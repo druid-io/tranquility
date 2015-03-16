@@ -264,20 +264,7 @@ object DruidBeams
       val clusteredBeamIdent      = _clusteredBeamIdent getOrElse {
         "%s/%s" format(location.environment.indexService, location.dataSource)
       }
-      val druidBeamConfig         = _druidBeamConfig getOrElse {
-        new DruidBeamConfig
-        {
-          override def firehoseGracePeriod = 5.minutes
-
-          override def firehoseQuietPeriod = 1.minute
-
-          override def firehoseRetryPeriod = 1.minute
-
-          override def firehoseChunkSize = 1000
-
-          override def indexRetryPeriod = 1.minute
-        }
-      }
+      val druidBeamConfig         = _druidBeamConfig getOrElse DruidBeamConfig()
       val emitter                 = _emitter getOrElse {
         val em = new ServiceEmitter(
           "tranquility",
