@@ -30,7 +30,7 @@ case class DruidBeamConfig(
 object DruidBeamConfig
 {
   /**
-   * Builder for ClusteredBeamTuning objects.
+   * Builder for DruidBeamConfig objects.
    */
   def builder() = new Builder(DruidBeamConfig())
 
