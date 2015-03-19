@@ -275,17 +275,7 @@ object DruidBeams
         em
       }
       val finagleRegistry         = _finagleRegistry getOrElse {
-        new FinagleRegistry(
-          new FinagleRegistryConfig
-          {
-            override def finagleHttpTimeout = 90.seconds
-
-            override def finagleHttpConnectionsPerHost = 2
-
-            override def finagleEnableFailFast = true
-          },
-          disco
-        )
+        new FinagleRegistry(FinagleRegistryConfig(), disco)
       }
       val timekeeper              = _timekeeper getOrElse new SystemTimekeeper
       val beamDecorateFn          = _beamDecorateFn getOrElse {

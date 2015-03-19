@@ -25,6 +25,7 @@ import com.metamx.tranquility.druid.DruidRollup;
 import com.metamx.tranquility.druid.DruidSpatialDimension;
 import com.metamx.tranquility.druid.SchemalessDruidDimensions;
 import com.metamx.tranquility.druid.SpecificDruidDimensions;
+import com.metamx.tranquility.finagle.FinagleRegistryConfig;
 import io.druid.granularity.QueryGranularity;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.CountAggregatorFactory;
@@ -118,5 +119,19 @@ public class JavaApiTest
     Assert.assertEquals(new Period(2), druidBeamConfig.firehoseQuietPeriod());
     Assert.assertEquals(new Period(3), druidBeamConfig.firehoseRetryPeriod());
     Assert.assertEquals(new Period(4), druidBeamConfig.indexRetryPeriod());
+  }
+
+  @Test
+  public void testFinagleRegistryConfig()
+  {
+    final FinagleRegistryConfig finagleRegistryConfig = FinagleRegistryConfig.builder()
+                                                                             .finagleEnableFailFast(false)
+                                                                             .finagleHttpTimeout(new Period(1))
+                                                                             .finagleHttpConnectionsPerHost(1000)
+                                                                             .build();
+
+    Assert.assertEquals(false, finagleRegistryConfig.finagleEnableFailFast());
+    Assert.assertEquals(new Period(1), finagleRegistryConfig.finagleHttpTimeout());
+    Assert.assertEquals(1000, finagleRegistryConfig.finagleHttpConnectionsPerHost());
   }
 }

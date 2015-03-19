@@ -18,11 +18,37 @@ package com.metamx.tranquility.finagle
 
 import org.scala_tools.time.Imports._
 
-trait FinagleRegistryConfig
+case class FinagleRegistryConfig(
+  finagleHttpTimeout: Period = 90.seconds,
+  finagleHttpConnectionsPerHost: Int = 2,
+  finagleEnableFailFast: Boolean = true
+)
+
+object FinagleRegistryConfig
 {
-  def finagleHttpTimeout: Period
+  /**
+   * Builder for FinagleRegistryConfig objects.
+   */
+  def builder() = new Builder(FinagleRegistryConfig())
 
-  def finagleHttpConnectionsPerHost: Int
+  class Builder private[tranquility](config: FinagleRegistryConfig)
+  {
+    /**
+     * Time out HTTP requests that take longer than this.
+     */
+    def finagleHttpTimeout(x: Period) = new Builder(config.copy(finagleHttpTimeout = x))
 
-  def finagleEnableFailFast: Boolean
+    /**
+     * Maximum number of HTTP connections we'll make to a particular service.
+     */
+    def finagleHttpConnectionsPerHost(x: Int) = new Builder(config.copy(finagleHttpConnectionsPerHost = x))
+
+    /**
+     * Whether Finagle's fail-fast behavior should be enabled.
+     */
+    def finagleEnableFailFast(x: Boolean) = new Builder(config.copy(finagleEnableFailFast = x))
+
+    def build(): FinagleRegistryConfig = config
+  }
+
 }
