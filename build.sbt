@@ -53,6 +53,8 @@ ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
 val jacksonOneVersion = "1.9.13"
 val jacksonTwoVersion = "2.4.4"
 val druidVersion = "0.7.0"
+val finagleVersion = "6.24.0"
+val twitterUtilVersion = "6.23.0"
 val samzaVersion = "0.8.0"
 
 libraryDependencies ++= Seq(
@@ -61,7 +63,13 @@ libraryDependencies ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "io.netty" % "netty" % "3.9.5.Final" force()
+  "io.netty" % "netty" % "3.10.1.Final" force()
+)
+
+libraryDependencies ++= Seq(
+  "com.twitter" %% "util-core" % twitterUtilVersion,
+  "com.twitter" %% "finagle-core" % finagleVersion,
+  "com.twitter" %% "finagle-http" % finagleVersion
 )
 
 libraryDependencies ++= Seq(
