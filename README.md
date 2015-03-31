@@ -5,7 +5,7 @@ handles partitioning, replication, service discovery, and schema rollover for yo
 Tranquility is written in Scala, and bundles idiomatic Java and Scala APIs that work nicely with Finagle, Samza, Storm,
 and Trident.
 
-This project is a friend of Druid. For discussion, feel free to use the normal Druid channels: http://druid.io/community.html
+This project is a friend of Druid. For discussion, feel free to use the normal Druid channels: http://druid.io/community/
 
 ## Direct API
 
