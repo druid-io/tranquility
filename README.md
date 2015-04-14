@@ -331,3 +331,41 @@ risks by storing a copy in S3 and following up with a nightly Hadoop batch index
 allow us to guarantee that in the end, every event is represented exactly once in Druid. The setup mitigates other risks
 as well, including the fact that data can come in later than expected (if a previous part of the pipeline is delayed
 by more than the windowPeriod) or may need to be revised after initial ingestion.
+
+## Troubleshooting
+
+### I'm getting strange Jackson or Curator exceptions.
+
+Most of Tranquility uses com.fasterxml.jackson 2.4.x, but Curator is still built against the older org.codehaus.jackson.
+It requires at least 1.9.x, and people have reported strange errors when using older versions of Jackson (usually
+1.8.x). Tranquility tries to pull in Jackson 1.9.x, but this may be overridden in your higher-level project file. If
+you see any strange Jackson or Curator errors, try confirming that you are using the right version of Jackson. These
+errors might include the following:
+
+- java.io.NotSerializableException: org.apache.curator.x.discovery.ServiceInstance
+- org.codehaus.jackson.map.exc.UnrecognizedPropertyException: Unrecognized field "name" (Class org.apache.curator.x.discovery.ServiceInstance), not marked as ignorable
+
+To force a particular Jackson version, you can use something like this in your POM:
+
+```xml
+<dependency>
+    <groupId>org.codehaus.jackson</groupId>
+    <artifactId>jackson-jaxrs</artifactId>
+    <version>1.9.13</version>
+</dependency>
+<dependency>
+    <groupId>org.codehaus.jackson</groupId>
+    <artifactId>jackson-xc</artifactId>
+    <version>1.9.13</version>
+</dependency>
+<dependency>
+    <groupId>org.codehaus.jackson</groupId>
+    <artifactId>jackson-core-asl</artifactId>
+    <version>1.9.13</version>
+</dependency>
+<dependency>
+    <groupId>org.codehaus.jackson</groupId>
+    <artifactId>jackson-mapper-asl</artifactId>
+    <version>1.9.13</version>
+</dependency>
+```
