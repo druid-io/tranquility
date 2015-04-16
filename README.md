@@ -287,9 +287,11 @@ The current stable version is:
 </dependency>
 ```
 
+This version is built to work with Druid 0.7.x. If you are using Druid 0.6.x, you may want to use tranquility v0.3.2, which
+is the most recent version built for use with Druid 0.6.x.
+
 Tranquility is built with [SBT](http://www.scala-sbt.org/). If you want to build the jars yourself, you can
-run ```sbt package```. Tranquility can be cross-built for multiple Scala versions, so you will get one jar
-for each Scala version we currently support.
+run ```sbt package```.
 
 ## Storm Setup
 
