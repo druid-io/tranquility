@@ -283,7 +283,7 @@ The current stable version is:
 <dependency>
   <groupId>com.metamx</groupId>
   <artifactId>tranquility_2.10</artifactId>
-  <version>0.3.1</version>
+  <version>0.4.2</version>
 </dependency>
 ```
 
