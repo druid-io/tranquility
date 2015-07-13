@@ -281,9 +281,9 @@ The current stable version is:
 
 ```xml
 <dependency>
-  <groupId>com.metamx</groupId>
+  <groupId>io.druid</groupId>
   <artifactId>tranquility_2.10</artifactId>
-  <version>0.4.2</version>
+  <version>0.5.0</version>
 </dependency>
 ```
 
