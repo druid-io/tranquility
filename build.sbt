@@ -1,4 +1,4 @@
-organization := "com.metamx"
+organization := "io.druid"
 
 name := "tranquility"
 
