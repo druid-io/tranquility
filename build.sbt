@@ -14,7 +14,7 @@ resolvers ++= Seq("clojars" at "http://clojars.org/repo/")
 
 licenses := Seq("Apache License, Version 2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
 
-homepage := Some(url("https://github.com/metamx/tranquility"))
+homepage := Some(url("https://github.com/druid-io/tranquility"))
 
 publishMavenStyle := true
 
@@ -24,8 +24,8 @@ pomIncludeRepository := { _ => false }
 
 pomExtra := (
   <scm>
-    <url>https://github.com/metamx/tranquility.git</url>
-    <connection>scm:git:git@github.com:metamx/tranquility.git</connection>
+    <url>https://github.com/druid-io/tranquility.git</url>
+    <connection>scm:git:git@github.com:druid-io/tranquility.git</connection>
   </scm>
     <developers>
       <developer>
