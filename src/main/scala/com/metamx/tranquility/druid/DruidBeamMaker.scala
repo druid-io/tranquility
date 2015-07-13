@@ -33,6 +33,7 @@ import io.druid.segment.realtime.FireDepartment
 import io.druid.segment.realtime.firehose.{ClippedFirehoseFactory, EventReceiverFirehoseFactory, TimedShutoffFirehoseFactory}
 import io.druid.segment.realtime.plumber.{ServerTimeRejectionPolicyFactory, NoopRejectionPolicyFactory}
 import io.druid.timeline.partition.LinearShardSpec
+import org.joda.time.chrono.ISOChronology
 import org.joda.time.{DateTime, DateTimeZone, Interval}
 import org.scala_tools.time.Implicits._
 import scala.util.Random
@@ -208,12 +209,19 @@ object DruidBeamMaker
     // Not only is this a nasty hack, it also only works if the RT task hands things off in a timely manner. We'd rather
     // use UUIDs, but this creates a ton of clutter in service discovery.
 
-    val tsUtc = ts.withZone(DateTimeZone.UTC)
+    val tsUtc = new DateTime(ts.millis, ISOChronology.getInstanceUTC)
 
     val cycleBucket = segmentGranularity match {
-      case Granularity.MINUTE => tsUtc.minuteOfHour.get
-      case Granularity.HOUR => tsUtc.hourOfDay.get
-      case Granularity.DAY => tsUtc.dayOfMonth.get
+      case Granularity.MINUTE => tsUtc.minuteOfHour().get
+      case Granularity.FIVE_MINUTE => tsUtc.minuteOfHour().get
+      case Granularity.TEN_MINUTE => tsUtc.minuteOfHour().get
+      case Granularity.FIFTEEN_MINUTE => tsUtc.minuteOfHour().get
+      case Granularity.HOUR => tsUtc.hourOfDay().get
+      case Granularity.SIX_HOUR => tsUtc.hourOfDay().get
+      case Granularity.DAY => tsUtc.dayOfMonth().get
+      case Granularity.WEEK => tsUtc.weekOfWeekyear().get
+      case Granularity.MONTH => tsUtc.monthOfYear().get
+      case Granularity.YEAR => tsUtc.yearOfCentury().get
       case x => throw new IllegalArgumentException("No gross firehose id hack for granularity[%s]" format x)
     }
 
