@@ -33,12 +33,20 @@ trait ObjectWriter[A] extends Serializable
    * of objects.
    */
   def batchAsBytes(objects: TraversableOnce[A]): Array[Byte]
+
+  /**
+   * @return content type of the serialized form
+   */
+  def contentType: String
 }
 
 object ObjectWriter
 {
   def wrap[A](javaObjectWriter: JavaObjectWriter[A]): ObjectWriter[A] = new ObjectWriter[A] {
     override def asBytes(obj: A) = javaObjectWriter.asBytes(obj)
+
     override def batchAsBytes(objects: TraversableOnce[A]) = javaObjectWriter.batchAsBytes(objects.toIterator.asJava)
+
+    override def contentType = javaObjectWriter.contentType
   }
 }
