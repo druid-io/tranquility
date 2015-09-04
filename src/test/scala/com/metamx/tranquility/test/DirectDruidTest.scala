@@ -42,6 +42,7 @@ import io.druid.data.input.impl.TimestampSpec
 import io.druid.granularity.QueryGranularity
 import io.druid.query.aggregation.LongSumAggregatorFactory
 import java.{util => ju}
+import javax.ws.rs.core.MediaType
 import org.apache.curator.framework.CuratorFramework
 import org.joda.time.DateTime
 import org.scala_tools.time.Imports._
@@ -138,6 +139,11 @@ class DirectDruidTest
             val packed = "[%s]" format strings.mkString(", ")
             packed.getBytes
           }
+
+          /**
+           * @return content type of the serialized form
+           */
+          override def contentType: String = MediaType.APPLICATION_JSON
         }).buildService()
         try {
           timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()

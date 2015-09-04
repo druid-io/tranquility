@@ -102,7 +102,7 @@ class DruidBeam[A : Timestamper](
           (location.environment.firehoseServicePattern format task.firehoseId)
       ) withEffect {
         req =>
-          req.headers.set("Content-Type", "application/json")
+          req.headers.set("Content-Type", objectWriter.contentType)
           req.headers.set("Content-Length", eventsChunk.length)
           req.setContent(ChannelBuffers.wrappedBuffer(eventsChunk))
       }

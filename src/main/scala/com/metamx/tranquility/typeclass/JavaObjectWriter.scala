@@ -32,4 +32,9 @@ trait JavaObjectWriter[A]
    * of objects.
    */
   def batchAsBytes(objects: java.util.Iterator[A]): Array[Byte]
+
+  /**
+   * @return content type of the serialized form
+   */
+  def contentType: String
 }
