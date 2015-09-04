@@ -111,6 +111,7 @@ public class JavaApiTest
                                                            .firehoseQuietPeriod(new Period(2))
                                                            .firehoseRetryPeriod(new Period(3))
                                                            .indexRetryPeriod(new Period(4))
+                                                           .firehoseBufferSize(500)
                                                            .build();
 
     Assert.assertEquals(1234, druidBeamConfig.firehoseChunkSize());
@@ -119,6 +120,7 @@ public class JavaApiTest
     Assert.assertEquals(new Period(2), druidBeamConfig.firehoseQuietPeriod());
     Assert.assertEquals(new Period(3), druidBeamConfig.firehoseRetryPeriod());
     Assert.assertEquals(new Period(4), druidBeamConfig.indexRetryPeriod());
+    Assert.assertEquals(500, druidBeamConfig.firehoseBufferSize());
   }
 
   @Test

@@ -92,7 +92,7 @@ class DruidBeamMaker[A: Timestamper](
             new TimedShutoffFirehoseFactory(
               new EventReceiverFirehoseFactory(
                 location.environment.firehoseServicePattern format firehoseId,
-                null,
+                config.firehoseBufferSize,
                 null
               ), shutoffTime
             ), interval

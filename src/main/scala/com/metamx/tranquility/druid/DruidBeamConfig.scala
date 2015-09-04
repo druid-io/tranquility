@@ -24,7 +24,8 @@ case class DruidBeamConfig(
   firehoseRetryPeriod: Period = 1.minute,
   firehoseChunkSize: Int = 1000,
   randomizeTaskId: Boolean = false,
-  indexRetryPeriod: Period = 1.minute
+  indexRetryPeriod: Period = 1.minute,
+  firehoseBufferSize: Int = 100000
 ) extends IndexServiceConfig
 
 object DruidBeamConfig
@@ -72,6 +73,11 @@ object DruidBeamConfig
      * giving up.
      */
     def indexRetryPeriod(x: Period) = new Builder(config.copy(indexRetryPeriod = x))
+
+    /**
+     * size of buffer used by firehose to store events.
+     */
+    def firehoseBufferSize(x: Int) = new Builder(config.copy(firehoseBufferSize = x))
 
     def build(): DruidBeamConfig = config
   }
