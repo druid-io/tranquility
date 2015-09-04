@@ -2,7 +2,7 @@ organization := "io.druid"
 
 name := "tranquility"
 
-scalaVersion := "2.10.4"
+scalaVersion := "2.10.5"
 
 lazy val root = project.in(file("."))
 
@@ -51,14 +51,14 @@ releaseSettings
 ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
 
 val jacksonOneVersion = "1.9.13"
-val jacksonTwoVersion = "2.4.4"
-val druidVersion = "0.7.0"
-val finagleVersion = "6.24.0"
-val twitterUtilVersion = "6.23.0"
+val jacksonTwoVersion = "2.6.1"
+val druidVersion = "0.8.1"
+val finagleVersion = "6.25.0"
+val twitterUtilVersion = "6.25.0"
 val samzaVersion = "0.8.0"
 
 libraryDependencies ++= Seq(
-  "com.metamx" %% "scala-util" % "1.9.2" exclude("log4j", "log4j") force(),
+  "com.metamx" %% "scala-util" % "1.11.3" exclude("log4j", "log4j") force(),
   "com.metamx" % "java-util" % "0.26.14" exclude("log4j", "log4j") force()
 )
 
@@ -73,8 +73,8 @@ libraryDependencies ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.slf4j" % "slf4j-api" % "1.7.2" force() force(),
-  "org.slf4j" % "jul-to-slf4j" % "1.7.2" force() force()
+  "org.slf4j" % "slf4j-api" % "1.7.12" force() force(),
+  "org.slf4j" % "jul-to-slf4j" % "1.7.12" force() force()
 )
 
 // Curator uses Jackson 1.x internally, and older version cause problems with service discovery.
@@ -100,6 +100,7 @@ libraryDependencies ++= Seq(
     exclude("org.apache.logging.log4j", "log4j-core")
     exclude("org.apache.logging.log4j", "log4j-api")
     exclude("org.apache.logging.log4j", "log4j-slf4j-impl")
+    exclude("org.apache.logging.log4j", "log4j-1.2-api")
     exclude("com.lmax", "disruptor") // Pulled in by log4j2, conflicts with the one Storm wants.
     force(),
   "io.druid" % "druid-indexing-service" % druidVersion
@@ -108,6 +109,7 @@ libraryDependencies ++= Seq(
     exclude("org.apache.logging.log4j", "log4j-core")
     exclude("org.apache.logging.log4j", "log4j-api")
     exclude("org.apache.logging.log4j", "log4j-slf4j-impl")
+    exclude("org.apache.logging.log4j", "log4j-1.2-api")
     exclude("com.lmax", "disruptor") // Pulled in by log4j2, conflicts with the one Storm wants.
     force(),
   "com.google.inject" % "guice" % "4.0-beta" force(),
@@ -153,6 +155,8 @@ libraryDependencies ++= Seq(
     exclude("org.apache.logging.log4j", "log4j-core")
     exclude("org.apache.logging.log4j", "log4j-api")
     exclude("org.apache.logging.log4j", "log4j-slf4j-impl")
+    exclude("org.apache.logging.log4j", "log4j-jul")
+    exclude("org.apache.logging.log4j", "log4j-1.2-api")
     exclude("com.lmax", "disruptor") // Pulled in by log4j2, conflicts with the one Storm wants.
     force(),
   "org.apache.samza" %% "samza-core" % samzaVersion % "test",
@@ -162,7 +166,8 @@ libraryDependencies ++= Seq(
   "com.novocode" % "junit-interface" % "0.11-RC1" % "test",
   "ch.qos.logback" % "logback-core" % "1.1.2" % "test",
   "ch.qos.logback" % "logback-classic" % "1.1.2" % "test",
-  "org.apache.logging.log4j" % "log4j-to-slf4j" % "2.1" % "test",
-  "org.slf4j" % "log4j-over-slf4j" % "1.7.6" % "test",
-  "org.slf4j" % "jul-to-slf4j" % "1.7.6" % "test"
+  "org.apache.logging.log4j" % "log4j-to-slf4j" % "2.4" % "test",
+  "org.apache.logging.log4j" % "log4j-api" % "2.4" % "test",
+  "org.slf4j" % "log4j-over-slf4j" % "1.7.12" % "test",
+  "org.slf4j" % "jul-to-slf4j" % "1.7.12" % "test"
 )

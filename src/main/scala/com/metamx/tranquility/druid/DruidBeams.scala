@@ -75,7 +75,7 @@ import scala.language.reflectiveCalls
  */
 object DruidBeams
 {
-  val DefaultTimestampSpec = new TimestampSpec("timestamp", "iso")
+  val DefaultTimestampSpec = new TimestampSpec("timestamp", "iso", null)
 
   def builder[EventType](timeFn: EventType => DateTime) = {
     new Builder[EventType](
