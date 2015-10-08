@@ -23,6 +23,7 @@ import com.google.common.io.CharStreams
 import com.google.common.io.Files
 import com.google.inject.Injector
 import com.metamx.collections.spatial.search.RectangularBound
+import com.metamx.common.lifecycle.Lifecycle
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.concurrent._
@@ -77,11 +78,12 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
     System.setProperty("druid.properties.file", configFile.toString)
     server.configure(GuiceInjectors.makeStartupInjector())
     val _injector = server.makeInjector()
-    val lifecycle = server.initLifecycle(_injector)
+    val lifecycle = _injector.getInstance(classOf[Lifecycle])
     System.clearProperty("druid.properties.file")
     log.info("Server started up: %s", serverName)
     val thread = loggingThread {
       try {
+        lifecycle.start()
         lifecycle.join()
       }
       catch {

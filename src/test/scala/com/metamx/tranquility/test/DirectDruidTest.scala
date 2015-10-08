@@ -85,7 +85,7 @@ object DirectDruidTest
       .rollup(rollup)
       .tuning(tuning)
       .timekeeper(timekeeper)
-      .timestampSpec(new TimestampSpec(TimeColumn, TimeFormat))
+      .timestampSpec(new TimestampSpec(TimeColumn, TimeFormat, null))
       .beamMergeFn(beams => new RoundRobinBeam(beams.toIndexedSeq))
   }
 

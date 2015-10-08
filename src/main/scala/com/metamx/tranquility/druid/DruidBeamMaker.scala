@@ -118,6 +118,8 @@ class DruidBeamMaker[A: Timestamper](
           shardSpec,
           null,
           null,
+          null,
+          null,
           null
         )
       )
