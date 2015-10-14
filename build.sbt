@@ -4,7 +4,7 @@ name := "tranquility"
 
 scalaVersion := "2.10.5"
 
-lazy val root = project.in(file("."))
+crossScalaVersions := Seq("2.10.5", "2.11.7")
 
 net.virtualvoid.sbt.graph.Plugin.graphSettings
 
@@ -30,18 +30,22 @@ pomExtra := (
     <developers>
       <developer>
         <name>Gian Merlino</name>
-        <organization>Metamarkets Group Inc.</organization>
-        <organizationUrl>https://www.metamarkets.com</organizationUrl>
+        <organization>Druid Project</organization>
+        <organizationUrl>http://druid.io/</organizationUrl>
       </developer>
     </developers>)
 
+// Disable parallel execution, the various Druid oriented tests need to claim ports
+parallelExecution in ThisBuild := false
+
+// Disable parallel execution, the various Druid oriented tests need to claim ports
 parallelExecution in Test := false
+
+concurrentRestrictions in Global += Tags.limitAll(1)
 
 fork in Test := true
 
-javaOptions ++= Seq("-XX:MaxPermSize=256M")
-
-publishArtifact in (Test, packageBin) := true
+publishArtifact in(Test, packageBin) := true
 
 // storm-core has a package and object with the same name
 scalacOptions += "-Yresolve-term-conflict:object"
@@ -57,43 +61,28 @@ val finagleVersion = "6.25.0"
 val twitterUtilVersion = "6.25.0"
 val samzaVersion = "0.8.0"
 
-libraryDependencies ++= Seq(
-  "com.metamx" %% "scala-util" % "1.11.3" exclude("log4j", "log4j") force(),
-  "com.metamx" % "java-util" % "0.26.14" exclude("log4j", "log4j") force()
-)
-
-libraryDependencies ++= Seq(
-  "io.netty" % "netty" % "3.10.1.Final" force()
-)
-
-libraryDependencies ++= Seq(
+val coreDependencies = Seq(
+  "com.metamx" %% "scala-util" % "1.11.6" exclude("log4j", "log4j") force(),
+  "com.metamx" % "java-util" % "0.27.4" exclude("log4j", "log4j") force(),
+  "io.netty" % "netty" % "3.10.4.Final" force(),
   "com.twitter" %% "util-core" % twitterUtilVersion,
   "com.twitter" %% "finagle-core" % finagleVersion,
-  "com.twitter" %% "finagle-http" % finagleVersion
-)
-
-libraryDependencies ++= Seq(
+  "com.twitter" %% "finagle-http" % finagleVersion,
   "org.slf4j" % "slf4j-api" % "1.7.12" force() force(),
-  "org.slf4j" % "jul-to-slf4j" % "1.7.12" force() force()
-)
+  "org.slf4j" % "jul-to-slf4j" % "1.7.12" force() force(),
 
-// Curator uses Jackson 1.x internally, and older version cause problems with service discovery.
-libraryDependencies ++= Seq(
+  // Curator uses Jackson 1.x internally, and older version cause problems with service discovery.
   "org.codehaus.jackson" % "jackson-core-asl" % jacksonOneVersion force(),
-  "org.codehaus.jackson" % "jackson-mapper-asl" % jacksonOneVersion force()
-)
+  "org.codehaus.jackson" % "jackson-mapper-asl" % jacksonOneVersion force(),
 
-// We use Jackson 2.x internally (and so does Druid).
-libraryDependencies ++= Seq(
+  // We use Jackson 2.x internally (and so does Druid).
   "com.fasterxml.jackson.core" % "jackson-core" % jacksonTwoVersion,
   "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonTwoVersion,
   "com.fasterxml.jackson.core" % "jackson-databind" % jacksonTwoVersion,
   "com.fasterxml.jackson.dataformat" % "jackson-dataformat-smile" % jacksonTwoVersion,
   "com.fasterxml.jackson.datatype" % "jackson-datatype-joda" % jacksonTwoVersion,
   "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonTwoVersion
-)
-
-libraryDependencies ++= Seq(
+) ++ Seq(
   "io.druid" % "druid-server" % druidVersion
     exclude("org.slf4j", "slf4j-log4j12")
     exclude("log4j", "log4j")
@@ -118,37 +107,21 @@ libraryDependencies ++= Seq(
   "javax.validation" % "validation-api" % "1.1.0.Final" force()
 )
 
-//
-// Storm, Chill (optional)
-//
-
-libraryDependencies ++= Seq(
+val stormDependencies = Seq(
   "org.apache.storm" % "storm-core" % "0.9.3" % "optional"
     exclude("javax.jms", "jms")
     exclude("ch.qos.logback", "logback-classic")
     exclude("org.slf4j", "log4j-over-slf4j")
     force(),
-  "com.twitter" %% "chill" % "0.3.1" % "optional"
+  "com.twitter" %% "chill" % "0.7.1" % "optional"
 )
 
-//
-// Samza (optional)
-//
-
-libraryDependencies ++= Seq(
+val samzaDependencies = Seq(
   "org.apache.samza" % "samza-api" % samzaVersion % "optional"
 )
 
-//
-// Test stuff
-//
-
-libraryDependencies ++= Seq(
-  "org.scalatest" % "scalatest_2.10" % "2.2.0" % "test"
-)
-
-// Need druid-services and samza-core for integration tests.
-libraryDependencies ++= Seq(
+val coreTestDependencies = Seq(
+  "org.scalatest" %% "scalatest" % "2.2.5" % "test",
   "io.druid" % "druid-services" % druidVersion % "test"
     exclude("org.slf4j", "slf4j-log4j12")
     exclude("log4j", "log4j")
@@ -159,7 +132,6 @@ libraryDependencies ++= Seq(
     exclude("org.apache.logging.log4j", "log4j-1.2-api")
     exclude("com.lmax", "disruptor") // Pulled in by log4j2, conflicts with the one Storm wants.
     force(),
-  "org.apache.samza" %% "samza-core" % samzaVersion % "test",
   "org.apache.curator" % "curator-test" % "2.6.0" % "test" exclude("log4j", "log4j") force(),
   "com.sun.jersey" % "jersey-servlet" % "1.17.1" % "test" force(),
   "junit" % "junit" % "4.11" % "test",
@@ -171,3 +143,37 @@ libraryDependencies ++= Seq(
   "org.slf4j" % "log4j-over-slf4j" % "1.7.12" % "test",
   "org.slf4j" % "jul-to-slf4j" % "1.7.12" % "test"
 )
+
+// Force 2.10 here, makes update resolution happy, but since w'ere not building for 2.11
+// we won't end up in runtime version hell by doing this.
+val samzaTestDependencies = Seq(
+  "org.apache.samza" % "samza-core_2.10" % samzaVersion % "test"
+)
+
+lazy val root = project.in(file(".")).aggregate(core, storm, samza)
+
+lazy val core = project.in(file("core"))
+  .settings(name := "tranquility-core")
+  .settings(libraryDependencies ++= (coreDependencies ++ coreTestDependencies))
+
+lazy val storm = project.in(file("storm"))
+  .settings(name := "tranquility-storm")
+  .settings(resolvers += "clojars" at "http://clojars.org/repo/")
+  .settings(libraryDependencies ++= stormDependencies)
+  .dependsOn(core % "test->test;compile->compile")
+
+
+lazy val samza = project.in(file("samza"))
+  .settings(name := "tranquility-samza")
+  .settings(libraryDependencies ++= (samzaDependencies ++ samzaTestDependencies))
+  // don't compile or publish for Scala > 2.10
+  .settings(
+    (skip in compile) := scalaVersion { sv => ! sv.startsWith("2.10.") }.value
+  )
+  .settings(
+    (skip in test) := scalaVersion { sv => ! sv.startsWith("2.10.") }.value
+  )
+  .settings(
+    publishArtifact <<= scalaVersion { sv => sv.startsWith("2.10.") }
+  )
+  .dependsOn(core % "test->test;compile->compile")
