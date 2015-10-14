@@ -1,7 +1,3 @@
-organization := "io.druid"
-
-name := "tranquility"
-
 scalaVersion := "2.10.5"
 
 crossScalaVersions := Seq("2.10.5", "2.11.7")
@@ -44,8 +40,6 @@ parallelExecution in Test := false
 concurrentRestrictions in Global += Tags.limitAll(1)
 
 fork in Test := true
-
-publishArtifact in(Test, packageBin) := true
 
 // storm-core has a package and object with the same name
 scalacOptions += "-Yresolve-term-conflict:object"
@@ -150,30 +144,30 @@ val samzaTestDependencies = Seq(
   "org.apache.samza" % "samza-core_2.10" % samzaVersion % "test"
 )
 
-lazy val root = project.in(file(".")).aggregate(core, storm, samza)
+lazy val root = project.in(file("."))
+  .settings(publishArtifact := false)
+  .aggregate(core, storm, samza)
 
 lazy val core = project.in(file("core"))
+  .settings(organization := "io.druid")
   .settings(name := "tranquility-core")
+  .settings(publishArtifact in(Test, packageBin) := true)
   .settings(libraryDependencies ++= (coreDependencies ++ coreTestDependencies))
 
 lazy val storm = project.in(file("storm"))
+  .settings(organization := "io.druid")
   .settings(name := "tranquility-storm")
   .settings(resolvers += "clojars" at "http://clojars.org/repo/")
+  .settings(publishArtifact in packageBin := true)
   .settings(libraryDependencies ++= stormDependencies)
   .dependsOn(core % "test->test;compile->compile")
 
-
 lazy val samza = project.in(file("samza"))
+  .settings(organization := "io.druid")
   .settings(name := "tranquility-samza")
   .settings(libraryDependencies ++= (samzaDependencies ++ samzaTestDependencies))
   // don't compile or publish for Scala > 2.10
-  .settings(
-    (skip in compile) := scalaVersion { sv => ! sv.startsWith("2.10.") }.value
-  )
-  .settings(
-    (skip in test) := scalaVersion { sv => ! sv.startsWith("2.10.") }.value
-  )
-  .settings(
-    publishArtifact <<= scalaVersion { sv => sv.startsWith("2.10.") }
-  )
+  .settings((skip in compile) := scalaVersion { sv => ! sv.startsWith("2.10.") }.value)
+  .settings((skip in test) := scalaVersion { sv => ! sv.startsWith("2.10.") }.value)
+  .settings(publishArtifact in packageBin <<= scalaVersion { sv => sv.startsWith("2.10.") })
   .dependsOn(core % "test->test;compile->compile")
