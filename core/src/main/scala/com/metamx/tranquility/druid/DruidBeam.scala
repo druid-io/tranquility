@@ -22,7 +22,6 @@ import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.event.WARN
 import com.metamx.common.scala.event.emit.emitAlert
-import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.common.scala.untyped._
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.beam.Beam
@@ -51,7 +50,6 @@ class DruidBeam[A : Timestamper](
   finagleRegistry: FinagleRegistry,
   indexService: IndexService,
   emitter: ServiceEmitter,
-  timekeeper: Timekeeper,
   objectWriter: ObjectWriter[A]
 ) extends Beam[A] with Logging
 {

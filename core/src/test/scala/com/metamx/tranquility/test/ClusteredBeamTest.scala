@@ -28,15 +28,25 @@ import com.metamx.common.scala.timekeeper.TestingTimekeeper
 import com.metamx.common.scala.untyped._
 import com.metamx.emitter.core.LoggingEmitter
 import com.metamx.emitter.service.ServiceEmitter
-import com.metamx.tranquility.beam.{Beam, BeamMaker, ClusteredBeam, ClusteredBeamMeta, ClusteredBeamTuning, DefunctBeamException, RoundRobinBeam}
+import com.metamx.tranquility.beam.Beam
+import com.metamx.tranquility.beam.BeamMaker
+import com.metamx.tranquility.beam.ClusteredBeam
+import com.metamx.tranquility.beam.ClusteredBeamMeta
+import com.metamx.tranquility.beam.ClusteredBeamTuning
+import com.metamx.tranquility.beam.DefunctBeamException
+import com.metamx.tranquility.beam.RoundRobinBeam
 import com.metamx.tranquility.test.common.CuratorRequiringSuite
 import com.metamx.tranquility.typeclass.Timestamper
-import com.twitter.util.{Await, Future}
-import org.apache.curator.framework.CuratorFramework
-import org.joda.time.{DateTime, Interval}
-import org.scala_tools.time.Implicits._
-import org.scalatest.{BeforeAndAfter, FunSuite}
+import com.twitter.util.Await
+import com.twitter.util.Future
 import java.util.UUID
+import org.apache.curator.framework.CuratorFramework
+import org.joda.time.DateTimeZone
+import org.joda.time.DateTime
+import org.joda.time.Interval
+import org.scala_tools.time.Implicits._
+import org.scalatest.BeforeAndAfter
+import org.scalatest.FunSuite
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
@@ -66,9 +76,10 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
   val _beams = new ArrayBuffer[TestingBeam]()
   val _buffers = mutable.HashMap[String, EventBuffer]()
   val _lock = new AnyRef
+  val localZone = new DateTime().getZone
 
   def buffers = _lock.synchronized {
-    _buffers.values.map(x => (x.timestamp, x.partition, x.open, x.buffer.toSeq)).toSet
+    _buffers.values.map(x => (x.timestamp.withZone(localZone), x.partition, x.open, x.buffer.toSeq)).toSet
   }
 
   def beamsList = _lock.synchronized {
@@ -555,16 +566,16 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
   test("MetaSerde") {
     val s = """{
               |   "beams" : {
-              |      "2000-01-01T15:00:00.000Z" : [
+              |      "2000-01-01T20:30:00.000+05:30" : [
               |         {
               |            "partition" : 123
               |         }
               |      ]
               |   },
-              |   "latestCloseTime" : "2000-01-01T14:00:00.000Z"
+              |   "latestCloseTime" : "2000-01-01T19:30:00.000+05:30"
               |}""".stripMargin
     def checkMeta(meta: ClusteredBeamMeta) {
-      assert(meta.latestCloseTime === new DateTime("2000-01-01T14:00:00.000Z"))
+      assert(meta.latestCloseTime === new DateTime("2000-01-01T14:00:00.000Z").withZone(DateTimeZone.UTC))
       assert(meta.beamDictss.keys.toSet === Set(
           new DateTime("2000-01-01T15:00:00.000Z").millis
       ))

@@ -18,23 +18,35 @@ package com.metamx.tranquility.druid
 
 import com.metamx.common.Granularity
 import com.metamx.common.scala.Logging
-import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.common.scala.untyped._
 import com.metamx.emitter.service.ServiceEmitter
-import com.metamx.tranquility.beam.{BeamMaker, ClusteredBeamTuning}
+import com.metamx.tranquility.beam.BeamMaker
+import com.metamx.tranquility.beam.ClusteredBeamTuning
 import com.metamx.tranquility.finagle.FinagleRegistry
-import com.metamx.tranquility.typeclass.{ObjectWriter, Timestamper}
-import com.twitter.util.{Await, Future}
-import io.druid.data.input.impl.{JSONParseSpec, MapInputRowParser, TimestampSpec}
-import io.druid.indexing.common.task.{RealtimeIndexTask, Task, TaskResource}
+import com.metamx.tranquility.typeclass.ObjectWriter
+import com.metamx.tranquility.typeclass.Timestamper
+import com.twitter.util.Await
+import com.twitter.util.Future
+import io.druid.data.input.impl.JSONParseSpec
+import io.druid.data.input.impl.MapInputRowParser
+import io.druid.data.input.impl.TimestampSpec
+import io.druid.indexing.common.task.RealtimeIndexTask
+import io.druid.indexing.common.task.Task
+import io.druid.indexing.common.task.TaskResource
 import io.druid.segment.indexing.granularity.UniformGranularitySpec
-import io.druid.segment.indexing.{DataSchema, RealtimeIOConfig, RealtimeTuningConfig}
+import io.druid.segment.indexing.DataSchema
+import io.druid.segment.indexing.RealtimeIOConfig
+import io.druid.segment.indexing.RealtimeTuningConfig
 import io.druid.segment.realtime.FireDepartment
-import io.druid.segment.realtime.firehose.{ClippedFirehoseFactory, EventReceiverFirehoseFactory, TimedShutoffFirehoseFactory}
-import io.druid.segment.realtime.plumber.{ServerTimeRejectionPolicyFactory, NoopRejectionPolicyFactory}
+import io.druid.segment.realtime.firehose.ClippedFirehoseFactory
+import io.druid.segment.realtime.firehose.EventReceiverFirehoseFactory
+import io.druid.segment.realtime.firehose.TimedShutoffFirehoseFactory
+import io.druid.segment.realtime.plumber.NoopRejectionPolicyFactory
+import io.druid.segment.realtime.plumber.ServerTimeRejectionPolicyFactory
 import io.druid.timeline.partition.LinearShardSpec
 import org.joda.time.chrono.ISOChronology
-import org.joda.time.{DateTime, DateTimeZone, Interval}
+import org.joda.time.DateTime
+import org.joda.time.Interval
 import org.scala_tools.time.Implicits._
 import scala.util.Random
 
@@ -48,7 +60,6 @@ class DruidBeamMaker[A: Timestamper](
   finagleRegistry: FinagleRegistry,
   indexService: IndexService,
   emitter: ServiceEmitter,
-  timekeeper: Timekeeper,
   objectWriter: ObjectWriter[A]
 ) extends BeamMaker[A, DruidBeam[A]] with Logging
 {
@@ -154,7 +165,6 @@ class DruidBeamMaker[A: Timestamper](
       finagleRegistry,
       indexService,
       emitter,
-      timekeeper,
       objectWriter
     )
   }
@@ -175,10 +185,10 @@ class DruidBeamMaker[A: Timestamper](
 
   override def fromDict(d: Dict) = {
     val interval = if (d contains "interval") {
-      new Interval(d("interval"))
+      new Interval(d("interval"), ISOChronology.getInstanceUTC)
     } else {
       // Backwards compatibility (see toDict).
-      beamTuning.segmentBucket(new DateTime(d("timestamp")))
+      beamTuning.segmentBucket(new DateTime(d("timestamp"), ISOChronology.getInstanceUTC))
     }
     require(
       beamTuning.segmentGranularity.widen(interval) == interval,
@@ -199,7 +209,6 @@ class DruidBeamMaker[A: Timestamper](
       finagleRegistry,
       indexService,
       emitter,
-      timekeeper,
       objectWriter
     )
   }
