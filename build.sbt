@@ -4,33 +4,6 @@ crossScalaVersions := Seq("2.10.5", "2.11.7")
 
 net.virtualvoid.sbt.graph.Plugin.graphSettings
 
-scalacOptions := Seq("-feature", "-deprecation")
-
-resolvers ++= Seq("clojars" at "http://clojars.org/repo/")
-
-licenses := Seq("Apache License, Version 2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
-
-homepage := Some(url("https://github.com/druid-io/tranquility"))
-
-publishMavenStyle := true
-
-publishTo := Some("releases" at "https://oss.sonatype.org/service/local/staging/deploy/maven2/")
-
-pomIncludeRepository := { _ => false }
-
-pomExtra := (
-  <scm>
-    <url>https://github.com/druid-io/tranquility.git</url>
-    <connection>scm:git:git@github.com:druid-io/tranquility.git</connection>
-  </scm>
-    <developers>
-      <developer>
-        <name>Gian Merlino</name>
-        <organization>Druid Project</organization>
-        <organizationUrl>http://druid.io/</organizationUrl>
-      </developer>
-    </developers>)
-
 // Disable parallel execution, the various Druid oriented tests need to claim ports
 parallelExecution in ThisBuild := false
 
@@ -38,15 +11,6 @@ parallelExecution in ThisBuild := false
 parallelExecution in Test := false
 
 concurrentRestrictions in Global += Tags.limitAll(1)
-
-fork in Test := true
-
-// storm-core has a package and object with the same name
-scalacOptions += "-Yresolve-term-conflict:object"
-
-releaseSettings
-
-ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
 
 val jacksonOneVersion = "1.9.13"
 val jacksonTwoVersion = "2.6.1"
@@ -144,30 +108,65 @@ val samzaTestDependencies = Seq(
   "org.apache.samza" % "samza-core_2.10" % samzaVersion % "test"
 )
 
+lazy val commonSettings = Seq(
+  organization := "io.druid",
+
+  scalacOptions := Seq("-feature", "-deprecation"),
+
+  licenses := Seq("Apache License, Version 2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
+
+  homepage := Some(url("https://github.com/druid-io/tranquility")),
+
+  publishMavenStyle := true,
+
+  publishTo := Some("releases" at "https://oss.sonatype.org/service/local/staging/deploy/maven2/"),
+
+  pomIncludeRepository := { _ => false },
+
+  pomExtra := (
+    <scm>
+      <url>https://github.com/druid-io/tranquility.git</url>
+      <connection>scm:git:git@github.com:druid-io/tranquility.git</connection>
+    </scm>
+      <developers>
+        <developer>
+          <name>Gian Merlino</name>
+          <organization>Druid Project</organization>
+          <organizationUrl>http://druid.io/</organizationUrl>
+        </developer>
+      </developers>),
+
+  fork in Test := true,
+
+  // storm-core has a package and object with the same name
+  scalacOptions += "-Yresolve-term-conflict:object"
+) ++ releaseSettings ++ Seq(
+  ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
+)
+
 lazy val root = project.in(file("."))
   .settings(publishArtifact := false)
   .aggregate(core, storm, samza)
 
 lazy val core = project.in(file("core"))
-  .settings(organization := "io.druid")
+  .settings(commonSettings: _*)
   .settings(name := "tranquility-core")
   .settings(publishArtifact in(Test, packageBin) := true)
   .settings(libraryDependencies ++= (coreDependencies ++ coreTestDependencies))
 
 lazy val storm = project.in(file("storm"))
-  .settings(organization := "io.druid")
+  .settings(commonSettings: _*)
   .settings(name := "tranquility-storm")
   .settings(resolvers += "clojars" at "http://clojars.org/repo/")
-  .settings(publishArtifact in packageBin := true)
   .settings(libraryDependencies ++= stormDependencies)
   .dependsOn(core % "test->test;compile->compile")
 
 lazy val samza = project.in(file("samza"))
-  .settings(organization := "io.druid")
+  .settings(commonSettings: _*)
   .settings(name := "tranquility-samza")
   .settings(libraryDependencies ++= (samzaDependencies ++ samzaTestDependencies))
   // don't compile or publish for Scala > 2.10
   .settings((skip in compile) := scalaVersion { sv => ! sv.startsWith("2.10.") }.value)
-  .settings((skip in test) := scalaVersion { sv => ! sv.startsWith("2.10.") }.value)
+  .settings((skip in test) := scalaVersion { sv => !sv.startsWith("2.10.") }.value)
   .settings(publishArtifact in packageBin <<= scalaVersion { sv => sv.startsWith("2.10.") })
   .dependsOn(core % "test->test;compile->compile")
