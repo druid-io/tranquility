@@ -169,5 +169,6 @@ lazy val samza = project.in(file("samza"))
   // don't compile or publish for Scala > 2.10
   .settings((skip in compile) := scalaVersion { sv => ! sv.startsWith("2.10.") }.value)
   .settings((skip in test) := scalaVersion { sv => !sv.startsWith("2.10.") }.value)
-  .settings(publishArtifact in packageBin <<= scalaVersion { sv => sv.startsWith("2.10.") })
+  .settings(publishArtifact <<= scalaVersion { sv => sv.startsWith("2.10.") })
+  .settings(publishArtifact in Test := false)
   .dependsOn(core % "test->test;compile->compile")
