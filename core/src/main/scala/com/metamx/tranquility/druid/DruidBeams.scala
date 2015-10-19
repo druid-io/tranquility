@@ -172,7 +172,6 @@ object DruidBeams
         things.finagleRegistry,
         indexService,
         things.emitter,
-        things.timekeeper,
         things.objectWriter
       )
       val clusteredBeam = new ClusteredBeam(
