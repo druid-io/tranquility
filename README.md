@@ -74,8 +74,11 @@ final Service<List<Map<String, Object>>, Integer> druidService = DruidBeams
     )
     .buildJavaService();
 
+// Build a sample event to send; make sure we use a current date
+Map<String, Object> obj = ImmutableMap.of("timestamp", new DateTime().toString(), "bar", "barVal", "baz", 3);
+
 // Send events to Druid:
-final Future<Integer> numSentFuture = druidService.apply(listOfEvents);
+final Future<Integer> numSentFuture = druidService.apply(ImmutableList.of(obj));
 
 // Wait for confirmation:
 final Integer numSent = Await.result(numSentFuture);
@@ -117,8 +120,11 @@ val druidService = DruidBeams
   )
   .buildService()
 
+// Build a sample event to send; make sure we use a current date
+val obj = Map("timestamp" -> new DateTime().toString, "bar" -> "barVal", "baz" -> 3)
+
 // Send events to Druid:
-val numSentFuture: Future[Int] = druidService(listOfEvents)
+val numSentFuture: Future[Int] = druidService(Seq(obj))
 
 // Wait for confirmation:
 val numSent = Await.result(numSentFuture)
