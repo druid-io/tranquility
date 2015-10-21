@@ -1,5 +1,8 @@
 ## Tranquility
 
+> &#8220;Stay close, my friends, and I will heal your wounds.&#8221;<br />
+> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&mdash;Mythen of the Wild
+
 Tranquility helps you send event streams to Druid, the raddest data store ever (http://druid.io/), in real-time. It
 handles partitioning, replication, service discovery, and schema rollover for you, seamlessly and without downtime.
 Tranquility is written in Scala, and bundles idiomatic Java and Scala APIs that work nicely with Finagle, Samza, Storm,
