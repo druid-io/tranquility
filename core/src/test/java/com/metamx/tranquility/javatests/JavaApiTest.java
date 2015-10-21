@@ -29,8 +29,8 @@ import com.metamx.tranquility.finagle.FinagleRegistryConfig;
 import io.druid.granularity.QueryGranularity;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.CountAggregatorFactory;
-import junit.framework.Assert;
 import org.joda.time.Period;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.List;
