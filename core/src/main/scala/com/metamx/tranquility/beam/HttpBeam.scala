@@ -41,9 +41,7 @@ import java.io.IOException
 import java.util.zip.GZIPOutputStream
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http.HttpRequest
-import org.joda.time.Duration
-import org.joda.time.Period
-import org.scala_tools.time.Implicits._
+import org.scala_tools.time.Imports._
 
 /**
  * Emits events over http.
@@ -130,7 +128,7 @@ class HttpBeam[A: Timestamper](
     val responses = events.grouped(HttpBeam.DefaultBatchSize) map {
       eventsChunk =>
         val retryable = isTransient(HttpBeam.DefaultRetryPeriod)
-        val response = FutureRetry.onErrors(Seq(retryable), Backoff.standard()) {
+        val response = FutureRetry.onErrors(Seq(retryable), Backoff.standard(), new DateTime(0)) {
           client(request(eventsChunk)) map {
             response =>
               response.getStatus.getCode match {
