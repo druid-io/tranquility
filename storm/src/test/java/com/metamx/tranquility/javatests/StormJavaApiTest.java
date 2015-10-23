@@ -36,16 +36,16 @@ import com.twitter.finagle.Service;
 import io.druid.granularity.QueryGranularity;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.CountAggregatorFactory;
-import javax.ws.rs.core.MediaType;
-import junit.framework.Assert;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingCluster;
 import org.joda.time.DateTime;
 import org.joda.time.Period;
+import org.junit.Assert;
 import org.junit.Test;
 
+import javax.ws.rs.core.MediaType;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
 import java.util.Iterator;
