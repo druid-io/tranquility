@@ -35,7 +35,7 @@ import com.twitter.util.Timer
 import io.druid.indexing.common.task.Task
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http.HttpRequest
-import org.joda.time.Period
+import org.scala_tools.time.Imports._
 
 class IndexService(
   environment: DruidEnvironment,
@@ -81,7 +81,7 @@ class IndexService(
 
   private def call(req: HttpRequest): Future[Dict] = {
     val retryable = IndexService.isTransient(config.indexRetryPeriod)
-    FutureRetry.onErrors(Seq(retryable), new Backoff(15000, 2, 60000)) {
+    FutureRetry.onErrors(Seq(retryable), new Backoff(15000, 2, 60000), new DateTime(0)) {
       client(req) map {
         response =>
           response.getStatus.getCode match {

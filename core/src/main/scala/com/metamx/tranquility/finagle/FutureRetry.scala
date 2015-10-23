@@ -23,31 +23,41 @@ import com.twitter.util.Future
 import com.twitter.util.Promise
 import com.twitter.util.Time
 import com.twitter.util.Timer
-import org.scala_tools.time.Implicits._
+import org.scala_tools.time.Imports._
 
 object FutureRetry extends Logging
 {
   /**
    * Returns a future representing possibly repeated retries of an underlying future creator.
    *
-   * @param mkfuture call-by-name future
    * @param isTransients retry if any of these predicates return true for a thrown exception
+   * @param backoff use this backoff strategy
+   * @param quietUntil log exceptions at debug level until this time
+   * @param mkfuture call-by-name future
    * @param timer use this timer for scheduling retries
    */
   def onErrors[A](
     isTransients: Seq[Exception => Boolean],
-    backoff: Backoff = Backoff.standard()
+    backoff: Backoff,
+    quietUntil: DateTime
   )(mkfuture: => Future[A])(implicit timer: Timer): Future[A] =
   {
     mkfuture rescue {
       case e: Exception if isTransients.exists(_(e)) =>
         new Promise[A] withEffect {
           promise =>
-            val next = backoff.next
+            val now = DateTime.now
+            val sleep = backoff.next
             backoff.incr()
-            log.warn(e, "Transient error, will try again in %s ms", next)
-            timer.schedule(Time.now + next.toDuration) {
-              promise.become(onErrors(isTransients, backoff)(mkfuture))
+
+            if (now >= quietUntil) {
+              log.warn(e, "Transient error, will try again in %,d ms", sleep)
+            } else {
+              log.debug(e, "Transient error, will try again in %,d ms", sleep)
+            }
+
+            timer.schedule(Time.fromMilliseconds(DateTime.now.millis + sleep)) {
+              promise.become(onErrors(isTransients, backoff, quietUntil)(mkfuture))
             }
         }
     }

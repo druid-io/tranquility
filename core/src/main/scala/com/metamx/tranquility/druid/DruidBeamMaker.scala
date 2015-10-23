@@ -152,7 +152,7 @@ class DruidBeamMaker[A: Timestamper](
       val firehoseId = "%s-%04d" format(availabilityGroup, replicant)
       indexService.submit(taskObject(interval, availabilityGroup, firehoseId, partition, replicant)) map {
         taskId =>
-          DruidTaskPointer(taskId, firehoseId)
+          TaskPointer(taskId, firehoseId)
       }
     }
     val tasks = Await.result(Future.collect(futureTasks))
@@ -178,7 +178,7 @@ class DruidBeamMaker[A: Timestamper](
       "partition" -> beam.partition,
       "tasks" -> (beam.tasks map {
         task =>
-          Dict("id" -> task.id, "firehoseId" -> task.firehoseId)
+          Dict("id" -> task.id, "firehoseId" -> task.serviceKey)
       })
     ) ++ (if (canBeBackwardsCompatible) Dict("timestamp" -> beam.interval.start.toString()) else Map.empty)
   }
@@ -196,9 +196,9 @@ class DruidBeamMaker[A: Timestamper](
     )
     val partition = int(d("partition"))
     val tasks = if (d contains "tasks") {
-      list(d("tasks")).map(dict(_)).map(d => DruidTaskPointer(str(d("id")), str(d("firehoseId"))))
+      list(d("tasks")).map(dict(_)).map(d => TaskPointer(str(d("id")), str(d("firehoseId"))))
     } else {
-      Seq(DruidTaskPointer(str(d("taskId")), str(d("firehoseId"))))
+      Seq(TaskPointer(str(d("taskId")), str(d("firehoseId"))))
     }
     new DruidBeam(
       interval,
