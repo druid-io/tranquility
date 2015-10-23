@@ -17,8 +17,8 @@
 package com.metamx.tranquility
 
 import com.metamx.common.scala.Predef._
-import com.twitter.util.{Duration => TwitterDuration}
 import org.jboss.netty.handler.codec.http.DefaultHttpRequest
+import org.jboss.netty.handler.codec.http.HttpHeaders
 import org.jboss.netty.handler.codec.http.HttpMethod
 import org.jboss.netty.handler.codec.http.HttpRequest
 import org.jboss.netty.handler.codec.http.HttpVersion
@@ -28,27 +28,30 @@ import scala.language.implicitConversions
 
 package object finagle
 {
+  val TwitterDuration = com.twitter.util.Duration
+  type TwitterDuration = com.twitter.util.Duration
+
   implicit def jodaDurationToTwitterDuration(duration: Duration): TwitterDuration = {
     TwitterDuration.fromMilliseconds(duration.millis)
   }
 
   lazy val FinagleLogger = java.util.logging.Logger.getLogger("finagle")
 
-  def HttpPost(path: String) = {
+  def HttpPost(path: String): DefaultHttpRequest = {
     new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, path) withEffect {
       req =>
         decorateRequest(req)
     }
   }
 
-  def HttpGet(path: String) = {
+  def HttpGet(path: String): DefaultHttpRequest = {
     new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, path) withEffect {
       req =>
         decorateRequest(req)
     }
   }
 
-  private[this] def decorateRequest(req: HttpRequest) = {
+  private[this] def decorateRequest(req: HttpRequest): HttpHeaders = {
     // finagle-http doesn't set the host header, and we don't actually know what server we're hitting
     req.headers.set("Host", "127.0.0.1")
     req.headers.set("Accept", "*/*")
