@@ -293,8 +293,8 @@ Tranquility artifacts are hosted on Maven Central. The current stable version is
 </dependency>
 ```
 
-This version is built to work with Druid 0.7.x. If you are using Druid 0.6.x, you may want to use tranquility v0.3.2, which
-is the most recent version built for use with Druid 0.6.x.
+This version is built to work with Druid 0.7.x and 0.8.x. If you are using Druid 0.6.x, you may want to use tranquility
+v0.3.2, which is the most recent version built for use with Druid 0.6.x.
 
 Tranquility is built with [SBT](http://www.scala-sbt.org/). If you want to build the jars yourself, you can
 run ```sbt package```.
