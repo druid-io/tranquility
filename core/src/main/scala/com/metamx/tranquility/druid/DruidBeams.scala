@@ -30,10 +30,12 @@ import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.ClusteredBeam
 import com.metamx.tranquility.beam.ClusteredBeamTuning
-import com.metamx.tranquility.beam.HashPartitionBeam
+import com.metamx.tranquility.beam.MergingPartitioningBeam
 import com.metamx.tranquility.finagle.BeamService
 import com.metamx.tranquility.finagle.FinagleRegistry
 import com.metamx.tranquility.finagle.FinagleRegistryConfig
+import com.metamx.tranquility.partition.GenericTimeAndDimsPartitioner
+import com.metamx.tranquility.partition.Partitioner
 import com.metamx.tranquility.typeclass.JavaObjectWriter
 import com.metamx.tranquility.typeclass.JsonWriter
 import com.metamx.tranquility.typeclass.ObjectWriter
@@ -50,29 +52,29 @@ import scala.collection.JavaConverters._
 import scala.language.reflectiveCalls
 
 /**
- * Builds Beams or Finagle services that send events to the Druid indexing service.
- *
- * {{{
- * val curator = CuratorFrameworkFactory.newClient("localhost:2181", new BoundedExponentialBackoffRetry(100, 30000, 30))
- * curator.start()
- * val dataSource = "foo"
- * val dimensions = Seq("bar")
- * val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
- * val service = DruidBeams
- *   .builder[Map[String, Any]](eventMap => new DateTime(eventMap("timestamp")))
- *   .curator(curator)
- *   .discoveryPath("/test/discovery")
- *   .location(DruidLocation(new DruidEnvironment("druid:local:indexer", "druid:local:firehose:%s"), dataSource))
- *   .rollup(DruidRollup(dimensions, aggregators, QueryGranularity.MINUTE))
- *   .tuning(new ClusteredBeamTuning(Granularity.HOUR, 10.minutes, 1, 1))
- *   .buildService()
- * val future = service(Seq(Map("timestamp" -> "2010-01-02T03:04:05.678Z", "bar" -> "hey", "baz" -> 3)))
- * println("result = %s" format Await.result(future))
- * }}}
- *
- * Your event type (in this case, {{{Map[String, Any]}}} must be serializable via Jackson to JSON that Druid can
- * understand. If Jackson is not an appropriate choice, you can provide an ObjectWriter via {{{.objectWriter(...)}}}.
- */
+  * Builds Beams or Finagle services that send events to the Druid indexing service.
+  *
+  * {{{
+  * val curator = CuratorFrameworkFactory.newClient("localhost:2181", new BoundedExponentialBackoffRetry(100, 30000, 30))
+  * curator.start()
+  * val dataSource = "foo"
+  * val dimensions = Seq("bar")
+  * val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
+  * val service = DruidBeams
+  *   .builder[Map[String, Any]](eventMap => new DateTime(eventMap("timestamp")))
+  *   .curator(curator)
+  *   .discoveryPath("/test/discovery")
+  *   .location(DruidLocation(new DruidEnvironment("druid:local:indexer", "druid:local:firehose:%s"), dataSource))
+  *   .rollup(DruidRollup(dimensions, aggregators, QueryGranularity.MINUTE))
+  *   .tuning(new ClusteredBeamTuning(Granularity.HOUR, 10.minutes, 1, 1))
+  *   .buildService()
+  * val future = service(Seq(Map("timestamp" -> "2010-01-02T03:04:05.678Z", "bar" -> "hey", "baz" -> 3)))
+  * println("result = %s" format Await.result(future))
+  * }}}
+  *
+  * Your event type (in this case, {{{Map[String, Any]}}} must be serializable via Jackson to JSON that Druid can
+  * understand. If Jackson is not an appropriate choice, you can provide an ObjectWriter via {{{.objectWriter(...)}}}.
+  */
 object DruidBeams
 {
   val DefaultTimestampSpec = new TimestampSpec("timestamp", "iso", null)
@@ -108,52 +110,77 @@ object DruidBeams
 
     def rollup(rollup: DruidRollup) = new Builder[EventType](config.copy(_rollup = Some(rollup)))
 
-    def timestampSpec(timestampSpec: TimestampSpec) = new Builder[EventType](config.copy(_timestampSpec = Some(timestampSpec)))
+    def timestampSpec(timestampSpec: TimestampSpec) = {
+      new Builder[EventType](config.copy(_timestampSpec = Some(timestampSpec)))
+    }
 
-    def clusteredBeamZkBasePath(path: String) = new Builder[EventType](config.copy(_clusteredBeamZkBasePath = Some(path)))
+    def clusteredBeamZkBasePath(path: String) = {
+      new Builder[EventType](config.copy(_clusteredBeamZkBasePath = Some(path)))
+    }
 
     def clusteredBeamIdent(ident: String) = new Builder[EventType](config.copy(_clusteredBeamIdent = Some(ident)))
 
-    def druidBeamConfig(beamConfig: DruidBeamConfig) = new Builder[EventType](config.copy(_druidBeamConfig = Some(beamConfig)))
+    def druidBeamConfig(beamConfig: DruidBeamConfig) = {
+      new Builder[EventType](config.copy(_druidBeamConfig = Some(beamConfig)))
+    }
 
     def emitter(emitter: ServiceEmitter) = new Builder[EventType](config.copy(_emitter = Some(emitter)))
 
-    def finagleRegistry(registry: FinagleRegistry) = new Builder[EventType](config.copy(_finagleRegistry = Some(registry)))
+    def finagleRegistry(registry: FinagleRegistry) = {
+      new Builder[EventType](config.copy(_finagleRegistry = Some(registry)))
+    }
 
     def timekeeper(timekeeper: Timekeeper) = new Builder[EventType](config.copy(_timekeeper = Some(timekeeper)))
 
-    def beamDecorateFn(f: (Interval, Int) => Beam[EventType] => Beam[EventType]) = new
-        Builder(config.copy(_beamDecorateFn = Some(f)))
+    def beamDecorateFn(f: (Interval, Int) => Beam[EventType] => Beam[EventType]) = {
+      new Builder(config.copy(_beamDecorateFn = Some(f)))
+    }
 
-    def beamMergeFn(f: Seq[Beam[EventType]] => Beam[EventType]) = new Builder[EventType](config.copy(_beamMergeFn = Some(f)))
+    def beamMergeFn(f: Seq[Beam[EventType]] => Beam[EventType]) = {
+      if (config._partitioner.nonEmpty) {
+        throw new IllegalStateException("Cannot set both 'beamMergeFn' and 'partitioner'")
+      }
+      new Builder[EventType](config.copy(_beamMergeFn = Some(f)))
+    }
+
+    def partitioner(partitioner: Partitioner[EventType]) = {
+      if (config._beamMergeFn.nonEmpty) {
+        throw new IllegalStateException("Cannot set both 'beamMergeFn' and 'partitioner'")
+      }
+      new Builder[EventType](config.copy(_partitioner = Some(partitioner)))
+    }
 
     def alertMap(d: Dict) = new Builder[EventType](config.copy(_alertMap = Some(d)))
 
     @deprecated("use .objectWriter(...)", "0.2.21")
-    def eventWriter(writer: ObjectWriter[EventType]) = new Builder[EventType](config.copy(_objectWriter = Some(writer)))
+    def eventWriter(writer: ObjectWriter[EventType]) = {
+      new Builder[EventType](config.copy(_objectWriter = Some(writer)))
+    }
 
-    def objectWriter(writer: ObjectWriter[EventType]) = new Builder[EventType](config.copy(_objectWriter = Some(writer)))
+    def objectWriter(writer: ObjectWriter[EventType]) = {
+      new Builder[EventType](config.copy(_objectWriter = Some(writer)))
+    }
 
     def objectWriter(writer: JavaObjectWriter[EventType]) = {
       new Builder[EventType](config.copy(_objectWriter = Some(ObjectWriter.wrap(writer))))
     }
 
-    def eventTimestamped(timeFn: EventType => DateTime) = new Builder[EventType](
-      config.copy(
-        _timestamper = Some(
-          new Timestamper[EventType]
-          {
-            def timestamp(a: EventType) = timeFn(a)
-          }
+    def eventTimestamped(timeFn: EventType => DateTime) = {
+      new Builder[EventType](
+        config.copy(
+          _timestamper = Some(
+            new Timestamper[EventType]
+            {
+              def timestamp(a: EventType) = timeFn(a)
+            }
+          )
         )
       )
-    )
+    }
 
     def buildBeam(): Beam[EventType] = {
       val things = config.buildAll()
-      implicit val eventTimestamped = things.timestamper getOrElse {
-        throw new IllegalArgumentException("WTF?! Should have had a Timestamperable event...")
-      }
+      implicit val eventTimestamped = things.timestamper
       val lifecycle = new Lifecycle
       val indexService = new IndexService(
         things.location.environment,
@@ -222,6 +249,7 @@ object DruidBeams
     _finagleRegistry: Option[FinagleRegistry] = None,
     _timekeeper: Option[Timekeeper] = None,
     _beamDecorateFn: Option[(Interval, Int) => Beam[EventType] => Beam[EventType]] = None,
+    _partitioner: Option[Partitioner[EventType]] = None,
     _beamMergeFn: Option[Seq[Beam[EventType]] => Beam[EventType]] = None,
     _alertMap: Option[Dict] = None,
     _objectWriter: Option[ObjectWriter[EventType]] = None,
@@ -280,19 +308,30 @@ object DruidBeams
       val beamDecorateFn          = _beamDecorateFn getOrElse {
         (interval: Interval, partition: Int) => (beam: Beam[EventType]) => beam
       }
-      val beamMergeFn             = _beamMergeFn getOrElse {
-        (beams: Seq[Beam[EventType]]) => new HashPartitionBeam[EventType](beams.toIndexedSeq)
-      }
       val alertMap                = _alertMap getOrElse Map.empty
       val objectWriter            = _objectWriter getOrElse {
         new JsonWriter[EventType]
         {
-          protected def viaJsonGenerator(a: EventType, jg: JsonGenerator) {
+          override protected def viaJsonGenerator(a: EventType, jg: JsonGenerator): Unit = {
             scalaObjectMapper.writeValue(jg, a)
           }
         }
       }
-      val timestamper             = _timestamper
+      val timestamper             = _timestamper getOrElse {
+        throw new IllegalArgumentException("WTF?! Should have had a Timestamperable event...")
+      }
+      val beamMergeFn             = _beamMergeFn getOrElse {
+        val partitioner = _partitioner getOrElse {
+          GenericTimeAndDimsPartitioner.create(
+            timestamper,
+            timestampSpec,
+            rollup
+          )
+        }
+        (beams: Seq[Beam[EventType]]) => {
+          new MergingPartitioningBeam[EventType](partitioner, beams.toIndexedSeq)
+        }
+      }
     }
   }
 

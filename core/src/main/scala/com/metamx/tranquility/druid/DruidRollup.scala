@@ -16,7 +16,9 @@
  */
 package com.metamx.tranquility.druid
 
-import io.druid.data.input.impl.{DimensionsSpec, SpatialDimensionSchema}
+import io.druid.data.input.impl.TimestampSpec
+import io.druid.data.input.impl.DimensionsSpec
+import io.druid.data.input.impl.SpatialDimensionSchema
 import io.druid.granularity.QueryGranularity
 import io.druid.query.aggregation.AggregatorFactory
 import scala.collection.JavaConverters._
@@ -28,6 +30,11 @@ class DruidRollup(
   val indexGranularity: QueryGranularity
 )
 {
+  private val additionalExclusions: Set[String] = {
+    (aggregators.flatMap(_.requiredFields().asScala) ++
+      aggregators.map(_.getName)).toSet
+  }
+
   validate()
 
   def validate() {
@@ -46,13 +53,23 @@ class DruidRollup(
       throw new IllegalArgumentException("Duplicate columns: %s" format duplicateColumns.mkString(", "))
     }
   }
+
+  def isStringDimension(timestampSpec: TimestampSpec, fieldName: String) = {
+    dimensions match {
+      case dims: SpecificDruidDimensions => dims.dimensionsSet.contains(fieldName)
+      case SchemalessDruidDimensions(exclusions, _) =>
+        fieldName != timestampSpec.getTimestampColumn &&
+          !additionalExclusions.contains(fieldName) &&
+          !exclusions.contains(fieldName)
+    }
+  }
 }
 
 sealed abstract class DruidDimensions
 {
   def spec: DimensionsSpec
 
-  def spatialDimensions: IndexedSeq[DruidSpatialDimension]
+  def spatialDimensions: Seq[DruidSpatialDimension]
 
   def withSpatialDimensions(xs: java.util.List[DruidSpatialDimension]): DruidDimensions
 }
@@ -73,23 +90,48 @@ case class MultipleFieldDruidSpatialDimension(name: String, fieldNames: Seq[Stri
 }
 
 case class SpecificDruidDimensions(
-  dimensions: IndexedSeq[String],
-  spatialDimensions: IndexedSeq[DruidSpatialDimension] = Vector.empty
+  dimensions: Seq[String],
+  spatialDimensions: Seq[DruidSpatialDimension] = Nil
 ) extends DruidDimensions
 {
-  override def spec = {
-    // Sort dimenions as a workaround for https://github.com/metamx/druid/issues/658
+  val dimensionsSet = dimensions.toSet
+
+  @transient lazy val spec = {
+    // Sort dimenions as a workaround for https://github.com/druid-io/druid/issues/658
+    // Should preserve the originally-provided order once this is fixed.
     // (Indexer does not merge properly when dimensions are provided in non-lexicographic order.)
     new DimensionsSpec(
-      dimensions.sorted.asJava,
+      dimensions.toIndexedSeq.sorted.asJava,
       null,
       spatialDimensions.map(_.schema).asJava
     )
   }
 
   /**
-   * Convenience method for Java users. Scala users should use "copy".
-   */
+    * Convenience method for Java users. Scala users should use "copy".
+    */
+  override def withSpatialDimensions(xs: java.util.List[DruidSpatialDimension]) = copy(
+    spatialDimensions = xs.asScala.toIndexedSeq
+  )
+}
+
+case class SchemalessDruidDimensions(
+  dimensionExclusions: Set[String],
+  spatialDimensions: Seq[DruidSpatialDimension] = Nil
+) extends DruidDimensions
+{
+  override def spec = {
+    // Null dimensions causes the Druid parser to go schemaless.
+    new DimensionsSpec(
+      null,
+      dimensionExclusions.toSeq.asJava,
+      spatialDimensions.map(_.schema).asJava
+    )
+  }
+
+  /**
+    * Convenience method for Java users. Scala users should use "copy".
+    */
   override def withSpatialDimensions(xs: java.util.List[DruidSpatialDimension]) = copy(
     spatialDimensions = xs
       .asScala
@@ -97,28 +139,22 @@ case class SpecificDruidDimensions(
   )
 }
 
-case class SchemalessDruidDimensions(
-  dimensionExclusions: IndexedSeq[String],
-  spatialDimensions: IndexedSeq[DruidSpatialDimension] = Vector.empty
-) extends DruidDimensions
+object SchemalessDruidDimensions
 {
-  override def spec = {
-    // Null dimensions causes the Druid parser to go schemaless.
-    new DimensionsSpec(
-      null,
-      dimensionExclusions.asJava,
-      spatialDimensions.map(_.schema).asJava
-    )
+  def apply(
+    dimensionExclusions: Seq[String]
+  ): SchemalessDruidDimensions =
+  {
+    SchemalessDruidDimensions(dimensionExclusions.toSet, Vector.empty)
   }
 
-  /**
-   * Convenience method for Java users. Scala users should use "copy".
-   */
-  override def withSpatialDimensions(xs: java.util.List[DruidSpatialDimension]) = copy(
-    spatialDimensions = xs
-      .asScala
-      .toIndexedSeq
-  )
+  def apply(
+    dimensionExclusions: Seq[String],
+    spatialDimensions: IndexedSeq[DruidSpatialDimension]
+  ): SchemalessDruidDimensions =
+  {
+    SchemalessDruidDimensions(dimensionExclusions.toSet, spatialDimensions)
+  }
 }
 
 object DruidRollup
@@ -126,9 +162,9 @@ object DruidRollup
   private val InternalTimeColumnName = "__time"
 
   /**
-   * Builder for Scala users. Accepts a druid dimensions object and can be used to build rollups based on specific
-   * or schemaless dimensions.
-   */
+    * Builder for Scala users. Accepts a druid dimensions object and can be used to build rollups based on specific
+    * or schemaless dimensions.
+    */
   def apply(
     dimensions: DruidDimensions,
     aggregators: Seq[AggregatorFactory],
@@ -139,9 +175,9 @@ object DruidRollup
   }
 
   /**
-   * Builder for Java users. Accepts a druid dimensions object and can be used to build rollups based on specific
-   * or schemaless dimensions.
-   */
+    * Builder for Java users. Accepts a druid dimensions object and can be used to build rollups based on specific
+    * or schemaless dimensions.
+    */
   def create(
     dimensions: DruidDimensions,
     aggregators: java.util.List[AggregatorFactory],
@@ -156,8 +192,8 @@ object DruidRollup
   }
 
   /**
-   * Builder for Java users. Accepts dimensions as strings, and creates a rollup with those specific dimensions.
-   */
+    * Builder for Java users. Accepts dimensions as strings, and creates a rollup with those specific dimensions.
+    */
   def create(
     dimensions: java.util.List[String],
     aggregators: java.util.List[AggregatorFactory],
@@ -165,7 +201,7 @@ object DruidRollup
   ) =
   {
     new DruidRollup(
-      SpecificDruidDimensions(dimensions.asScala.toIndexedSeq, Vector.empty),
+      SpecificDruidDimensions(dimensions.asScala, Vector.empty),
       aggregators.asScala.toIndexedSeq,
       indexGranularity
     )
@@ -175,39 +211,39 @@ object DruidRollup
 object DruidDimensions
 {
   /**
-   * Builder for Java users.
-   */
+    * Builder for Java users.
+    */
   def specific(dimensions: java.util.List[String]): DruidDimensions = {
-    SpecificDruidDimensions(dimensions.asScala.toIndexedSeq, Vector.empty)
+    SpecificDruidDimensions(dimensions.asScala, Vector.empty)
   }
 
   /**
-   * Builder for Java users.
-   */
+    * Builder for Java users.
+    */
   def schemaless(): DruidDimensions = {
     SchemalessDruidDimensions(Vector.empty, Vector.empty)
   }
 
   /**
-   * Builder for Java users.
-   */
+    * Builder for Java users.
+    */
   def schemalessWithExclusions(dimensionExclusions: java.util.List[String]): DruidDimensions = {
-    SchemalessDruidDimensions(dimensionExclusions.asScala.toIndexedSeq, Vector.empty)
+    SchemalessDruidDimensions(dimensionExclusions.asScala.toSet, Vector.empty)
   }
 }
 
 object DruidSpatialDimension
 {
   /**
-   * Builder for Java users.
-   */
+    * Builder for Java users.
+    */
   def singleField(name: String): DruidSpatialDimension = {
     new SingleFieldDruidSpatialDimension(name)
   }
 
   /**
-   * Builder for Java users.
-   */
+    * Builder for Java users.
+    */
   def multipleField(name: String, fieldNames: java.util.List[String]): DruidSpatialDimension = {
     new MultipleFieldDruidSpatialDimension(name, fieldNames.asScala)
   }

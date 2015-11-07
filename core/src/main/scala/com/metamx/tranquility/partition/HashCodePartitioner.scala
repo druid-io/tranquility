@@ -17,13 +17,17 @@
  * under the License.
  */
 
-package com.metamx.tranquility.beam
+package com.metamx.tranquility.partition
 
-import com.metamx.tranquility.partition.HashCodePartitioner
+import com.google.common.hash.Hashing
 
-class HashPartitionBeam[A](
-  beams: IndexedSeq[Beam[A]]
-) extends MergingPartitioningBeam[A](new HashCodePartitioner[A], beams)
+/**
+  * Partitioner that uses the hashCode of the underlying object. This is rarely going to be what you want, but at
+  * least it's simple.
+  */
+class HashCodePartitioner[A] extends Partitioner[A]
 {
-  override def toString = s"HashPartitionBeam(${beams.mkString(", ")})"
+  override def partition(a: A, numPartitions: Int): Int = {
+    Hashing.consistentHash(a.hashCode(), numPartitions)
+  }
 }
