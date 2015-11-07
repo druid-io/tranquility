@@ -95,22 +95,22 @@ class IndexService(
               // Index service can issue redirects temporarily, and HttpClient won't follow them, so treat
               // them as generic errors that can be retried
               throw new IndexServiceTransientException(
-                "Service temporarily unreachable: %s %s" format
-                  (code, response.getStatus.getReasonPhrase)
+                "Service[%s] temporarily unreachable: %s %s" format
+                  (environment.indexService, code, response.getStatus.getReasonPhrase)
               )
 
             case code if code / 100 == 5 =>
               // Server-side errors can be retried
               throw new IndexServiceTransientException(
-                "Service call failed with status: %s %s" format
-                  (code, response.getStatus.getReasonPhrase)
+                "Service[%s] call failed with status: %s %s" format
+                  (environment.indexService, code, response.getStatus.getReasonPhrase)
               )
 
             case code =>
               // All other responses should not be retried (including non-404 client errors)
               throw new IndexServicePermanentException(
-                "Service call failed with status: %s %s" format
-                  (code, response.getStatus.getReasonPhrase)
+                "Service[%s] call failed with status: %s %s" format
+                  (environment.indexService, code, response.getStatus.getReasonPhrase)
               )
           }
       }
