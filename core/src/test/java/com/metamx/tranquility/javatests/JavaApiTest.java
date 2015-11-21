@@ -53,7 +53,7 @@ public class JavaApiTest
         QueryGranularity.MINUTE
     );
     Assert.assertTrue(rollup.dimensions() instanceof SpecificDruidDimensions);
-    Assert.assertEquals("column", ((SpecificDruidDimensions) rollup.dimensions()).dimensions().apply(0));
+    Assert.assertEquals("column", ((SpecificDruidDimensions) rollup.dimensions()).dimensions().iterator().next());
   }
 
   @Test
@@ -77,7 +77,7 @@ public class JavaApiTest
         QueryGranularity.MINUTE
     );
     Assert.assertTrue(rollup.dimensions() instanceof SchemalessDruidDimensions);
-    Assert.assertEquals("column", ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().apply(0));
+    Assert.assertEquals("column", ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().iterator().next());
   }
 
   @Test
@@ -97,8 +97,8 @@ public class JavaApiTest
         QueryGranularity.MINUTE
     );
     Assert.assertTrue(rollup.dimensions() instanceof SchemalessDruidDimensions);
-    Assert.assertEquals("column", ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().apply(0));
-    Assert.assertEquals("coord.geo", rollup.dimensions().spatialDimensions().apply(0).schema().getDimName());
+    Assert.assertEquals("column", ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().iterator().next());
+    Assert.assertEquals("coord.geo", rollup.dimensions().spatialDimensions().iterator().next().schema().getDimName());
   }
 
   @Test

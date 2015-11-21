@@ -19,11 +19,30 @@
 
 package com.metamx.tranquility.beam
 
-import com.metamx.tranquility.partition.HashCodePartitioner
+import com.metamx.common.scala.Logging
+import com.metamx.tranquility.partition.Partitioner
+import com.twitter.util.Future
 
-class HashPartitionBeam[A](
-  beams: IndexedSeq[Beam[A]]
-) extends MergingPartitioningBeam[A](new HashCodePartitioner[A], beams)
+/**
+  * Partitions events based on the output of a Partitioner, and propagates the partitioned events via the
+  * appropriate underlying beams.
+  */
+class MergingPartitioningBeam[A](
+  val partitioner: Partitioner[A],
+  val beams: IndexedSeq[Beam[A]]
+) extends Beam[A] with Logging
 {
-  override def toString = s"HashPartitionBeam(${beams.mkString(", ")})"
+  def propagate(events: Seq[A]) = {
+    val futures = events.groupBy(partitioner.partition(_, beams.size)) map {
+      case (i, group) =>
+        beams(i).propagate(group)
+    }
+    Future.collect(futures.toList).map(_.sum)
+  }
+
+  def close() = {
+    Future.collect(beams map (_.close())) map (_ => ())
+  }
+
+  override def toString = s"MergingPartitioningBeam(${beams.mkString(", ")})"
 }

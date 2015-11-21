@@ -19,14 +19,17 @@ package com.metamx.tranquility.test
 
 import com.metamx.common.parsers.ParseException
 import com.metamx.tranquility.druid.DruidRollup
+import com.metamx.tranquility.druid.SchemalessDruidDimensions
 import com.metamx.tranquility.druid.SpecificDruidDimensions
+import io.druid.data.input.impl.TimestampSpec
 import io.druid.granularity.QueryGranularity
 import io.druid.query.aggregation.CountAggregatorFactory
 import io.druid.query.aggregation.LongSumAggregatorFactory
 import org.scalatest.FunSuite
-import org.scalatest.MustMatchers
+import org.scalatest.Matchers
+import scala.collection.JavaConverters._
 
-class DruidRollupTest extends FunSuite with MustMatchers
+class DruidRollupTest extends FunSuite with Matchers
 {
   test("Validations: Passing") {
     val rollup = DruidRollup(
@@ -45,18 +48,7 @@ class DruidRollupTest extends FunSuite with MustMatchers
         QueryGranularity.NONE
       )
     }
-    e.getMessage must be("Duplicate columns: hey")
-  }
-
-  test("Validations: Two dimensions with the same name") {
-    val e = the[ParseException] thrownBy {
-      DruidRollup(
-        SpecificDruidDimensions(Vector("what", "what"), Vector.empty),
-        Seq(new CountAggregatorFactory("hey")),
-        QueryGranularity.NONE
-      )
-    }
-    e.getMessage must be("Duplicate column entries found : [what]")
+    e.getMessage should be("Duplicate columns: hey")
   }
 
   test("Validations: Two metrics with the same name") {
@@ -67,6 +59,58 @@ class DruidRollupTest extends FunSuite with MustMatchers
         QueryGranularity.NONE
       )
     }
-    e.getMessage must be("Duplicate columns: hey")
+    e.getMessage should be("Duplicate columns: hey")
+  }
+
+  test("Validations: Two dimensions with the same name") {
+    val e = the[ParseException] thrownBy {
+      DruidRollup(
+        SpecificDruidDimensions(Vector("what", "what"), Vector.empty),
+        Seq(new CountAggregatorFactory("hey")),
+        QueryGranularity.NONE
+      )
+    }
+    e.getMessage should be("Duplicate column entries found : [what]")
+  }
+
+  test("Dimensions are sorted") {
+    val rollup = DruidRollup(
+      SpecificDruidDimensions(Vector("e", "f", "a", "b", "z", "t"), Vector.empty),
+      Seq(new CountAggregatorFactory("hey")),
+      QueryGranularity.NONE
+    )
+    rollup.dimensions.spec.getDimensions.asScala should be(Seq("a", "b", "e", "f", "t", "z"))
+  }
+
+  test("isStringDimension: Specific") {
+    val rollup = DruidRollup(
+      SpecificDruidDimensions(Seq("foo", "bar")),
+      Seq(new LongSumAggregatorFactory("hey", "there")),
+      QueryGranularity.NONE
+    )
+    val timestampSpec = new TimestampSpec("t", "auto", null)
+    rollup.isStringDimension(timestampSpec, "t") should be(false)
+    rollup.isStringDimension(timestampSpec, "hey") should be(false)
+    rollup.isStringDimension(timestampSpec, "there") should be(false)
+    rollup.isStringDimension(timestampSpec, "foo") should be(true)
+    rollup.isStringDimension(timestampSpec, "bar") should be(true)
+    rollup.isStringDimension(timestampSpec, "baz") should be(false)
+    rollup.isStringDimension(timestampSpec, "qux") should be(false)
+  }
+
+  test("isStringDimension: Schemaless") {
+    val rollup = DruidRollup(
+      SchemalessDruidDimensions(Set("qux")),
+      Seq(new LongSumAggregatorFactory("hey", "there")),
+      QueryGranularity.NONE
+    )
+    val timestampSpec = new TimestampSpec("t", "auto", null)
+    rollup.isStringDimension(timestampSpec, "t") should be(false)
+    rollup.isStringDimension(timestampSpec, "hey") should be(false)
+    rollup.isStringDimension(timestampSpec, "there") should be(false)
+    rollup.isStringDimension(timestampSpec, "foo") should be(true)
+    rollup.isStringDimension(timestampSpec, "bar") should be(true)
+    rollup.isStringDimension(timestampSpec, "baz") should be(true)
+    rollup.isStringDimension(timestampSpec, "qux") should be(false)
   }
 }

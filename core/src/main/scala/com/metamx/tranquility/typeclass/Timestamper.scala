@@ -18,7 +18,7 @@ package com.metamx.tranquility.typeclass
 
 import org.joda.time.DateTime
 
-trait Timestamper[A] extends Serializable
+trait Timestamper[-A] extends Serializable
 {
   def timestamp(a: A): DateTime
 }
