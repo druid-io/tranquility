@@ -33,27 +33,27 @@ object DruidLocation
   }
 
   /**
-   * Factory method for creating DruidLocation objects. DruidLocations represent a specific Druid dataSource in a
-   * specific Druid indexing service cluster.
-   *
-   * @param environment the Druid indexing service
-   * @param dataSource the Druid dataSource
-   */
+    * Factory method for creating DruidLocation objects. DruidLocations represent a specific Druid dataSource in a
+    * specific Druid indexing service cluster.
+    *
+    * @param environment the Druid indexing service
+    * @param dataSource the Druid dataSource
+    */
   def create(environment: DruidEnvironment, dataSource: String): DruidLocation = {
     DruidLocation(environment, dataSource)
   }
 
   /**
-   * Factory method for creating DruidLocation objects. DruidLocations represent a specific Druid dataSource in a
-   * specific Druid indexing service cluster.
-   *
-   * @param indexServiceMaybeWithSlashes Your overlord's "druid.service" configuration. Slashes will be replaced with
-   *                                     colons before searching for this in service discovery, because Druid does the
-   *                                     same thing before announcing.
-   * @param firehoseServicePattern Make up a service pattern, include %s somewhere in it. This will be used for
-   *                               internal service-discovery purposes, to help Tranquility find Druid indexing tasks.
-   * @param dataSource the Druid dataSource
-   */
+    * Factory method for creating DruidLocation objects. DruidLocations represent a specific Druid dataSource in a
+    * specific Druid indexing service cluster.
+    *
+    * @param indexServiceMaybeWithSlashes Your overlord's "druid.service" configuration. Slashes will be replaced with
+    *                                     colons before searching for this in service discovery, because Druid does the
+    *                                     same thing before announcing.
+    * @param firehoseServicePattern Make up a service pattern, include %s somewhere in it. This will be used for
+    *                               internal service-discovery purposes, to help Tranquility find Druid indexing tasks.
+    * @param dataSource the Druid dataSource
+    */
   def create(
     indexServiceMaybeWithSlashes: String,
     firehoseServicePattern: String,
@@ -61,5 +61,22 @@ object DruidLocation
   ): DruidLocation =
   {
     DruidLocation(DruidEnvironment(indexServiceMaybeWithSlashes, firehoseServicePattern), dataSource)
+  }
+
+  /**
+    * Factory method for creating DruidLocation objects. DruidLocations represent a specific Druid dataSource in a
+    * specific Druid indexing service cluster.
+    *
+    * @param indexServiceMaybeWithSlashes Your overlord's "druid.service" configuration. Slashes will be replaced with
+    *                                     colons before searching for this in service discovery, because Druid does the
+    *                                     same thing before announcing.
+    * @param dataSource the Druid dataSource
+    */
+  def create(
+    indexServiceMaybeWithSlashes: String,
+    dataSource: String
+  ): DruidLocation =
+  {
+    DruidLocation(DruidEnvironment(indexServiceMaybeWithSlashes), dataSource)
   }
 }
