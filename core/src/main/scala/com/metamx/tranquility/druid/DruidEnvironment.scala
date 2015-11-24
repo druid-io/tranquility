@@ -32,7 +32,7 @@ class DruidEnvironment(
 
   override def equals(other: Any) = other match {
     case that: DruidEnvironment =>
-      (indexService, firehoseServicePattern) == (that.indexService, that.firehoseServicePattern)
+      (indexService, firehoseServicePattern) ==(that.indexService, that.firehoseServicePattern)
     case _ => false
   }
 
@@ -41,21 +41,41 @@ class DruidEnvironment(
 
 object DruidEnvironment
 {
+  def apply(indexServiceMaybeWithSlashes: String): DruidEnvironment = {
+    new DruidEnvironment(indexServiceMaybeWithSlashes, defaultFirehoseServicePattern(indexServiceMaybeWithSlashes))
+  }
+
   def apply(indexServiceMaybeWithSlashes: String, firehoseServicePattern: String): DruidEnvironment = {
     new DruidEnvironment(indexServiceMaybeWithSlashes, firehoseServicePattern)
   }
 
   /**
-   * Factory method for creating DruidEnvironment objects. DruidEnvironments represent a Druid indexing service
-   * cluster, locatable through service discovery.
-   *
-   * @param indexServiceMaybeWithSlashes Your overlord's "druid.service" configuration. Slashes will be replaced with
-   *                                     colons before searching for this in service discovery, because Druid does the
-   *                                     same thing before announcing.
-   * @param firehoseServicePattern Make up a service pattern, include %s somewhere in it. This will be used for
-   *                               internal service-discovery purposes, to help Tranquility find Druid indexing tasks.
-   */
+    * Factory method for creating DruidEnvironment objects. DruidEnvironments represent a Druid indexing service
+    * cluster, locatable through service discovery.
+    *
+    * @param indexServiceMaybeWithSlashes Your overlord's "druid.service" configuration. Slashes will be replaced with
+    *                                     colons before searching for this in service discovery, because Druid does the
+    *                                     same thing before announcing.
+    * @param firehoseServicePattern Make up a service pattern, include %s somewhere in it. This will be used for
+    *                               internal service-discovery purposes, to help Tranquility find Druid indexing tasks.
+    */
   def create(indexServiceMaybeWithSlashes: String, firehoseServicePattern: String): DruidEnvironment = {
-    new DruidEnvironment(indexServiceMaybeWithSlashes, firehoseServicePattern)
+    apply(indexServiceMaybeWithSlashes, firehoseServicePattern)
+  }
+
+  /**
+    * Factory method for creating DruidEnvironment objects. DruidEnvironments represent a Druid indexing service
+    * cluster, locatable through service discovery.
+    *
+    * @param indexServiceMaybeWithSlashes Your overlord's "druid.service" configuration. Slashes will be replaced with
+    *                                     colons before searching for this in service discovery, because Druid does the
+    *                                     same thing before announcing.
+    */
+  def create(indexServiceMaybeWithSlashes: String): DruidEnvironment = {
+    apply(indexServiceMaybeWithSlashes)
+  }
+
+  private def defaultFirehoseServicePattern(indexServiceMaybeWithSlashes: String) = {
+    s"firehose:${indexServiceMaybeWithSlashes.replace('/', ':')}:%s"
   }
 }
