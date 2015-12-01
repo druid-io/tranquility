@@ -33,6 +33,7 @@ import scala.collection.mutable.ArrayBuffer
  * @param batchSize Send a batch after receiving this many messages. Set to 1 to send messages as soon as they arrive.
  * @param maxPendingBatches Maximum number of batches that may be in flight before we block and wait for one to finish.
  */
+@deprecated("use Tranquilizer or SimpleTranquilizerAdapter", "0.7.0")
 class BeamPacketizer[A](
   beam: Beam[A],
   listener: BeamPacketizerListener[A],
