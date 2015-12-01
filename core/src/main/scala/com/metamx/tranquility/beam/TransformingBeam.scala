@@ -17,28 +17,17 @@
  * under the License.
  */
 
-package com.metamx.tranquility.test
+package com.metamx.tranquility.beam
 
-import com.fasterxml.jackson.annotation.JsonValue
-import com.metamx.common.scala.untyped.Dict
-import com.metamx.common.scala.untyped.long
-import com.metamx.tranquility.test.DirectDruidTest.TimeColumn
-import com.metamx.tranquility.typeclass.Timestamper
-import org.scala_tools.time.Imports._
+import com.twitter.util.Future
 
-case class SimpleEvent(ts: DateTime, fields: Dict)
+class TransformingBeam[A, B](underlying: Beam[B], f: A => B) extends Beam[A]
 {
-  @JsonValue
-  def toMap = fields ++ Map(TimeColumn -> (ts.millis / 1000))
-}
-
-object SimpleEvent
-{
-  implicit val simpleEventTimestamper = new Timestamper[SimpleEvent] {
-    def timestamp(a: SimpleEvent) = a.ts
+  override def propagate(events: Seq[A]): Future[Int] = {
+    underlying.propagate(events.map(f))
   }
 
-  def fromMap(d: Dict): SimpleEvent = {
-    SimpleEvent(new DateTime(long(d(TimeColumn)) * 1000), d)
+  override def close(): Future[Unit] = {
+    underlying.close()
   }
 }

@@ -25,11 +25,13 @@ Modules:
 
 - [Core](docs/core.md) - The most basic data-sending API. You will likely use this one unless you are using
   one of the higher-level modules.
+- [Server](docs/server.md) - HTTP server that allows you to use Tranquility without developing a JVM app. Note that
+  the Server module is not yet in the stable release.
 - [Samza](docs/samza.md) - Tranquility includes a Samza SystemProducer.
 - [Spark](docs/spark.md) - Tranquility works with RDDs and DStreams.
 - [Storm](docs/storm.md) - Tranquility includes a Storm Bolt and a Trident State.
 
-### Getting Tranquility
+### Getting Tranquility with Maven
 
 Tranquility modules are hosted on Maven Central. The current stable versions are:
 

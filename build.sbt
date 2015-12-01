@@ -19,6 +19,9 @@ val finagleVersion = "6.25.0"
 val twitterUtilVersion = "6.25.0"
 val samzaVersion = "0.8.0"
 val sparkVersion = "1.5.0"
+val scalatraVersion = "2.3.1"
+val jettyVersion = "9.2.5.v20141112"
+val apacheHttpVersion = "4.3.3"
 
 val coreDependencies = Seq(
   "com.metamx" %% "scala-util" % "1.11.6" exclude("log4j", "log4j") force(),
@@ -29,6 +32,8 @@ val coreDependencies = Seq(
   "com.twitter" %% "finagle-http" % finagleVersion,
   "org.slf4j" % "slf4j-api" % "1.7.12" force() force(),
   "org.slf4j" % "jul-to-slf4j" % "1.7.12" force() force(),
+  "org.apache.httpcomponents" % "httpclient" % apacheHttpVersion,
+  "org.apache.httpcomponents" % "httpcore" % apacheHttpVersion,
 
   // Curator uses Jackson 1.x internally, and older version cause problems with service discovery.
   "org.codehaus.jackson" % "jackson-core-asl" % jacksonOneVersion force(),
@@ -66,6 +71,15 @@ val coreDependencies = Seq(
   "javax.validation" % "validation-api" % "1.1.0.Final" force()
 )
 
+val loggingDependencies = Seq(
+  "ch.qos.logback" % "logback-core" % "1.1.2",
+  "ch.qos.logback" % "logback-classic" % "1.1.2",
+  "org.apache.logging.log4j" % "log4j-to-slf4j" % "2.4",
+  "org.apache.logging.log4j" % "log4j-api" % "2.4",
+  "org.slf4j" % "log4j-over-slf4j" % "1.7.12",
+  "org.slf4j" % "jul-to-slf4j" % "1.7.12"
+)
+
 val stormDependencies = Seq(
   "org.apache.storm" % "storm-core" % "0.9.3" % "optional"
     exclude("javax.jms", "jms")
@@ -85,6 +99,12 @@ val sparkDependencies = Seq (
     exclude("org.slf4j", "slf4j-log4j12")
     force()
 )
+
+val serverDependencies = Seq(
+  "org.scalatra" %% "scalatra" % scalatraVersion,
+  "org.eclipse.jetty" % "jetty-server" % jettyVersion,
+  "org.eclipse.jetty" % "jetty-servlet" % jettyVersion
+) ++ loggingDependencies
 
 val coreTestDependencies = Seq(
   "org.scalatest" %% "scalatest" % "2.2.5" % "test",
@@ -108,12 +128,16 @@ val coreTestDependencies = Seq(
   "org.apache.logging.log4j" % "log4j-api" % "2.4" % "test",
   "org.slf4j" % "log4j-over-slf4j" % "1.7.12" % "test",
   "org.slf4j" % "jul-to-slf4j" % "1.7.12" % "test"
-)
+) ++ loggingDependencies.map(_ % "test")
 
 // Force 2.10 here, makes update resolution happy, but since w'ere not building for 2.11
 // we won't end up in runtime version hell by doing this.
 val samzaTestDependencies = Seq(
   "org.apache.samza" % "samza-core_2.10" % samzaVersion % "test"
+)
+
+val serverTestDependencies = Seq(
+  "org.scalatra" %% "scalatra-test" % scalatraVersion % "test"
 )
 
 lazy val commonSettings = Seq(
@@ -155,7 +179,7 @@ lazy val commonSettings = Seq(
 lazy val root = project.in(file("."))
   .settings(commonSettings: _*)
   .settings(publishArtifact := false)
-  .aggregate(core, storm, samza, spark)
+  .aggregate(core, storm, samza, spark, server)
 
 lazy val core = project.in(file("core"))
   .settings(commonSettings: _*)
@@ -185,4 +209,12 @@ lazy val samza = project.in(file("samza"))
   .settings((skip in test) := scalaVersion { sv => !sv.startsWith("2.10.") }.value)
   .settings(publishArtifact <<= scalaVersion { sv => sv.startsWith("2.10.") })
   .settings(publishArtifact in Test := false)
+  .dependsOn(core % "test->test;compile->compile")
+
+lazy val server = project.in(file("server"))
+  .settings(commonSettings: _*)
+  .settings(name := "tranquility-server")
+  .settings(libraryDependencies ++= (serverDependencies ++ serverTestDependencies))
+  .settings(publishArtifact in Test := false)
+  .enablePlugins(JavaAppPackaging)
   .dependsOn(core % "test->test;compile->compile")
