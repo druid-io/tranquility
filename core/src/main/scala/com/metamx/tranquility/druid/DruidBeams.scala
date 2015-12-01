@@ -144,6 +144,28 @@ object DruidBeams
     def tuning(tuning: ClusteredBeamTuning) = new Builder[EventType](config.copy(_tuning = Some(tuning)))
 
     /**
+      * Set the number of Druid partitions. This is just a helper method that modifies the [[Builder.tuning]] object.
+      *
+      * @param n number of partitions
+      * @return this instance
+      */
+    def partitions(n: Int) = {
+      val newTuning = config._tuning.getOrElse(ClusteredBeamTuning()).copy(partitions = n)
+      new Builder[EventType](config.copy(_tuning = Some(newTuning)))
+    }
+
+    /**
+      * Set the number of Druid replicants. This is just a helper method that modifies the [[Builder.tuning]] object.
+      *
+      * @param n number of replicants
+      * @return this instance
+      */
+    def replicants(n: Int) = {
+      val newTuning = config._tuning.getOrElse(ClusteredBeamTuning()).copy(replicants = n)
+      new Builder[EventType](config.copy(_tuning = Some(newTuning)))
+    }
+
+    /**
       * Provide tunings for the Druid realtime engine. Optional, see [[DruidTuning]] for defaults.
       *
       * These will be passed along to the Druid tasks.
