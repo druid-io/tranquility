@@ -19,39 +19,35 @@ package com.metamx.tranquility.druid
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.common.base.Charsets
 import com.metamx.common.Backoff
-import com.metamx.common.lifecycle.Lifecycle
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.control._
 import com.metamx.common.scala.exception._
-import com.metamx.common.scala.lifecycle._
 import com.metamx.common.scala.untyped._
 import com.metamx.tranquility.druid.IndexService.TaskId
 import com.metamx.tranquility.finagle._
+import com.twitter.finagle.Service
 import com.twitter.finagle.util.DefaultTimer
 import com.twitter.util.Await
 import com.twitter.util.Future
 import com.twitter.util.Timer
 import io.druid.indexing.common.task.Task
+import java.io.Closeable
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http.HttpRequest
+import org.jboss.netty.handler.codec.http.HttpResponse
 import org.scala_tools.time.Imports._
 
 class IndexService(
   environment: DruidEnvironment,
   config: IndexServiceConfig,
   finagleRegistry: FinagleRegistry,
-  druidObjectMapper: ObjectMapper,
-  lifecycle: Lifecycle
-)
+  druidObjectMapper: ObjectMapper
+) extends Closeable
 {
-  private[this] implicit val timer: Timer = DefaultTimer.twitter
+  private implicit val timer: Timer = DefaultTimer.twitter
 
-  private[this] val client = finagleRegistry.checkout(environment.indexService)
-
-  lifecycle onStop {
-    Await.result(client.close())
-  }
+  private lazy val client: Service[HttpRequest, HttpResponse] = finagleRegistry.checkout(environment.indexService)
 
   def submit(task: Task): Future[TaskId] = {
     val taskJson = druidObjectMapper.writeValueAsBytes(task)
@@ -77,6 +73,10 @@ class IndexService(
       d =>
         d.get("status") map (sd => IndexStatus.fromString(str(dict(sd)("status")))) getOrElse TaskNotFound
     }
+  }
+
+  override def close(): Unit = {
+    Await.result(client.close())
   }
 
   private def call(req: HttpRequest): Future[Dict] = {
@@ -160,8 +160,8 @@ object IndexService
 sealed trait IndexServiceException
 
 /**
- * Exceptions that indicate transient indexing service failures. Can be retried if desired.
- */
+  * Exceptions that indicate transient indexing service failures. Can be retried if desired.
+  */
 class IndexServiceTransientException(t: Throwable, msg: String, params: Any*)
   extends Exception(msg format (params: _*), t) with IndexServiceException
 {
@@ -169,9 +169,9 @@ class IndexServiceTransientException(t: Throwable, msg: String, params: Any*)
 }
 
 /**
- * Exceptions that are permanent in nature, and are useless to retry externally. The assumption is that all other
- * exceptions may be transient.
- */
+  * Exceptions that are permanent in nature, and are useless to retry externally. The assumption is that all other
+  * exceptions may be transient.
+  */
 class IndexServicePermanentException(t: Throwable, msg: String, params: Any*)
   extends Exception(msg format (params: _*), t) with IndexServiceException
 {

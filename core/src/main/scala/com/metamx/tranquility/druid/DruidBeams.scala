@@ -17,7 +17,6 @@
 package com.metamx.tranquility.druid
 
 import com.fasterxml.jackson.core.JsonGenerator
-import com.metamx.common.lifecycle.Lifecycle
 import com.metamx.common.logger.Logger
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.net.curator.Disco
@@ -364,13 +363,11 @@ object DruidBeams
     def buildBeam(): Beam[EventType] = {
       val things = config.buildAll()
       implicit val eventTimestamped = things.timestamper
-      val lifecycle = new Lifecycle
       val indexService = new IndexService(
         things.location.environment,
         things.druidBeamConfig,
         things.finagleRegistry,
-        things.druidObjectMapper,
-        lifecycle
+        things.druidObjectMapper
       )
       val druidBeamMaker = new DruidBeamMaker[EventType](
         things.druidBeamConfig,
@@ -401,7 +398,7 @@ object DruidBeams
       {
         def propagate(events: Seq[EventType]) = clusteredBeam.propagate(events)
 
-        def close() = clusteredBeam.close() map (_ => lifecycle.stop())
+        def close() = clusteredBeam.close() map (_ => indexService.close())
 
         override def toString = clusteredBeam.toString
       }
