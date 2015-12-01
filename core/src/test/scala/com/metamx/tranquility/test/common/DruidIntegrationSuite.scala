@@ -22,6 +22,7 @@ import com.google.common.base.Charsets
 import com.google.common.io.CharStreams
 import com.google.common.io.Files
 import com.google.inject.Injector
+import com.metamx.common.scala.control._
 import com.metamx.collections.spatial.search.RectangularBound
 import com.metamx.common.lifecycle.Lifecycle
 import com.metamx.common.scala.Jackson
@@ -42,6 +43,7 @@ import io.druid.query.filter.SpatialDimFilter
 import io.druid.server.ClientQuerySegmentWalker
 import java.io.File
 import java.io.InputStreamReader
+import java.net.BindException
 import java.net.URLClassLoader
 import org.apache.curator.framework.CuratorFramework
 import org.scala_tools.time.Imports.DateTimeZone
@@ -115,40 +117,44 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
 
   def withBroker[A](curator: CuratorFramework)(f: DruidServerHandle => A): A = {
     // Randomize, but don't bother checking for conflicts
-    val overlordPort = new Random().nextInt(100) + 28100
-    val configFile = writeConfig(
-      "druid-broker.properties",
-      Map(
-        ":DRUIDPORT:" -> overlordPort.toString,
-        ":ZKCONNECT:" -> curator.getZookeeperClient.getCurrentConnectionString
+    retryOnErrors(ifException[BindException] untilCount 5) {
+      val brokerPort = new Random().nextInt(100) + 28100
+      val configFile = writeConfig(
+        "druid-broker.properties",
+        Map(
+          ":DRUIDPORT:" -> brokerPort.toString,
+          ":ZKCONNECT:" -> curator.getZookeeperClient.getCurrentConnectionString
+        )
       )
-    )
-    val handle = spawnDruidServer[CliBroker](configFile)
-    try {
-      f(handle)
-    }
-    finally {
-      handle.close()
+      val handle = spawnDruidServer[CliBroker](configFile)
+      try {
+        f(handle)
+      }
+      finally {
+        handle.close()
+      }
     }
   }
 
   def withOverlord[A](curator: CuratorFramework)(f: DruidServerHandle => A): A = {
     // Randomize, but don't bother checking for conflicts
-    val overlordPort = new Random().nextInt(100) + 28200
-    val configFile = writeConfig(
-      "druid-overlord.properties",
-      Map(
-        ":DRUIDPORT:" -> overlordPort.toString,
-        ":DRUIDFORKPORT:" -> (overlordPort + 1).toString,
-        ":ZKCONNECT:" -> curator.getZookeeperClient.getCurrentConnectionString
+    retryOnErrors(ifException[BindException] untilCount 5) {
+      val overlordPort = new Random().nextInt(100) + 28200
+      val configFile = writeConfig(
+        "druid-overlord.properties",
+        Map(
+          ":DRUIDPORT:" -> overlordPort.toString,
+          ":DRUIDFORKPORT:" -> (overlordPort + 1).toString,
+          ":ZKCONNECT:" -> curator.getZookeeperClient.getCurrentConnectionString
+        )
       )
-    )
-    val handle = spawnDruidServer[CliOverlord](configFile)
-    try {
-      f(handle)
-    }
-    finally {
-      handle.close()
+      val handle = spawnDruidServer[CliOverlord](configFile)
+      try {
+        f(handle)
+      }
+      finally {
+        handle.close()
+      }
     }
   }
 
