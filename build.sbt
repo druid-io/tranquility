@@ -18,6 +18,7 @@ val druidVersion = "0.8.1"
 val finagleVersion = "6.25.0"
 val twitterUtilVersion = "6.25.0"
 val samzaVersion = "0.8.0"
+val sparkVersion = "1.5.0"
 
 val coreDependencies = Seq(
   "com.metamx" %% "scala-util" % "1.11.6" exclude("log4j", "log4j") force(),
@@ -76,6 +77,13 @@ val stormDependencies = Seq(
 
 val samzaDependencies = Seq(
   "org.apache.samza" % "samza-api" % samzaVersion % "optional"
+)
+
+val sparkDependencies = Seq (
+  "org.apache.spark" %% "spark-streaming" % sparkVersion % "optional"
+    exclude("org.slf4j", "log4j-over-slf4j")
+    exclude("org.slf4j", "slf4j-log4j12")
+    force()
 )
 
 val coreTestDependencies = Seq(
@@ -147,13 +155,19 @@ lazy val commonSettings = Seq(
 lazy val root = project.in(file("."))
   .settings(commonSettings: _*)
   .settings(publishArtifact := false)
-  .aggregate(core, storm, samza)
+  .aggregate(core, storm, samza, spark)
 
 lazy val core = project.in(file("core"))
   .settings(commonSettings: _*)
   .settings(name := "tranquility-core")
   .settings(publishArtifact in(Test, packageBin) := true)
   .settings(libraryDependencies ++= (coreDependencies ++ coreTestDependencies))
+
+lazy val spark = project.in(file("spark"))
+  .settings(commonSettings: _*)
+  .settings(name := "tranquility-spark")
+  .settings(libraryDependencies ++= sparkDependencies)
+  .dependsOn(core % "test->test;compile->compile")
 
 lazy val storm = project.in(file("storm"))
   .settings(commonSettings: _*)
