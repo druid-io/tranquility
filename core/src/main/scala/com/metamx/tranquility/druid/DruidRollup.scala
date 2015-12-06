@@ -23,7 +23,13 @@ import io.druid.granularity.QueryGranularity
 import io.druid.query.aggregation.AggregatorFactory
 import scala.collection.JavaConverters._
 
-// Not a case class because equality is not well-defined for AggregatorFactories and QueryGranularities.
+/**
+  * Describes rollup (dimensions, aggregators, index granularity) desired for a Druid datasource. Java users should use
+  * the create methods on [[DruidRollup$]], as those accepts Java collections rather than Scala ones.
+  *
+  * See [[DruidDimensions.specific]], [[DruidDimensions.schemaless]], and [[DruidDimensions.schemalessWithExclusions]]
+  * for three common ways of creating druid dimensions objects.
+  */
 class DruidRollup(
   val dimensions: DruidDimensions,
   val aggregators: IndexedSeq[AggregatorFactory],
@@ -177,12 +183,15 @@ object DruidRollup
   /**
     * Builder for Java users. Accepts a druid dimensions object and can be used to build rollups based on specific
     * or schemaless dimensions.
+    *
+    * See [[DruidDimensions.specific]], [[DruidDimensions.schemaless]], and [[DruidDimensions.schemalessWithExclusions]]
+    * for three common ways of creating druid dimensions objects.
     */
   def create(
     dimensions: DruidDimensions,
     aggregators: java.util.List[AggregatorFactory],
     indexGranularity: QueryGranularity
-  ) =
+  ): DruidRollup =
   {
     new DruidRollup(
       dimensions,
@@ -198,7 +207,7 @@ object DruidRollup
     dimensions: java.util.List[String],
     aggregators: java.util.List[AggregatorFactory],
     indexGranularity: QueryGranularity
-  ) =
+  ): DruidRollup =
   {
     new DruidRollup(
       SpecificDruidDimensions(dimensions.asScala, Vector.empty),
@@ -211,21 +220,24 @@ object DruidRollup
 object DruidDimensions
 {
   /**
-    * Builder for Java users.
+    * Creates a druid dimensions object representing a specific set of dimensions. Only these fields will be
+    * indexed as dimensions.
     */
   def specific(dimensions: java.util.List[String]): DruidDimensions = {
     SpecificDruidDimensions(dimensions.asScala, Vector.empty)
   }
 
   /**
-    * Builder for Java users.
+    * Creates a druid dimensions object representing schemaless dimensions. All fields that are not part of an
+    * aggregator will be indexed as dimensions.
     */
   def schemaless(): DruidDimensions = {
     SchemalessDruidDimensions(Vector.empty, Vector.empty)
   }
 
   /**
-    * Builder for Java users.
+    * Creates a druid dimensions object representing schemaless dimensions. All fields that are not part of an
+    * aggregator, and not in the exclusions list, will be indexed as dimensions.
     */
   def schemalessWithExclusions(dimensionExclusions: java.util.List[String]): DruidDimensions = {
     SchemalessDruidDimensions(dimensionExclusions.asScala.toSet, Vector.empty)
