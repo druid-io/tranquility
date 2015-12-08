@@ -20,7 +20,7 @@ class MyBeamFactory extends BeamFactory[Map[String, Any]]
     )
     curator.start()
 
-    val indexService = "overlord" // Your overlord's druid.service, with slashes replaced by colons.
+    val indexService = "druid/overlord" // Your overlord's druid.service, with slashes replaced by colons.
     val discoveryPath = "/druid/discovery" // Your overlord's druid.discovery.curator.path.
     val dataSource = "foo"
     val dimensions = Seq("bar")

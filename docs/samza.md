@@ -82,7 +82,7 @@ public class MyBeamFactory implements BeamFactory
         .builder(timestamper)
         .curator(curator)
         .discoveryPath("/druid/discovery")
-        .location(DruidLocation.create("overlord", "druid:firehose:%s", dataSource))
+        .location(DruidLocation.create("druid/overlord", "druid:firehose:%s", dataSource))
         .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularity.MINUTE))
         .tuning(
             ClusteredBeamTuning.builder()
