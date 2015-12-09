@@ -1,0 +1,153 @@
+/*
+ * Licensed to Metamarkets Group Inc. (Metamarkets) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  Metamarkets licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package com.metamx.tranquility.kafka;
+
+import com.google.common.base.Throwables;
+import com.metamx.common.logger.Logger;
+import com.metamx.tranquility.config.ConfigHelper;
+import com.metamx.tranquility.config.DataSourceConfig;
+import com.metamx.tranquility.kafka.model.TranquilityKafkaConfig;
+import com.metamx.tranquility.kafka.writer.WriterController;
+import io.airlift.airline.Command;
+import io.airlift.airline.Help;
+import io.airlift.airline.HelpOption;
+import io.airlift.airline.Option;
+import io.airlift.airline.SingleCommand;
+import scala.Tuple3;
+import scala.collection.JavaConversions;
+
+import javax.inject.Inject;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Map;
+import java.util.Properties;
+
+/**
+ * tranquility-kafka main.
+ */
+@Command(name = "tranquility-kafka", description = "Kafka consumer which pushes events to Druid through Tranquility")
+public class Main
+{
+  private static final Logger log = new Logger(Main.class);
+
+  @Inject
+  public HelpOption helpOption;
+
+  @Option(name = {"-f", "-configFile"}, description = "Path to configuration property file")
+  public String propertiesFile;
+
+  public static void main(String[] args) throws Exception
+  {
+    Main main;
+    try {
+      main = SingleCommand.singleCommand(Main.class).parse(args);
+    }
+    catch (Exception e) {
+      log.error(e, "Exception parsing arguments");
+      Help.help(SingleCommand.singleCommand(Main.class).getCommandMetadata());
+      return;
+    }
+
+    if (main.helpOption.showHelpIfRequested()) {
+      return;
+    }
+
+    main.run();
+  }
+
+  public void run() throws InterruptedException
+  {
+    if (propertiesFile == null || propertiesFile.isEmpty()) {
+      helpOption.help = true;
+      helpOption.showHelpIfRequested();
+
+      log.warn("Missing required parameters, aborting.");
+      return;
+    }
+
+    Tuple3<TranquilityKafkaConfig, scala.collection.immutable.Map<String, DataSourceConfig<TranquilityKafkaConfig>>,
+        scala.collection.immutable.Map<String, Object>> configs = null;
+    try (InputStream is = new FileInputStream(propertiesFile)) {
+      configs = ConfigHelper.readConfigYaml(is, TranquilityKafkaConfig.class);
+    }
+    catch (IOException e) {
+      log.error("Could not read config file: %s, aborting.", propertiesFile);
+      Throwables.propagate(e);
+    }
+
+    TranquilityKafkaConfig globalConfig = configs._1();
+    Map<String, DataSourceConfig<TranquilityKafkaConfig>> datasourceConfigs = JavaConversions.mapAsJavaMap(configs._2());
+    Map<String, Object> globalProperties = JavaConversions.mapAsJavaMap(configs._3());
+
+    // find all properties that start with 'kafka.' and pass them on to Kafka
+    final Properties kafkaProperties = new Properties();
+    for (Map.Entry<String, Object> entry : globalProperties.entrySet()) {
+      String key = entry.getKey();
+      log.info("%s = %s", key, globalProperties.get(key).toString());
+      if (key.startsWith("kafka.")) {
+        kafkaProperties.setProperty(key.replaceFirst("kafka.", ""), globalProperties.get(key).toString());
+      }
+    }
+
+    // set the critical Kafka configs again from TranquilityKafkaConfig so it picks up the defaults
+    kafkaProperties.setProperty("group.id", globalConfig.getKafkaGroupId());
+    kafkaProperties.setProperty("zookeeper.connect", globalConfig.getKafkaZookeeperConnect());
+    if (kafkaProperties.setProperty(
+        "zookeeper.session.timeout.ms",
+        Long.toString(globalConfig.zookeeperTimeout().toStandardDuration().getMillis())
+    ) != null) {
+      throw new IllegalArgumentException(
+          "Set zookeeper.timeout instead of setting kafka.zookeeper.session.timeout.ms"
+      );
+    }
+
+    final WriterController writerController = new WriterController(datasourceConfigs);
+    final KafkaConsumer kafkaConsumer = new KafkaConsumer(
+        globalConfig,
+        kafkaProperties,
+        datasourceConfigs,
+        writerController
+    );
+
+    try {
+      kafkaConsumer.start();
+    }
+    catch (Throwable t) {
+      log.error(t, "Error while starting up. Exiting.");
+      System.exit(1);
+    }
+
+    Runtime.getRuntime().addShutdownHook(
+        new Thread(
+            new Runnable()
+            {
+              @Override
+              public void run()
+              {
+                log.info("Initiating shutdown...");
+                kafkaConsumer.stop();
+              }
+            }
+        )
+    );
+
+    kafkaConsumer.join();
+  }
+}

@@ -29,6 +29,7 @@ Modules:
 - [Samza](docs/samza.md) - Tranquility includes a Samza SystemProducer.
 - [Spark](docs/spark.md) - Tranquility works with RDDs and DStreams.
 - [Storm](docs/storm.md) - Tranquility includes a Storm Bolt and a Trident State.
+- [Kafka](docs/kafka.md) - Application to push messages from Kafka into Druid through Tranquility.
 
 ### Getting Tranquility with Maven
 
