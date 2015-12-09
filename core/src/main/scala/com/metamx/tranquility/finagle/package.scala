@@ -17,11 +17,8 @@
 package com.metamx.tranquility
 
 import com.metamx.common.scala.Predef._
-import org.jboss.netty.handler.codec.http.DefaultHttpRequest
-import org.jboss.netty.handler.codec.http.HttpHeaders
-import org.jboss.netty.handler.codec.http.HttpMethod
-import org.jboss.netty.handler.codec.http.HttpRequest
-import org.jboss.netty.handler.codec.http.HttpVersion
+import com.twitter.finagle.http
+import com.twitter.finagle.http
 import org.joda.time.Duration
 import org.scala_tools.time.Implicits._
 import scala.language.implicitConversions
@@ -37,23 +34,23 @@ package object finagle
 
   lazy val FinagleLogger = java.util.logging.Logger.getLogger("finagle")
 
-  def HttpPost(path: String): DefaultHttpRequest = {
-    new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, path) withEffect {
+  def HttpPost(path: String): http.Request = {
+    http.Request(http.Method.Post, path) withEffect {
       req =>
         decorateRequest(req)
     }
   }
 
-  def HttpGet(path: String): DefaultHttpRequest = {
-    new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, path) withEffect {
+  def HttpGet(path: String): http.Request = {
+    http.Request(http.Method.Get, path) withEffect {
       req =>
         decorateRequest(req)
     }
   }
 
-  private[this] def decorateRequest(req: HttpRequest): HttpHeaders = {
+  private[this] def decorateRequest(req: http.Request): Unit = {
     // finagle-http doesn't set the host header, and we don't actually know what server we're hitting
-    req.headers.set("Host", "127.0.0.1")
-    req.headers.set("Accept", "*/*")
+    req.headerMap("Host") = "127.0.0.1"
+    req.headerMap("Accept") = "*/*"
   }
 }

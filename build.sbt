@@ -13,10 +13,10 @@ parallelExecution in Test := false
 concurrentRestrictions in Global += Tags.limitAll(1)
 
 val jacksonOneVersion = "1.9.13"
-val jacksonTwoVersion = "2.6.1"
+val jacksonTwoVersion = "2.6.3"
 val druidVersion = "0.8.1"
-val finagleVersion = "6.25.0"
-val twitterUtilVersion = "6.25.0"
+val finagleVersion = "6.31.0"
+val twitterUtilVersion = "6.30.0"
 val samzaVersion = "0.8.0"
 val sparkVersion = "1.5.0"
 val scalatraVersion = "2.3.1"
@@ -26,7 +26,7 @@ val apacheHttpVersion = "4.3.3"
 val coreDependencies = Seq(
   "com.metamx" %% "scala-util" % "1.11.6" exclude("log4j", "log4j") force(),
   "com.metamx" % "java-util" % "0.27.4" exclude("log4j", "log4j") force(),
-  "io.netty" % "netty" % "3.10.4.Final" force(),
+  "io.netty" % "netty" % "3.10.5.Final" force(),
   "com.twitter" %% "util-core" % twitterUtilVersion,
   "com.twitter" %% "finagle-core" % finagleVersion,
   "com.twitter" %% "finagle-http" % finagleVersion,
