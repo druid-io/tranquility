@@ -12,7 +12,7 @@ To start using the Core API, the first thing you need to do is build up a DruidB
 You can set up and use a Finagle Service like this:
 
 ```java
-final String indexService = "overlord"; // Your overlord's service name.
+final String indexService = "druid/overlord"; // Your overlord's service name.
 final String discoveryPath = "/druid/discovery"; // Your overlord's druid.discovery.curator.path
 final String dataSource = "foo";
 final List<String> dimensions = ImmutableList.of("bar", "qux");

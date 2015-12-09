@@ -23,7 +23,7 @@ lazy val makeBeam : Beam[SimpleEvent] = {
     )
     curator.start()
 
-    val indexService = "overlord" // Your overlord's druid.service, with slashes replaced by colons.
+    val indexService = "druid/overlord" // Your overlord's druid.service, with slashes replaced by colons.
     val firehosePattern = "druid:firehose:%s" // Make up a service pattern, include %s somewhere in it.
     val discoveryPath = "/druid/discovery"     // Your overlord's druid.discovery.curator.path
     val dataSource = "foo"
