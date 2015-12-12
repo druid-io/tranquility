@@ -1,0 +1,41 @@
+dataSources:
+  foo:
+    spec:
+      dataSchema:
+        dataSource: foo
+        parser:
+          type: string
+          parseSpec:
+            format: json
+            timestampSpec:
+              column: timestamp
+              format: auto
+            dimensionsSpec:
+              dimensions: [dim1, dim2, dim3]
+
+        metricsSpec:
+          - { type: count, name: count }
+          - { type: doubleSum, name: x, fieldName: x }
+
+        granularitySpec:
+          type: uniform
+          segmentGranularity: hour
+          queryGranularity: none
+
+      ioConfig:
+        type: realtime
+
+      tuningConfig:
+        type: realtime
+        maxRowsInMemory: 100000
+        intermediatePersistPeriod: PT10M
+        windowPeriod: PT10M
+
+    properties:
+      task.partitions: 1
+      task.replicants: 1
+
+properties:
+  http.port: 8200
+  http.threads: 8
+  zookeeper.connect: localhost

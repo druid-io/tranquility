@@ -24,7 +24,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 class MemoryBeam[A](
-  key: String,
+  val key: String,
   jsonWriter: JsonWriter[A]
 ) extends Beam[A]
 {

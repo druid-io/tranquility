@@ -17,28 +17,21 @@
  * under the License.
  */
 
-package com.metamx.tranquility.test
+package com.metamx.tranquility.server.http
 
-import com.fasterxml.jackson.annotation.JsonValue
-import com.metamx.common.scala.untyped.Dict
-import com.metamx.common.scala.untyped.long
-import com.metamx.tranquility.test.DirectDruidTest.TimeColumn
-import com.metamx.tranquility.typeclass.Timestamper
-import org.scala_tools.time.Imports._
+import org.jboss.netty.handler.codec.http.HttpResponseStatus
 
-case class SimpleEvent(ts: DateTime, fields: Dict)
+class HttpException(
+  cause: Throwable,
+  val status: HttpResponseStatus,
+  message0: String
+) extends Exception(status.toString, cause)
 {
-  @JsonValue
-  def toMap = fields ++ Map(TimeColumn -> (ts.millis / 1000))
-}
+  def this(status: HttpResponseStatus) = this(null, status, null)
+  def this(status: HttpResponseStatus, message0: String) = this(null, status, message0)
 
-object SimpleEvent
-{
-  implicit val simpleEventTimestamper = new Timestamper[SimpleEvent] {
-    def timestamp(a: SimpleEvent) = a.ts
-  }
-
-  def fromMap(d: Dict): SimpleEvent = {
-    SimpleEvent(new DateTime(long(d(TimeColumn)) * 1000), d)
+  def message: String = message0 match {
+    case null => status.toString
+    case x => x
   }
 }
