@@ -18,11 +18,10 @@
  */
 package com.metamx.tranquility.spark
 
-import com.twitter.util.Await
-import org.apache.spark.rdd.RDD
-import scala.reflect.ClassTag
 import com.metamx.common.scala.Logging
+import org.apache.spark.rdd.RDD
 import scala.language.implicitConversions
+import scala.reflect.ClassTag
 
 /**
   * This class provides any RDD the ability to propagate events to Druid.
@@ -30,13 +29,15 @@ import scala.language.implicitConversions
   */
 class BeamRDD[T: ClassTag](rdd: RDD[T]) extends Logging with Serializable
 {
-
   def propagate(beamFactory: BeamFactory[T]) = {
     rdd.foreachPartition {
       partitionOfRecords => {
-        val beam = beamFactory.makeBeam
-        val eventsWritten = Await.result(beam.propagate(partitionOfRecords.toIndexedSeq))
-        log.info(s"Propagated $eventsWritten events to Druid.")
+        val sender = beamFactory.tranquilizer.simple(false)
+        for (record <- partitionOfRecords) {
+          sender.send(record)
+        }
+        sender.flush()
+        log.debug(s"Sent ${sender.sentCount} out of ${sender.receivedCount} events to Druid.")
       }
     }
   }
@@ -44,5 +45,5 @@ class BeamRDD[T: ClassTag](rdd: RDD[T]) extends Logging with Serializable
 
 object BeamRDD extends Serializable
 {
-  implicit def createBeamRDD[T: ClassTag](rdd: RDD[T]) = new BeamRDD(rdd)
+  implicit def createBeamRDD[T: ClassTag](rdd: RDD[T]): BeamRDD[T] = new BeamRDD(rdd)
 }
