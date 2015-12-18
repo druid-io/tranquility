@@ -90,6 +90,14 @@ val aggregators = Seq(new CountAggregatorFactory("cnt"), new LongSumAggregatorFa
 // Tranquility needs to be able to extract timestamps from your object type (in this case, Map<String, Object>).
 val timestamper = (eventMap: Map[String, Any]) => new DateTime(eventMap("timestamp"))
 
+// Tranquility uses ZooKeeper (through Curator) for coordination.
+val curator = CuratorFrameworkFactory
+  .builder()
+  .connectString("zk.example.com:2181")
+  .retryPolicy(new ExponentialBackoffRetry(1000, 20, 30000))
+  .build()
+curator.start()
+
 // Tranquility needs to be able to serialize your object type. By default this is done with Jackson. If you want to
 // provide an alternate serializer, you can provide your own via ```.objectWriter(...)```. In this case, we won't
 // provide one, so we're just using Jackson:
@@ -97,7 +105,7 @@ val druidService = DruidBeams
   .builder(timestamper)
   .curator(curator)
   .discoveryPath(discoveryPath)
-  .location(DruidLocation(indexService, dataSource))
+  .location(DruidLocation.create(indexService, dataSource))
   .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularity.MINUTE))
   .tuning(
     ClusteredBeamTuning(
