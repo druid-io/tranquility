@@ -143,6 +143,10 @@ val serverTestDependencies = Seq(
 lazy val commonSettings = Seq(
   organization := "io.druid",
 
+  // Attempt to fail less in Travis by giving forks more memory.
+  // See https://github.com/sbt/sbt/issues/653 and https://github.com/travis-ci/travis-ci/issues/3775
+  javaOptions := Seq("-Xmx1g"),
+
   scalacOptions := Seq("-feature", "-deprecation"),
 
   licenses := Seq("Apache License, Version 2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
