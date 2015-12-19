@@ -143,11 +143,10 @@ val serverTestDependencies = Seq(
 lazy val commonSettings = Seq(
   organization := "io.druid",
 
-  // Attempt to fail less in Travis by giving forks more memory.
-  // See https://github.com/sbt/sbt/issues/653 and https://github.com/travis-ci/travis-ci/issues/3775
-  javaOptions := Seq("-Xmx1g"),
+  javaOptions := Seq("-Xms512m", "-Xmx512m"),
 
-  scalacOptions := Seq("-feature", "-deprecation"),
+  // resolve-term-conflict:object since storm-core has a package and object with the same name
+  scalacOptions := Seq("-feature", "-deprecation", "-Yresolve-term-conflict:object"),
 
   licenses := Seq("Apache License, Version 2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
 
@@ -172,10 +171,7 @@ lazy val commonSettings = Seq(
         </developer>
       </developers>),
 
-  fork in Test := true,
-
-  // storm-core has a package and object with the same name
-  scalacOptions += "-Yresolve-term-conflict:object"
+  fork in Test := true
 ) ++ releaseSettings ++ Seq(
   ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
 )
