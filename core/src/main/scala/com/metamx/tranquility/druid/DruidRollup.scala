@@ -18,11 +18,11 @@
  */
 package com.metamx.tranquility.druid
 
-import io.druid.data.input.impl.TimestampSpec
-import io.druid.data.input.impl.DimensionsSpec
 import io.druid.data.input.impl.SpatialDimensionSchema
+import io.druid.data.input.impl.TimestampSpec
 import io.druid.granularity.QueryGranularity
 import io.druid.query.aggregation.AggregatorFactory
+import java.{util => ju}
 import scala.collection.JavaConverters._
 
 /**
@@ -46,15 +46,10 @@ class DruidRollup(
   validate()
 
   def validate() {
-    val dimensionNames = if (dimensions.spec.hasCustomDimensions) dimensions.spec.getDimensions.asScala else Nil
-    val spatialDimensionNames = dimensions.spec.getSpatialDimensions.asScala.map(_.getDimName)
+    val dimensionNames = dimensions.knownDimensions
     val metricNames = aggregators.map(_.getName)
 
-    val allColumnNames = Seq(DruidRollup.InternalTimeColumnName) ++
-      dimensionNames ++
-      spatialDimensionNames ++
-      metricNames
-
+    val allColumnNames = Seq(DruidRollup.InternalTimeColumnName) ++ dimensionNames ++ metricNames
     val duplicateColumns = allColumnNames.groupBy(identity).filter(_._2.size > 1).keySet
 
     if (duplicateColumns.nonEmpty) {
@@ -75,7 +70,9 @@ class DruidRollup(
 
 sealed abstract class DruidDimensions
 {
-  def spec: DimensionsSpec
+  def specMap: ju.Map[String, AnyRef]
+
+  def knownDimensions: Seq[String]
 
   def spatialDimensions: Seq[DruidSpatialDimension]
 
@@ -104,15 +101,18 @@ case class SpecificDruidDimensions(
 {
   val dimensionsSet = dimensions.toSet
 
-  @transient lazy val spec = {
+  @transient override lazy val specMap: ju.Map[String, AnyRef] = {
     // Sort dimenions as a workaround for https://github.com/druid-io/druid/issues/658
     // Should preserve the originally-provided order once this is fixed.
     // (Indexer does not merge properly when dimensions are provided in non-lexicographic order.)
-    new DimensionsSpec(
-      dimensions.toIndexedSeq.sorted.asJava,
-      null,
-      spatialDimensions.map(_.schema).asJava
-    )
+    Map[String, AnyRef](
+      "dimensions" -> dimensions.toIndexedSeq.sorted.asJava,
+      "spatialDimensions" -> spatialDimensions.map(_.schema).asJava
+    ).asJava
+  }
+
+  override def knownDimensions: Seq[String] = {
+    dimensions ++ spatialDimensions.map(_.schema.getDimName)
   }
 
   /**
@@ -128,13 +128,16 @@ case class SchemalessDruidDimensions(
   spatialDimensions: Seq[DruidSpatialDimension] = Nil
 ) extends DruidDimensions
 {
-  override def spec = {
+  @transient override lazy val specMap: ju.Map[String, AnyRef] = {
     // Null dimensions causes the Druid parser to go schemaless.
-    new DimensionsSpec(
-      null,
-      dimensionExclusions.toSeq.asJava,
-      spatialDimensions.map(_.schema).asJava
-    )
+    Map[String, AnyRef](
+      "dimensionExclusions" -> dimensionExclusions.toSeq.asJava,
+      "spatialDimensions" -> spatialDimensions.map(_.schema).asJava
+    ).asJava
+  }
+
+  override def knownDimensions: Seq[String] = {
+    spatialDimensions.map(_.schema.getDimName)
   }
 
   /**

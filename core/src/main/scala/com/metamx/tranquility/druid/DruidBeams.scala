@@ -448,8 +448,7 @@ object DruidBeams
       val indexService = new IndexService(
         things.location.environment,
         things.druidBeamConfig,
-        things.finagleRegistry,
-        things.druidObjectMapper
+        things.finagleRegistry
       )
       val druidBeamMaker = new DruidBeamMaker[EventType](
         things.druidBeamConfig,
@@ -461,7 +460,8 @@ object DruidBeams
         things.finagleRegistry,
         indexService,
         things.emitter,
-        things.objectWriter
+        things.objectWriter,
+        things.druidObjectMapper
       )
       val clusteredBeam = new ClusteredBeam(
         things.clusteredBeamZkBasePath,

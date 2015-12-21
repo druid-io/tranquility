@@ -98,7 +98,7 @@ class DirectDruidTest
 
   test("Druid standalone") {
     withDruidStack {
-      (curator, broker, overlord) =>
+      (curator, broker, coordinator, overlord) =>
         val timekeeper = new TestingTimekeeper
         val indexing = Tranquilizer.create(newBuilder(curator, timekeeper).buildBeam())
         indexing.start()
@@ -120,7 +120,7 @@ class DirectDruidTest
 
   test("Druid standalone - Custom ObjectWriter") {
     withDruidStack {
-      (curator, broker, overlord) =>
+      (curator, broker, coordinator, overlord) =>
         val timekeeper = new TestingTimekeeper
         val beam = newBuilder(curator, timekeeper).objectWriter(
           new JavaObjectWriter[SimpleEvent]

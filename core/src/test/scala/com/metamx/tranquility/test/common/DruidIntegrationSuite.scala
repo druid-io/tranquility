@@ -24,15 +24,16 @@ import com.google.common.base.Charsets
 import com.google.common.io.CharStreams
 import com.google.common.io.Files
 import com.google.inject.Injector
-import com.metamx.common.scala.control._
 import com.metamx.collections.spatial.search.RectangularBound
 import com.metamx.common.lifecycle.Lifecycle
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.concurrent._
+import com.metamx.common.scala.control._
 import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.common.scala.untyped._
 import io.druid.cli.CliBroker
+import io.druid.cli.CliCoordinator
 import io.druid.cli.CliOverlord
 import io.druid.cli.GuiceRunnable
 import io.druid.granularity.QueryGranularity
@@ -48,7 +49,6 @@ import java.io.InputStreamReader
 import java.net.BindException
 import java.net.URLClassLoader
 import org.apache.curator.framework.CuratorFramework
-import org.scala_tools.time.Imports.DateTimeZone
 import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
 import scala.collection.JavaConverters._
@@ -138,6 +138,27 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
     }
   }
 
+  def withCoordinator[A](curator: CuratorFramework)(f: DruidServerHandle => A): A = {
+    // Randomize, but don't bother checking for conflicts
+    retryOnErrors(ifException[BindException] untilCount 5) {
+      val coordinatorPort = new Random().nextInt(100) + 28100
+      val configFile = writeConfig(
+        "druid-coordinator.properties",
+        Map(
+          ":DRUIDPORT:" -> coordinatorPort.toString,
+          ":ZKCONNECT:" -> curator.getZookeeperClient.getCurrentConnectionString
+        )
+      )
+      val handle = spawnDruidServer[CliCoordinator](configFile)
+      try {
+        f(handle)
+      }
+      finally {
+        handle.close()
+      }
+    }
+  }
+
   def withOverlord[A](curator: CuratorFramework)(f: DruidServerHandle => A): A = {
     // Randomize, but don't bother checking for conflicts
     retryOnErrors(ifException[BindException] untilCount 5) {
@@ -160,15 +181,18 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
     }
   }
 
-  def withDruidStack[A](f: (CuratorFramework, DruidServerHandle, DruidServerHandle) => A): A = {
+  def withDruidStack[A](f: (CuratorFramework, DruidServerHandle, DruidServerHandle, DruidServerHandle) => A): A = {
     withLocalCurator {
       curator =>
         curator.create().forPath("/beams")
         withBroker(curator) {
           broker =>
-            withOverlord(curator) {
-              overlord =>
-                f(curator, broker, overlord)
+            withCoordinator(curator) {
+              coordinator =>
+                withOverlord(curator) {
+                  overlord =>
+                    f(curator, broker, coordinator, overlord)
+                }
             }
         }
     }

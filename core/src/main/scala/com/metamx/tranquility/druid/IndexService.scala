@@ -18,7 +18,6 @@
  */
 package com.metamx.tranquility.druid
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.metamx.common.Backoff
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Predef._
@@ -34,30 +33,27 @@ import com.twitter.io.Buf
 import com.twitter.util.Await
 import com.twitter.util.Future
 import com.twitter.util.Timer
-import io.druid.indexing.common.task.Task
 import java.io.Closeable
 import org.scala_tools.time.Imports._
 
 class IndexService(
   environment: DruidEnvironment,
   config: IndexServiceConfig,
-  finagleRegistry: FinagleRegistry,
-  druidObjectMapper: ObjectMapper
+  finagleRegistry: FinagleRegistry
 ) extends Closeable
 {
   private implicit val timer: Timer = DefaultTimer.twitter
 
   private lazy val client: Service[http.Request, http.Response] = finagleRegistry.checkout(environment.indexService)
 
-  def submit(task: Task): Future[TaskId] = {
-    val taskJson = druidObjectMapper.writeValueAsBytes(task)
+  def submit(taskBytes: Array[Byte]): Future[TaskId] = {
     val taskRequest = HttpPost("/druid/indexer/v1/task") withEffect {
       req =>
         req.headerMap("Content-Type") = "application/json"
-        req.headerMap("Content-Length") = taskJson.length.toString
-        req.content = Buf.ByteArray.Shared(taskJson)
+        req.headerMap("Content-Length") = taskBytes.length.toString
+        req.content = Buf.ByteArray.Shared(taskBytes)
     }
-    log.info("Creating druid indexing task with id: %s (service = %s)", task.getId, environment.indexService)
+    log.info("Creating druid indexing task (service = %s)", environment.indexService)
     call(taskRequest) map {
       d =>
         str(d("task"))
