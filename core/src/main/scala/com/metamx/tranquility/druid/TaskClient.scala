@@ -19,7 +19,6 @@
 
 package com.metamx.tranquility.druid
 
-import com.google.common.base.Charsets
 import com.metamx.common.Backoff
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.event.WARN
@@ -28,17 +27,15 @@ import com.metamx.common.scala.untyped.Dict
 import com.metamx.common.scala.untyped.str
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.druid.TaskClient.timer
-import com.metamx.tranquility.finagle.FutureRetry
 import com.metamx.tranquility.finagle._
 import com.twitter.finagle.Service
+import com.twitter.finagle.http
 import com.twitter.finagle.util.DefaultTimer
 import com.twitter.util.Closable
 import com.twitter.util.Future
 import com.twitter.util.Time
 import com.twitter.util.Timer
 import java.io.IOException
-import org.jboss.netty.handler.codec.http.HttpRequest
-import org.jboss.netty.handler.codec.http.HttpResponse
 import org.scala_tools.time.Imports._
 
 /**
@@ -46,7 +43,7 @@ import org.scala_tools.time.Imports._
  */
 class TaskClient(
   val task: TaskPointer,
-  client: Service[HttpRequest, HttpResponse],
+  client: Service[http.Request, http.Response],
   dataSource: String,
   quietPeriod: Period,
   retryPeriod: Period,
@@ -69,20 +66,20 @@ class TaskClient(
 
   def active = Seq(TaskRunning, TaskNotFound) contains _status
 
-  def apply(request: HttpRequest): Future[Option[HttpResponse]] = {
+  def apply(request: http.Request): Future[Option[http.Response]] = {
     val retryable = IndexService.isTransient(retryPeriod)
     FutureRetry.onErrors(Seq(retryable), Backoff.standard(), DateTime.now + quietPeriod) {
       client(request) map {
         response =>
-          val code = response.getStatus.getCode
-          val reason = response.getStatus.getReasonPhrase
+          val code = response.statusCode
+          val reason = response.status.reason
           if (code / 100 == 2) {
             if (log.isTraceEnabled) {
               log.trace(
                 "Sent request to task[%s], serviceKey[%s], got response: %s",
                 task.id,
                 task.serviceKey,
-                response.getContent.toString(Charsets.UTF_8)
+                response.contentString
               )
             }
             Some(response)

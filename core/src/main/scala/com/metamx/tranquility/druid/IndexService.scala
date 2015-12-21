@@ -17,7 +17,6 @@
 package com.metamx.tranquility.druid
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.google.common.base.Charsets
 import com.metamx.common.Backoff
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Predef._
@@ -27,15 +26,14 @@ import com.metamx.common.scala.untyped._
 import com.metamx.tranquility.druid.IndexService.TaskId
 import com.metamx.tranquility.finagle._
 import com.twitter.finagle.Service
+import com.twitter.finagle.http
 import com.twitter.finagle.util.DefaultTimer
+import com.twitter.io.Buf
 import com.twitter.util.Await
 import com.twitter.util.Future
 import com.twitter.util.Timer
 import io.druid.indexing.common.task.Task
 import java.io.Closeable
-import org.jboss.netty.buffer.ChannelBuffers
-import org.jboss.netty.handler.codec.http.HttpRequest
-import org.jboss.netty.handler.codec.http.HttpResponse
 import org.scala_tools.time.Imports._
 
 class IndexService(
@@ -47,15 +45,15 @@ class IndexService(
 {
   private implicit val timer: Timer = DefaultTimer.twitter
 
-  private lazy val client: Service[HttpRequest, HttpResponse] = finagleRegistry.checkout(environment.indexService)
+  private lazy val client: Service[http.Request, http.Response] = finagleRegistry.checkout(environment.indexService)
 
   def submit(task: Task): Future[TaskId] = {
     val taskJson = druidObjectMapper.writeValueAsBytes(task)
     val taskRequest = HttpPost("/druid/indexer/v1/task") withEffect {
       req =>
-        req.headers.set("Content-Type", "application/json")
-        req.headers.set("Content-Length", taskJson.length)
-        req.setContent(ChannelBuffers.wrappedBuffer(taskJson))
+        req.headerMap("Content-Type") = "application/json"
+        req.headerMap("Content-Length") = taskJson.length.toString
+        req.content = Buf.ByteArray.Shared(taskJson)
     }
     log.info("Creating druid indexing task with id: %s (service = %s)", task.getId, environment.indexService)
     call(taskRequest) map {
@@ -79,15 +77,15 @@ class IndexService(
     Await.result(client.close())
   }
 
-  private def call(req: HttpRequest): Future[Dict] = {
+  private def call(req: http.Request): Future[Dict] = {
     val retryable = IndexService.isTransient(config.indexRetryPeriod)
     FutureRetry.onErrors(Seq(retryable), new Backoff(15000, 2, 60000), new DateTime(0)) {
       client(req) map {
         response =>
-          response.getStatus.getCode match {
+          response.statusCode match {
             case code if code / 100 == 2 || code == 404 =>
               // 2xx or 404 generally mean legitimate responses from the index service
-              Jackson.parse[Dict](response.getContent.toString(Charsets.UTF_8)) mapException {
+              Jackson.parse[Dict](response.contentString) mapException {
                 case e: Exception => new IndexServicePermanentException(e, "Failed to parse response")
               }
 
@@ -96,21 +94,21 @@ class IndexService(
               // them as generic errors that can be retried
               throw new IndexServiceTransientException(
                 "Service[%s] temporarily unreachable: %s %s" format
-                  (environment.indexService, code, response.getStatus.getReasonPhrase)
+                  (environment.indexService, code, response.status.reason)
               )
 
             case code if code / 100 == 5 =>
               // Server-side errors can be retried
               throw new IndexServiceTransientException(
                 "Service[%s] call failed with status: %s %s" format
-                  (environment.indexService, code, response.getStatus.getReasonPhrase)
+                  (environment.indexService, code, response.status.reason)
               )
 
             case code =>
               // All other responses should not be retried (including non-404 client errors)
               throw new IndexServicePermanentException(
                 "Service[%s] call failed with status: %s %s" format
-                  (environment.indexService, code, response.getStatus.getReasonPhrase)
+                  (environment.indexService, code, response.status.reason)
               )
           }
       }

@@ -23,15 +23,15 @@ import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.DefunctBeamException
 import com.metamx.tranquility.finagle._
 import com.metamx.tranquility.typeclass.ObjectWriter
+import com.twitter.io.Buf
 import com.twitter.util.Closable
 import com.twitter.util.Future
 import com.twitter.util.Time
-import org.jboss.netty.buffer.ChannelBuffers
 import org.scala_tools.time.Imports._
 
 /**
- * A Beam that writes all events to a fixed set of Druid tasks.
- */
+  * A Beam that writes all events to a fixed set of Druid tasks.
+  */
 class DruidBeam[A](
   private[druid] val interval: Interval,
   private[druid] val partition: Int,
@@ -72,29 +72,29 @@ class DruidBeam[A](
       task <- tasks
       client <- clients.get(task) if client.active
     } yield {
-        val eventPost = HttpPost(
-          "/druid/worker/v1/chat/%s/push-events" format
-            (location.environment.firehoseServicePattern format task.serviceKey)
-        ) withEffect {
-          req =>
-            req.headers.set("Content-Type", objectWriter.contentType)
-            req.headers.set("Content-Length", eventsChunk.length)
-            req.setContent(ChannelBuffers.wrappedBuffer(eventsChunk))
-        }
-        if (log.isTraceEnabled) {
-          log.trace(
-            "Sending %,d events to task[%s], firehose[%s]: %s",
-            eventsChunkSize,
-            task.id,
-            task.serviceKey,
-            new String(eventsChunk)
-          )
-        }
-        client(eventPost) map {
-          case Some(response) => task -> eventsChunkSize
-          case None => task -> 0
-        }
+      val eventPost = HttpPost(
+        "/druid/worker/v1/chat/%s/push-events" format
+          (location.environment.firehoseServicePattern format task.serviceKey)
+      ) withEffect {
+        req =>
+          req.headerMap("Content-Type") = objectWriter.contentType
+          req.headerMap("Content-Length") = eventsChunk.length.toString
+          req.content = Buf.ByteArray.Shared(eventsChunk)
       }
+      if (log.isTraceEnabled) {
+        log.trace(
+          "Sending %,d events to task[%s], firehose[%s]: %s",
+          eventsChunkSize,
+          task.id,
+          task.serviceKey,
+          new String(eventsChunk)
+        )
+      }
+      client(eventPost) map {
+        case Some(response) => task -> eventsChunkSize
+        case None => task -> 0
+      }
+    }
     val taskSuccessesFuture: Future[Map[TaskPointer, Int]] = Future.collect(taskChunkFutures) map {
       xs =>
         xs.groupBy(_._1).map {
