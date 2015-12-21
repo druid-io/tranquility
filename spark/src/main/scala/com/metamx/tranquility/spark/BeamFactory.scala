@@ -19,6 +19,7 @@
 package com.metamx.tranquility.spark
 
 import com.metamx.tranquility.beam.Beam
+import com.metamx.tranquility.tranquilizer.Tranquilizer
 
 /**
   * Implement this class to link up Spark with Tranquility.
@@ -33,4 +34,9 @@ trait BeamFactory[EventType] extends Serializable
     */
   def makeBeam: Beam[EventType]
 
+  @transient final lazy val tranquilizer: Tranquilizer[EventType] = {
+    val t = Tranquilizer.create(makeBeam)
+    t.start()
+    t
+  }
 }
