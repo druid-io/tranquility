@@ -37,6 +37,7 @@ import com.twitter.util.Promise
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import org.scalatest.FunSuite
+import scala.collection.immutable.BitSet
 import scala.collection.immutable.IndexedSeq
 import scala.util.Random
 
@@ -166,8 +167,8 @@ class TranquilizerTest extends FunSuite with Logging
       newTranquilizer(beam, maxBatchSize, maxPendingBatches, lingerMillis).withFinally(_._1.stop()) {
         case (tranquilizer, desc) =>
           val (acked, dropped, failed) = doSend(tranquilizer, Seq("hey", "__drop__"))
-          assert(acked === 0, "acked (%s)" format desc)
-          assert(dropped === 2, "dropped (%s)" format desc)
+          assert(acked === 1, "acked (%s)" format desc)
+          assert(dropped === 1, "dropped (%s)" format desc)
           assert(failed === 0, "failed (%s)" format desc)
           assert(
             MemoryBeam.get("foo") === Seq(Dict("bar" -> "hey")),
@@ -233,14 +234,14 @@ object TranquilizerTest
     val random = new Random()
     new Beam[String] with Logging
     {
-      override def propagate(events: Seq[String]): Future[Int] = {
+      override def sendBatch(events: Seq[String]): Future[BitSet] = {
         val delay = math.max(1, baseDelay + fuzz * baseDelay * random.nextGaussian()).toLong
         log.debug(s"Delaying propagate by ${delay}ms.")
 
-        val future = Promise[Int]()
+        val future = Promise[BitSet]()
         exec.schedule(
           abortingRunnable {
-            future.become(memoryBeam.propagate(events))
+            future.become(memoryBeam.sendBatch(events))
           },
           delay,
           TimeUnit.MILLISECONDS
@@ -262,13 +263,13 @@ object TranquilizerTest
   ): (Tranquilizer[String], String) =
   {
     val wrappedBeam = new Beam[String] {
-      override def propagate(events: Seq[String]) = {
+      override def sendBatch(events: Seq[String]): Future[BitSet] = {
         if (events.contains("__fail__")) {
           Future.exception(new IllegalStateException("fail!"))
         } else if (events.contains("__superfail__")) {
           throw new IllegalStateException("superfail")
         } else {
-          beam.propagate(events.filterNot(_ == "__drop__"))
+          beam.sendBatch(events.filterNot(_ == "__drop__"))
         }
       }
 

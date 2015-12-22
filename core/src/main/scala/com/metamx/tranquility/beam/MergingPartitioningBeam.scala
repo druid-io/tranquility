@@ -22,6 +22,7 @@ package com.metamx.tranquility.beam
 import com.metamx.common.scala.Logging
 import com.metamx.tranquility.partition.Partitioner
 import com.twitter.util.Future
+import scala.collection.immutable.BitSet
 
 /**
   * Partitions events based on the output of a Partitioner, and propagates the partitioned events via the
@@ -32,15 +33,21 @@ class MergingPartitioningBeam[A](
   val beams: IndexedSeq[Beam[A]]
 ) extends Beam[A] with Logging
 {
-  def propagate(events: Seq[A]) = {
-    val futures = events.groupBy(partitioner.partition(_, beams.size)) map {
-      case (i, group) =>
-        beams(i).propagate(group)
+  override def sendBatch(events: Seq[A]): Future[BitSet] = {
+    val grouped: Map[Int, IndexedSeq[(A, Int)]] = Beam.index(events) groupBy { tuple =>
+      partitioner.partition(tuple._1, beams.size)
     }
-    Future.collect(futures.toList).map(_.sum)
+    val futures = grouped map {
+      case (i, group) =>
+        beams(i).sendBatch(group.map(_._1)) map { bitset =>
+          // Remap indexes
+          bitset.map(index => group(index)._2)
+        }
+    }
+    Future.collect(futures.toList).map(Beam.mergeBitsets)
   }
 
-  def close() = {
+  override def close() = {
     Future.collect(beams map (_.close())) map (_ => ())
   }
 

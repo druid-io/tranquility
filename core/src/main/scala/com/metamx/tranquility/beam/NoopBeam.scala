@@ -19,12 +19,13 @@
 package com.metamx.tranquility.beam
 
 import com.twitter.util.Future
+import scala.collection.immutable.BitSet
 
 class NoopBeam[A] extends Beam[A]
 {
-  def propagate(events: Seq[A]) = Future.value(0)
+  override def sendBatch(messages: Seq[A]): Future[BitSet] = Future.value(BitSet.empty)
 
-  def close() = Future.Done
+  override def close() = Future.Done
 
   override def toString = "NoopBeam()"
 }

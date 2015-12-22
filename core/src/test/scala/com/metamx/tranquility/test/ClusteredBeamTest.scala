@@ -43,16 +43,18 @@ import com.twitter.util.Await
 import com.twitter.util.Future
 import java.util.UUID
 import org.apache.curator.framework.CuratorFramework
-import org.joda.time.DateTimeZone
 import org.joda.time.DateTime
+import org.joda.time.DateTimeZone
 import org.joda.time.Interval
 import org.scala_tools.time.Implicits._
 import org.scalatest.BeforeAndAfter
 import org.scalatest.FunSuite
+import org.scalatest.Matchers
+import scala.collection.immutable.BitSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeAndAfter
+class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeAndAfter with Matchers
 {
   case class SimpleEvent(ts: DateTime, fields: Map[String, String])
 
@@ -100,15 +102,15 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
     timekeeper: TestingTimekeeper
   ) extends Beam[SimpleEvent]
   {
-    def propagate(events: Seq[SimpleEvent]) = {
-      beam.propagate(events)
+    override def sendBatch(events: Seq[SimpleEvent]): Future[BitSet] = {
+      beam.sendBatch(events)
     }
 
-    def blockagate(events: Seq[SimpleEvent]): Int = {
-      Await.result(beam.propagate(events))
+    def blockagate(events: Seq[SimpleEvent]): BitSet = {
+      Await.result(beam.sendBatch(events))
     }
 
-    def close() = {
+    override def close() = {
       beam.close()
     }
   }
@@ -120,14 +122,14 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
       _beams += this
     }
 
-    def propagate(_events: Seq[SimpleEvent]) = _lock.synchronized {
+    final def sendBatch(_events: Seq[SimpleEvent]): Future[BitSet] = _lock.synchronized {
       if (_events.contains(events("defunct"))) {
         Future.exception(new DefunctBeamException("Defunct"))
       } else {
         val buffer = _buffers.getOrElseUpdate(uuid, new EventBuffer(timestamp, partition))
         buffer.open = true
         buffer.buffer ++= _events
-        Future.value(_events.size)
+        Future.value(BitSet() ++ _events.indices)
       }
     }
 
@@ -221,9 +223,9 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
 
         // First set of events
         beams.timekeeper.now = start
-        beams.blockagate(Seq("a", "b") map events)
-        beams.blockagate(Seq("c", "d") map events)
-        beams.blockagate(Seq("e", "f", "g") map events)
+        beams.blockagate(Seq("a", "b") map events) should be(Set(1))
+        beams.blockagate(Seq("c", "d") map events) should be(Set(0, 1))
+        beams.blockagate(Seq("e", "f", "g") map events) should be(Set(0, 1))
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
           (new DateTime("2012-01-01T00Z"), 1, false, Nil),
@@ -233,10 +235,10 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
 
         // Move forward in time, send the same events
         beams.timekeeper.now = start + 2.hours
-        beams.blockagate(Seq("a", "b") map events)
-        beams.blockagate(Seq("c", "d") map events)
-        beams.blockagate(Seq("e", "f", "g") map events)
-        beams.blockagate(Seq("h") map events)
+        beams.blockagate(Seq("a", "b") map events) should be(Set())
+        beams.blockagate(Seq("c", "d") map events) should be(Set())
+        beams.blockagate(Seq("e", "f", "g") map events) should be(Set(2))
+        beams.blockagate(Seq("h") map events) should be(Set(0))
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, false, Seq("b") map events),
           (new DateTime("2012-01-01T00Z"), 1, false, Nil),
@@ -257,10 +259,10 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
         beamsA.timekeeper.now = start
         beamsB.timekeeper.now = start
 
-        beamsA.blockagate(Seq("b") map events)
-        beamsB.blockagate(Seq("b") map events)
-        beamsB.blockagate(Seq("d") map events)
-        beamsA.blockagate(Seq("c") map events)
+        beamsA.blockagate(Seq("b") map events) should be(Set(0))
+        beamsB.blockagate(Seq("b") map events) should be(Set(0))
+        beamsB.blockagate(Seq("d") map events) should be(Set(0))
+        beamsA.blockagate(Seq("c") map events) should be(Set(0))
 
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b") map events),
@@ -282,11 +284,11 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
         beamsB.timekeeper.now = start
         beamsC.timekeeper.now = start
 
-        beamsA.blockagate(Seq("c") map events)
+        beamsA.blockagate(Seq("c") map events) should be(Set(0))
         Await.result(beamsA.close())
 
-        beamsB.blockagate(Seq("d") map events)
-        beamsC.blockagate(Seq("e") map events)
+        beamsB.blockagate(Seq("d") map events) should be(Set(0))
+        beamsC.blockagate(Seq("e") map events) should be(Set(0))
 
         assert(buffers === Set(
           (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "d", "e") map events),
@@ -303,7 +305,7 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
 
         val beamsA = newBeams(curator, oldTuning)
         beamsA.timekeeper.now = start
-        beamsA.blockagate(Seq("c") map events)
+        beamsA.blockagate(Seq("c") map events) should be(Set(0))
         Await.result(beamsA.close())
 
         assert(buffers === Set(
@@ -313,10 +315,10 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
 
         val beamsB = newBeams(curator, newTuning)
         beamsB.timekeeper.now = start
-        beamsB.blockagate(Seq("d", "b") map events)
-        beamsB.blockagate(Seq("d", "c", "b") map events)
-        beamsB.blockagate(Seq("c", "b") map events)
-        beamsB.blockagate(Seq("c", "b") map events)
+        beamsB.blockagate(Seq("d", "b") map events) should be(Set(0, 1))
+        beamsB.blockagate(Seq("d", "c", "b") map events) should be(Set(0, 1, 2))
+        beamsB.blockagate(Seq("c", "b") map events) should be(Set(0, 1))
+        beamsB.blockagate(Seq("c", "b") map events) should be(Set(0, 1))
 
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b") map events),
@@ -337,15 +339,15 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
 
         val beamsA = newBeams(curator, oldTuning)
         beamsA.timekeeper.now = start
-        beamsA.blockagate(Seq("c") map events)
+        beamsA.blockagate(Seq("c") map events) should be(Set(0))
         Await.result(beamsA.close())
 
         val beamsB = newBeams(curator, newTuning)
         beamsB.timekeeper.now = start
-        beamsB.blockagate(Seq("d", "b") map events)
-        beamsB.blockagate(Seq("d", "c", "b") map events)
-        beamsB.blockagate(Seq("c", "b") map events)
-        beamsB.blockagate(Seq("c", "b") map events)
+        beamsB.blockagate(Seq("d", "b") map events) should be(Set(0, 1))
+        beamsB.blockagate(Seq("d", "c", "b") map events) should be(Set(0, 1, 2))
+        beamsB.blockagate(Seq("c", "b") map events) should be(Set(0, 1))
+        beamsB.blockagate(Seq("c", "b") map events) should be(Set(0, 1))
 
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b", "b", "b") map events),
@@ -360,9 +362,9 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
       curator =>
         val beams = newBeams(curator, defaultTuning)
         beams.timekeeper.now = start
-        assert(beams.blockagate(Seq("b", "c") map events) === 2)
-        assert(beams.blockagate(Seq("defunct") map events) === 0)
-        assert(beams.blockagate(Seq("b", "c") map events) === 1)
+        beams.blockagate(Seq("b", "c") map events) should be(Set(0, 1))
+        beams.blockagate(Seq("defunct") map events) should be(Set())
+        beams.blockagate(Seq("b", "c") map events) should be(Set(0))
 
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
@@ -378,7 +380,7 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
       curator =>
         val beams = newBeams(curator, defaultTuning.copy(warmingPeriod = 10.minutes, windowPeriod = 6.minutes))
         beams.timekeeper.now = new DateTime("2012-01-01T00:55Z")
-        assert(beams.blockagate(Seq("b") map events) === 1)
+        beams.blockagate(Seq("b") map events) should be(Set(0))
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
           (new DateTime("2012-01-01T00Z"), 1, false, Nil),
@@ -401,28 +403,28 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
         val beamsB = newBeams(curator, defaultTuning.copy(windowPeriod = 6.minutes))
         beamsA.timekeeper.now = new DateTime("2012-01-01T00:55Z")
         beamsB.timekeeper.now = new DateTime("2012-01-01T00:55Z")
-        assert(beamsA.blockagate(Seq("b") map events) === 1)
+        beamsA.blockagate(Seq("b") map events) should be(Set(0))
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
           (new DateTime("2012-01-01T00Z"), 1, false, Nil),
           (new DateTime("2012-01-01T01Z"), 0, false, Nil),
           (new DateTime("2012-01-01T01Z"), 1, false, Nil)
         ))
-        assert(beamsA.blockagate(Seq("c") map events) === 1)
+        beamsA.blockagate(Seq("c") map events) should be(Set(0))
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, true, Seq("b") map events),
           (new DateTime("2012-01-01T00Z"), 1, false, Nil),
           (new DateTime("2012-01-01T01Z"), 0, true, Seq("c") map events),
           (new DateTime("2012-01-01T01Z"), 1, false, Nil)
         ))
-        assert(beamsB.blockagate(Seq("b") map events) === 1)
+        beamsB.blockagate(Seq("b") map events) should be(Set(0))
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b") map events),
           (new DateTime("2012-01-01T00Z"), 1, false, Nil),
           (new DateTime("2012-01-01T01Z"), 0, true, Seq("c") map events),
           (new DateTime("2012-01-01T01Z"), 1, false, Nil)
         ))
-        assert(beamsB.blockagate(Seq("c") map events) === 1)
+        beamsB.blockagate(Seq("c") map events) should be(Set(0))
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "b") map events),
           (new DateTime("2012-01-01T00Z"), 1, false, Nil),
@@ -438,13 +440,13 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
         val beams = newBeams(curator, defaultTuning)
 
         beams.timekeeper.now = start
-        beams.blockagate(Seq("c") map events)
+        beams.blockagate(Seq("c") map events) should be(Set(0))
 
         beams.timekeeper.now = start + 1.hour
-        beams.blockagate(Seq("d") map events)
+        beams.blockagate(Seq("d") map events) should be(Set(0))
 
         beams.timekeeper.now = start
-        beams.blockagate(Seq("e") map events)
+        beams.blockagate(Seq("e") map events) should be(Set(0))
 
         assert(buffers === Set(
           (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "e") map events),
@@ -452,18 +454,18 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
         ))
 
         beams.timekeeper.now = start + 2.hours
-        beams.blockagate(Seq("g") map events)
-        beams.blockagate(Seq("g") map events)
-        beams.blockagate(Seq("b") map events)
-        beams.blockagate(Seq("b") map events)
-        beams.blockagate(Seq("c") map events)
+        beams.blockagate(Seq("g") map events) should be(Set(0))
+        beams.blockagate(Seq("g") map events) should be(Set(0))
+        beams.blockagate(Seq("b") map events) should be(Set())
+        beams.blockagate(Seq("b") map events) should be(Set())
+        beams.blockagate(Seq("c") map events) should be(Set())
 
         beams.timekeeper.now = start
-        beams.blockagate(Seq("f") map events)
-        beams.blockagate(Seq("f") map events)
-        beams.blockagate(Seq("b") map events)
-        beams.blockagate(Seq("b") map events)
-        beams.blockagate(Seq("c") map events)
+        beams.blockagate(Seq("f") map events) should be(Set())
+        beams.blockagate(Seq("f") map events) should be(Set())
+        beams.blockagate(Seq("b") map events) should be(Set())
+        beams.blockagate(Seq("b") map events) should be(Set())
+        beams.blockagate(Seq("c") map events) should be(Set())
 
         assert(buffers === Set(
           (new DateTime("2012-01-01T01Z"), 0, false, Seq("c", "e") map events),
@@ -480,13 +482,13 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
         val beams = newBeams(curator, defaultTuning)
 
         beams.timekeeper.now = start
-        beams.blockagate(Seq("c") map events)
+        beams.blockagate(Seq("c") map events) should be(Set(0))
 
         beams.timekeeper.now = start + 1.hour
-        beams.blockagate(Seq("d") map events)
+        beams.blockagate(Seq("d") map events) should be(Set(0))
 
         beams.timekeeper.now = start
-        beams.blockagate(Seq("e") map events)
+        beams.blockagate(Seq("e") map events) should be(Set(0))
 
         assert(buffers === Set(
           (new DateTime("2012-01-01T01Z"), 0, true, Seq("c", "e") map events),
@@ -497,16 +499,16 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
 
         val beams2 = newBeams(curator, defaultTuning)
         beams2.timekeeper.now = start + 2.hours
-        beams2.blockagate(Seq("g") map events)
-        beams2.blockagate(Seq("g") map events)
-        beams2.blockagate(Seq("b") map events)
-        beams2.blockagate(Seq("c") map events)
+        beams2.blockagate(Seq("g") map events) should be(Set(0))
+        beams2.blockagate(Seq("g") map events) should be(Set(0))
+        beams2.blockagate(Seq("b") map events) should be(Set())
+        beams2.blockagate(Seq("c") map events) should be(Set())
 
         beams2.timekeeper.now = start
-        beams2.blockagate(Seq("f") map events)
-        beams2.blockagate(Seq("f") map events)
-        beams2.blockagate(Seq("b") map events)
-        beams2.blockagate(Seq("c") map events)
+        beams2.blockagate(Seq("f") map events) should be(Set())
+        beams2.blockagate(Seq("f") map events) should be(Set())
+        beams2.blockagate(Seq("b") map events) should be(Set())
+        beams2.blockagate(Seq("c") map events) should be(Set())
 
         assert(buffers === Set(
           (new DateTime("2012-01-01T01Z"), 0, false, Seq("c", "e") map events),
@@ -524,9 +526,9 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
         val beams = newBeams(curator, tuning)
 
         beams.timekeeper.now = start
-        beams.blockagate(Seq("b", "c") map events)
-        beams.blockagate(Seq("d", "g") map events)
-        beams.blockagate(Seq("d", "h") map events)
+        beams.blockagate(Seq("b", "c") map events) should be(Set(0, 1))
+        beams.blockagate(Seq("d", "g") map events) should be(Set(0, 1))
+        beams.blockagate(Seq("d", "h") map events) should be(Set(0, 1))
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "c", "d") map events),
           (new DateTime("2012-01-01T00Z"), 1, true, Seq("d") map events),
@@ -546,16 +548,16 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
         beamsA.timekeeper.now = start
         beamsB.timekeeper.now = start
 
-        beamsA.blockagate(Seq("b") map events)
+        beamsA.blockagate(Seq("b") map events) should be(Set(0))
         Await.result(beamsA.close())
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, false, Seq("b") map events),
           (new DateTime("2012-01-01T00Z"), 1, false, Nil)
         ))
 
-        beamsB.blockagate(Seq("c") map events)
-        beamsB.blockagate(Seq("d", "g") map events)
-        beamsB.blockagate(Seq("d", "h") map events)
+        beamsB.blockagate(Seq("c") map events) should be(Set(0))
+        beamsB.blockagate(Seq("d", "g") map events) should be(Set(0, 1))
+        beamsB.blockagate(Seq("d", "h") map events) should be(Set(0, 1))
         assert(buffers === Set(
           (new DateTime("2012-01-01T00Z"), 0, true, Seq("b", "c", "d") map events),
           (new DateTime("2012-01-01T00Z"), 1, true, Seq("d") map events),

@@ -74,7 +74,7 @@ class ServerDruidTest
             Jackson.parse[Dict](tester.bodyBytes) should be(
               Dict(
                 "result" -> Dict(
-                  "received" -> 2,
+                  "received" -> 3,
                   "sent" -> 2
                 )
               )

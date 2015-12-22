@@ -20,6 +20,7 @@
 package com.metamx.tranquility.test
 
 import com.metamx.common.Granularity
+import com.metamx.common.ISE
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.timekeeper.TestingTimekeeper
@@ -34,10 +35,14 @@ import com.metamx.tranquility.druid.MultipleFieldDruidSpatialDimension
 import com.metamx.tranquility.druid.SpecificDruidDimensions
 import com.metamx.tranquility.test.DirectDruidTest._
 import com.metamx.tranquility.test.common._
+import com.metamx.tranquility.tranquilizer.MessageDroppedException
 import com.metamx.tranquility.tranquilizer.Tranquilizer
 import com.metamx.tranquility.typeclass.JavaObjectWriter
 import com.twitter.util.Await
 import com.twitter.util.Future
+import com.twitter.util.NonFatal
+import com.twitter.util.Return
+import com.twitter.util.Throw
 import io.druid.data.input.impl.TimestampSpec
 import io.druid.granularity.QueryGranularity
 import io.druid.query.aggregation.LongSumAggregatorFactory
@@ -48,6 +53,7 @@ import org.joda.time.DateTime
 import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
 import scala.collection.JavaConverters._
+import scala.collection.immutable.BitSet
 
 object DirectDruidTest
 {
@@ -58,7 +64,13 @@ object DirectDruidTest
     // Need to use somewhat nowish timestamps for the timekeeper, because this is an integration test
     // against unmodified Druid indexing, and it will use real wall clock time to make its decisions.
     Seq(
+      // This event should be sent
       SimpleEvent(now, Map("foo" -> "hey", "bar" -> "2", "lat" -> "37.7833", "lon" -> "-122.4167")),
+
+      // This event is intended to be dropped
+      SimpleEvent(now - 1.year, Map("foo" -> "hey", "bar" -> "4", "lat" -> "37.7833", "lon" -> "122.4167")),
+
+      // This event should be sent
       SimpleEvent(now + 1.minute, Map("foo" -> "what", "bar" -> "3", "lat" -> "37.7833", "lon" -> "122.4167"))
     )
   }
@@ -104,13 +116,19 @@ class DirectDruidTest
         indexing.start()
         try {
           timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
-          val eventsSent = Await.result(
-            Future.collect(
-              generateEvents(timekeeper.now).map(indexing.send)
-            )
-          ).size
-          assert(eventsSent === 2)
+          val eventsSent = Future.collect(generateEvents(timekeeper.now) map { event =>
+            indexing.send(event) transform {
+              case Return(()) => Future.value(true)
+              case Throw(e: MessageDroppedException) => Future.value(false)
+              case Throw(e) => Future.exception(e)
+            }
+          })
+          assert(Await.result(eventsSent) === Seq(true, false, true))
           runTestQueriesAndAssertions(broker, timekeeper)
+        }
+        catch {
+          case NonFatal(e) =>
+            throw new ISE(e, "Failed test")
         }
         finally {
           indexing.stop()
@@ -143,13 +161,19 @@ class DirectDruidTest
         indexing.start()
         try {
           timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
-          val eventsSent = Await.result(
-            Future.collect(
-              generateEvents(timekeeper.now).map(indexing.send)
-            )
-          ).size
-          assert(eventsSent === 2)
+          val eventsSent = Future.collect(generateEvents(timekeeper.now) map { event =>
+            indexing.send(event) transform {
+              case Return(()) => Future.value(true)
+              case Throw(e: MessageDroppedException) => Future.value(false)
+              case Throw(e) => Future.exception(e)
+            }
+          })
+          assert(Await.result(eventsSent) === Seq(true, false, true))
           runTestQueriesAndAssertions(broker, timekeeper)
+        }
+        catch {
+          case NonFatal(e) =>
+            throw new ISE(e, "Failed test")
         }
         finally {
           indexing.stop()

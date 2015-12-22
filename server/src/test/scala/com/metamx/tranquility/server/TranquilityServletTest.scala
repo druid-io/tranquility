@@ -26,13 +26,14 @@ import com.metamx.common.scala.collection.implicits._
 import com.metamx.common.scala.untyped._
 import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.MemoryBeam
-import com.metamx.tranquility.server.TranquilityServletTest._
 import com.metamx.tranquility.server.ServerTestUtil.withTester
+import com.metamx.tranquility.server.TranquilityServletTest._
 import com.metamx.tranquility.typeclass.JsonWriter
 import com.twitter.util.Await
 import com.twitter.util.Future
 import org.scalatest.FunSuite
 import org.scalatest.ShouldMatchers
+import scala.collection.immutable.BitSet
 
 class TranquilityServletTest extends FunSuite with ShouldMatchers
 {
@@ -237,11 +238,11 @@ object TranquilityServletTest
 
     val beams: Map[String, Beam[Dict]] = memoryBeams strictMapValues { memoryBeam =>
       new Beam[Dict] {
-        override def propagate(events: Seq[Dict]) = {
+        override def sendBatch(events: Seq[Dict]): Future[BitSet] = {
           if (events.exists(_.get(ActionKey) == Some("__fail__"))) {
             Future.exception(new IllegalStateException("fail!"))
           } else {
-            memoryBeam.propagate(events.filterNot(_.get(ActionKey) == Some("__drop__")))
+            memoryBeam.sendBatch(events.filterNot(_.get(ActionKey) == Some("__drop__")))
           }
         }
 

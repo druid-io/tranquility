@@ -27,6 +27,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import org.scalatest.FunSuite
 import org.scalatest.Matchers
 import scala.collection.JavaConverters._
+import scala.collection.immutable.BitSet
 import scala.collection.mutable
 
 class HashPartitionBeamTest extends FunSuite with Matchers
@@ -37,11 +38,18 @@ class HashPartitionBeamTest extends FunSuite with Matchers
     override def hashCode(): Int = s(0).toInt
   }
 
-  class TestBeam(callback: TestObject => Unit) extends Beam[TestObject]
+  class DroppingBeam() extends Beam[TestObject]
   {
-    override def propagate(events: Seq[TestObject]): Future[Int] = {
+    override def sendBatch(messages: Seq[TestObject]): Future[BitSet] = Future.value(BitSet.empty)
+
+    override def close(): Future[Unit] = Future.Done
+  }
+
+  class TestBeam(callback: TestObject => Unit, dropAll: Boolean = false) extends Beam[TestObject]
+  {
+    override def sendBatch(events: Seq[TestObject]): Future[BitSet] = {
       events foreach callback
-      Future(events.size)
+      Future.value(BitSet.empty ++ events.indices)
     }
 
     override def close() = Future.Done
@@ -55,15 +63,33 @@ class HashPartitionBeamTest extends FunSuite with Matchers
     val two = new TestBeam(bufferTwo += _)
     val beam = new HashPartitionBeam(Vector(one, two))
     Await.result(
-      beam.propagate(
+      beam.sendBatch(
         Seq(
           new TestObject("foo"),
           new TestObject("bar"),
           new TestObject("foo")
         )
       )
-    ) should be(3)
+    ) should be(BitSet(0, 1, 2))
     bufferOne.map(_.s) should be(Seq("bar"))
+    bufferTwo.map(_.s) should be(Seq("foo", "foo"))
+  }
+
+  test("Partitioning, with drops") {
+    val bufferTwo: mutable.Buffer[TestObject] = new CopyOnWriteArrayList[TestObject]().asScala
+
+    val one = new DroppingBeam
+    val two = new TestBeam(bufferTwo += _)
+    val beam = new HashPartitionBeam(Vector(one, two))
+    Await.result(
+      beam.sendBatch(
+        Seq(
+          new TestObject("foo"),
+          new TestObject("bar"),
+          new TestObject("foo")
+        )
+      )
+    ) should be(BitSet(0, 2))
     bufferTwo.map(_.s) should be(Seq("foo", "foo"))
   }
 }

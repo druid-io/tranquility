@@ -30,6 +30,7 @@ import com.twitter.util.Closable
 import com.twitter.util.Future
 import com.twitter.util.Time
 import org.scala_tools.time.Imports._
+import scala.collection.immutable.BitSet
 
 /**
   * A Beam that writes all events to a fixed set of Druid tasks.
@@ -63,14 +64,15 @@ class DruidBeam[A](
     }: _*
   )
 
-  override def propagate(events: Seq[A]) = {
-    val eventsChunks = events
+  override def sendBatch(events: Seq[A]): Future[BitSet] = {
+    // Chunk payloads + indexed original events
+    val eventsChunks: List[(Array[Byte], IndexedSeq[(A, Int)])] = Beam.index(events)
       .grouped(config.firehoseChunkSize)
-      .map(xs => (objectWriter.batchAsBytes(xs), xs.size))
+      .map(xs => (objectWriter.batchAsBytes(xs.map(_._1)), xs))
       .toList
     // Futures will be the number of events pushed, or an exception. Zero events pushed means we gave up on the task.
-    val taskChunkFutures: Seq[Future[(TaskPointer, Int)]] = for {
-      (eventsChunk, eventsChunkSize) <- eventsChunks
+    val taskChunkFutures: Seq[Future[(TaskPointer, BitSet)]] = for {
+      (eventsChunkBytes, eventsChunk) <- eventsChunks
       task <- tasks
       client <- clients.get(task) if client.active
     } yield {
@@ -80,41 +82,39 @@ class DruidBeam[A](
       ) withEffect {
         req =>
           req.headerMap("Content-Type") = objectWriter.contentType
-          req.headerMap("Content-Length") = eventsChunk.length.toString
-          req.content = Buf.ByteArray.Shared(eventsChunk)
+          req.headerMap("Content-Length") = eventsChunkBytes.length.toString
+          req.content = Buf.ByteArray.Shared(eventsChunkBytes)
       }
       if (log.isTraceEnabled) {
         log.trace(
           "Sending %,d events to task[%s], firehose[%s]: %s",
-          eventsChunkSize,
+          eventsChunk,
           task.id,
           task.serviceKey,
-          new String(eventsChunk)
+          new String(eventsChunkBytes)
         )
       }
       client(eventPost) map {
-        case Some(response) => task -> eventsChunkSize
-        case None => task -> 0
+        case Some(response) => task -> (BitSet.empty ++ eventsChunk.map(_._2))
+        case None => task -> BitSet.empty
       }
     }
-    val taskSuccessesFuture: Future[Map[TaskPointer, Int]] = Future.collect(taskChunkFutures) map {
+    val taskBitSetsFuture: Future[Map[TaskPointer, BitSet]] = Future.collect(taskChunkFutures) map {
       xs =>
         xs.groupBy(_._1).map {
-          case (task, tuples) =>
-            task -> tuples.map(_._2).sum
+          case (task, tuples: Seq[(TaskPointer, BitSet)]) =>
+            task -> Beam.mergeBitsets(tuples.view.map(_._2))
         }
     }
-    val overallSuccessFuture: Future[Int] = taskSuccessesFuture map {
-      xs =>
-        val max = if (xs.isEmpty) 0 else xs.values.max
-        max withEffect {
-          n =>
-            if (n == 0) {
-              throw new DefunctBeamException("Tasks are all gone: %s" format tasks.map(_.id).mkString(", "))
-            }
+    val finalFuture: Future[BitSet] = taskBitSetsFuture map {
+      taskBitSets =>
+        Beam.mergeBitsets(taskBitSets.values) withEffect { bitset =>
+          if (bitset.isEmpty) {
+            throw new DefunctBeamException("Tasks are all gone: %s" format tasks.map(_.id).mkString(", "))
+          }
         }
     }
-    overallSuccessFuture
+    finalFuture
   }
 
   override def close(deadline: Time): Future[Unit] = {

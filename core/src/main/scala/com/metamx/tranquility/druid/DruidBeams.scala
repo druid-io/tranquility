@@ -479,9 +479,9 @@ object DruidBeams
       )
       new Beam[EventType]
       {
-        def propagate(events: Seq[EventType]) = clusteredBeam.propagate(events)
+        override def sendBatch(events: Seq[EventType]) = clusteredBeam.sendBatch(events)
 
-        def close() = clusteredBeam.close() map (_ => indexService.close())
+        override def close() = clusteredBeam.close() map (_ => indexService.close())
 
         override def toString = clusteredBeam.toString
       }

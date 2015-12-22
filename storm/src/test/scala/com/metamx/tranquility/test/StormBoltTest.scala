@@ -22,9 +22,7 @@ package com.metamx.tranquility.test
 import backtype.storm.Config
 import backtype.storm.task.IMetricsContext
 import backtype.storm.topology.TopologyBuilder
-import com.google.common.collect.Lists
 import com.metamx.common.scala.Logging
-import com.metamx.common.scala.Predef._
 import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.storm.BeamBolt
 import com.metamx.tranquility.storm.BeamFactory
@@ -34,26 +32,21 @@ import com.metamx.tranquility.storm.common.StormRequiringSuite
 import com.metamx.tranquility.test.common.CuratorRequiringSuite
 import com.metamx.tranquility.test.common.JulUtils
 import com.twitter.util.Future
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.ObjectInputStream
-import java.io.ObjectOutputStream
-import java.net.URLClassLoader
 import java.{util => ju}
 import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
+import scala.collection.immutable.BitSet
 import scala.collection.mutable
-import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
 class SimpleBeam extends Beam[SimpleEvent]
 {
-  def propagate(events: Seq[SimpleEvent]) = {
+  override def sendBatch(events: Seq[SimpleEvent]): Future[BitSet] = {
     SimpleBeam.buffer ++= events
-    Future.value(events.size)
+    Future.value(BitSet.empty ++ events.indices)
   }
 
-  def close() = Future.Done
+  override def close() = Future.Done
 }
 
 object SimpleBeam
