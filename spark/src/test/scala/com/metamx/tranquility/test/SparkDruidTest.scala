@@ -19,22 +19,27 @@
 
 package com.metamx.tranquility.test
 
+import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.timekeeper.TestingTimekeeper
 import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.spark.BeamFactory
 import com.metamx.tranquility.spark.BeamRDD._
-import com.metamx.tranquility.test.common.{JulUtils, CuratorRequiringSuite, DruidIntegrationSuite}
+import com.metamx.tranquility.test.common.CuratorRequiringSuite
+import com.metamx.tranquility.test.common.DruidIntegrationSuite
+import com.metamx.tranquility.test.common.JulUtils
 import org.apache.curator.framework.CuratorFrameworkFactory
 import org.apache.curator.retry.BoundedExponentialBackoffRetry
+import org.apache.spark.SparkConf
+import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.streaming.{Seconds, StreamingContext}
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.streaming.Seconds
+import org.apache.spark.streaming.StreamingContext
 import org.junit.runner.RunWith
 import org.scala_tools.time.Imports._
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.FunSuite
 import org.scalatest.junit.JUnitRunner
-import com.metamx.common.scala.Logging
 import scala.collection.mutable
 
 @RunWith(classOf[JUnitRunner])
@@ -64,7 +69,7 @@ class SparkDruidTest
   JulUtils.routeJulThroughSlf4j()
   test("Spark to Druid") {
     withDruidStack {
-      (curator, broker, overlord) =>
+      (curator, broker, coordinator, overlord) =>
         val zkConnect = curator.getZookeeperClient.getCurrentConnectionString
         val now = new DateTime().hourOfDay().roundFloorCopy()
 
@@ -85,7 +90,6 @@ class SparkDruidTest
     }
   }
 }
-
 
 class SimpleEventBeamFactory(zkConnect: String) extends BeamFactory[SimpleEvent]
 {

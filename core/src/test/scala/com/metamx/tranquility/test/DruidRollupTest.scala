@@ -65,14 +65,14 @@ class DruidRollupTest extends FunSuite with Matchers
   }
 
   test("Validations: Two dimensions with the same name") {
-    val e = the[ParseException] thrownBy {
+    val e = the[IllegalArgumentException] thrownBy {
       DruidRollup(
         SpecificDruidDimensions(Vector("what", "what"), Vector.empty),
         Seq(new CountAggregatorFactory("hey")),
         QueryGranularity.NONE
       )
     }
-    e.getMessage should be("Duplicate column entries found : [what]")
+    e.getMessage should be("Duplicate columns: what")
   }
 
   test("Dimensions are sorted") {
@@ -81,7 +81,8 @@ class DruidRollupTest extends FunSuite with Matchers
       Seq(new CountAggregatorFactory("hey")),
       QueryGranularity.NONE
     )
-    rollup.dimensions.spec.getDimensions.asScala should be(Seq("a", "b", "e", "f", "t", "z"))
+    rollup.dimensions.specMap.get("dimensions").asInstanceOf[java.util.List[String]].asScala should
+      be(Seq("a", "b", "e", "f", "t", "z"))
   }
 
   test("isStringDimension: Specific") {

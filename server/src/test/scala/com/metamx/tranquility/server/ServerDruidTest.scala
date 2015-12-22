@@ -57,7 +57,7 @@ class ServerDruidTest
 {
   test("Server to Druid") {
     withDruidStack {
-      (curator, broker, overlord) =>
+      (curator, broker, coordinator, overlord) =>
         val now = new DateTime().hourOfDay().roundFloorCopy()
         val timekeeper = new TestingTimekeeper withEffect (_.now = now)
         val beam = new TransformingBeam[Dict, SimpleEvent](

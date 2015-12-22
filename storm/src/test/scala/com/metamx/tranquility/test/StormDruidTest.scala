@@ -74,7 +74,7 @@ class StormDruidTest
 
   test("Storm to Druid") {
     withDruidStack {
-      (curator, broker, overlord) =>
+      (curator, broker, coordinator, overlord) =>
         val zkConnect = curator.getZookeeperClient.getCurrentConnectionString
         val now = new DateTime().hourOfDay().roundFloorCopy()
         withLocalStorm {
