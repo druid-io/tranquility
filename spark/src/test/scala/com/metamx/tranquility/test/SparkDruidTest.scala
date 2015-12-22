@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package com.metamx.tranquility.test
 
 import com.metamx.common.scala.Predef._
