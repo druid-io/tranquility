@@ -25,20 +25,33 @@ import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.concurrent.loggingThread
 import com.metamx.tranquility.beam.Beam
+import com.twitter.finagle.Service
 import com.twitter.util.Await
 import com.twitter.util.Future
 import com.twitter.util.Promise
 import com.twitter.util.Return
 import com.twitter.util.Throw
+import com.twitter.util.Time
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.Buffer
 
+/**
+  * Tranquilizers allow you to provide single messages and get a future for each message reporting success or failure.
+  * Tranquilizers provide batching and backpressure, unlike Beams which require you to batch messages on your own and
+  * do not provide backpressure.
+  *
+  * The expected use case of this class is to send individual messages efficiently, possibly from multiple threads,
+  * and receive success or failure information for each message. This class is thread-safe.
+  *
+  * To create Tranquilizers, use [[Tranquilizer$.create]], [[Tranquilizer$.builder]], or
+  * [[com.metamx.tranquility.druid.DruidBeams$$Builder#buildTranquilizer]].
+  */
 class Tranquilizer[MessageType] private(
   beam: Beam[MessageType],
   maxBatchSize: Int,
   maxPendingBatches: Int,
   lingerMillis: Long
-) extends Logging
+) extends Service[MessageType, Unit] with Logging
 {
   require(maxBatchSize >= 1, "batchSize >= 1")
   require(maxPendingBatches >= 1, "maxPendingBatches >= 1")
@@ -50,11 +63,14 @@ class Tranquilizer[MessageType] private(
 
   // lock synchronizes access to buffer, bufferStartMillis, pendingBatches.
   // lock should be notified when waiters might be waiting: buffer becomes non-empty, or pendingBatches decreases
-  private val lock             : AnyRef                = new AnyRef
+  private val lock: AnyRef = new AnyRef
 
   private var buffer           : Buffer[MessageHolder] = new ArrayBuffer[MessageHolder]
   private var bufferStartMillis: Long                  = 0L
   private var pendingBatches   : Int                   = 0
+
+  // closed future lets the close method return asynchronously
+  private val closed = Promise[Unit]()
 
   private val sendThread = loggingThread {
     try {
@@ -85,13 +101,16 @@ class Tranquilizer[MessageType] private(
       case e: InterruptedException =>
         log.debug("Interrupted, exiting thread.")
     }
+    finally {
+      closed.setValue(())
+    }
   } withEffect { t =>
     t.setDaemon(true)
     t.setName(s"Tranquilizer-BackgroundSend-[$beam]")
   }
 
   /**
-    * Start the tranquilizer. Must be called before any calls to "send".
+    * Start the tranquilizer. Must be called before any calls to "send" or "apply".
     */
   @LifecycleStart
   def start(): Unit = {
@@ -100,7 +119,16 @@ class Tranquilizer[MessageType] private(
   }
 
   /**
-    * Sends a message. Generally asynchronous, but will block if the internal buffer is full.
+    * Same as [[Tranquilizer.send]].
+    * @param message the message to send
+    * @return a future that resolves when the message is sent
+    */
+  override def apply(message: MessageType): Future[Unit] = {
+    send(message)
+  }
+
+  /**
+    * Sends a message. Generally asynchronous, but will block to provide backpressure if the internal buffer is full.
     *
     * The future may contain a Unit, in which case the message was successfully sent. Or it may contain an exception,
     * in which case the message may or may not have been successfully sent. One specific exception to look out for is
@@ -111,6 +139,9 @@ class Tranquilizer[MessageType] private(
     * batch will be marked as dropped (even if they actually made it out). This is a limitation of how Tranquility
     * tracks which messages were and were not dropped. This could be improved once
     * https://github.com/druid-io/tranquility/issues/56 is addressed.
+    *
+    * @param message the message to send
+    * @return a future that resolves when the message is sent
     */
   def send(message: MessageType): Future[Unit] = {
     requireStarted()
@@ -166,14 +197,21 @@ class Tranquilizer[MessageType] private(
   }
 
   /**
-    * Stop the tranquilizer, and close the underlying Beam. Blocks until closed.
+    * Stop the tranquilizer, and close the underlying Beam.
+    */
+  override def close(deadline: Time): Future[Unit] = {
+    started = false
+    sendThread.interrupt()
+    closed flatMap { _ => beam.close() }
+  }
+
+  /**
+    * Stop the tranquilizer, and close the underlying Beam. Blocks until closed. Generally you should either
+    * use this method or [[Tranquilizer.close]], but not both.
     */
   @LifecycleStop
   def stop(): Unit = {
-    started = false
-    sendThread.interrupt()
-    sendThread.join()
-    Await.result(beam.close())
+    Await.result(close())
   }
 
   override def toString = s"Tranquilizer($beam)"
@@ -302,4 +340,59 @@ object Tranquilizer
   {
     new Tranquilizer[MessageType](beam, maxBatchSize, maxPendingBatches, lingerMillis)
   }
+
+  /**
+    * Returns a builder for creating Tranquilizer instances.
+    */
+  def builder(): Builder = {
+    new Builder(Config())
+  }
+
+  private case class Config(
+    maxBatchSize: Int = DefaultMaxBatchSize,
+    maxPendingBatches: Int = DefaultMaxPendingBatches,
+    lingerMillis: Long = DefaultLingerMillis
+  )
+
+  class Builder private[tranquilizer](config: Config)
+  {
+    /**
+      * Maximum number of messages to send at once. Optional, default is 5000.
+      * @param n max batch size
+      * @return new builder
+      */
+    def maxBatchSize(n: Int) = {
+      new Builder(config.copy(maxBatchSize = n))
+    }
+
+    /**
+      * Maximum number of batches that may be in flight before we block and wait for one to finish. Optional, default
+      * is 5.
+      * @param n max pending batches
+      * @return new builder
+      */
+    def maxPendingBatches(n: Int) = {
+      new Builder(config.copy(maxPendingBatches = n))
+    }
+
+    /**
+      * Wait this long for batches to collect more messages (up to maxBatchSize) before sending them. Set to zero to
+      * disable waiting. Optional, default is zero.
+      * @param n linger millis
+      * @return new builder
+      */
+    def lingerMillis(n: Long) = {
+      new Builder(config.copy(lingerMillis = n))
+    }
+
+    /**
+      * Build a Tranquilizer.
+      * @param beam beam to wrap
+      * @return tranquilizer
+      */
+    def build[MessageType](beam: Beam[MessageType]): Tranquilizer[MessageType] = {
+      new Tranquilizer[MessageType](beam, config.maxBatchSize, config.maxPendingBatches, config.lingerMillis)
+    }
+  }
+
 }

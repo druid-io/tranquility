@@ -37,6 +37,7 @@ import com.metamx.tranquility.finagle.FinagleRegistry
 import com.metamx.tranquility.finagle.FinagleRegistryConfig
 import com.metamx.tranquility.partition.GenericTimeAndDimsPartitioner
 import com.metamx.tranquility.partition.Partitioner
+import com.metamx.tranquility.tranquilizer.Tranquilizer
 import com.metamx.tranquility.typeclass.JavaObjectWriter
 import com.metamx.tranquility.typeclass.JsonWriter
 import com.metamx.tranquility.typeclass.ObjectWriter
@@ -198,7 +199,7 @@ object DruidBeams
       * If you do not provide your own [[Builder.finagleRegistry]], this will be used for service discovery as well.
       *
       * @param curator curator
-      * @return this instance
+      * @return new builder
       */
     def curator(curator: CuratorFramework) = new Builder[EventType](config.copy(_curator = Some(curator)))
 
@@ -209,7 +210,7 @@ object DruidBeams
       * CuratorFramework to locate Druid services. If you do provide a FinagleRegistry, this option will not be used.
       *
       * @param path discovery znode
-      * @return this instance
+      * @return new builder
       */
     def discoveryPath(path: String) = new Builder[EventType](config.copy(_discoveryPath = Some(path)))
 
@@ -220,7 +221,7 @@ object DruidBeams
       * These influence how and when Druid tasks are created.
       *
       * @param tuning tuning object
-      * @return this instance
+      * @return new builder
       */
     def tuning(tuning: ClusteredBeamTuning) = new Builder[EventType](config.copy(_tuning = Some(tuning)))
 
@@ -228,7 +229,7 @@ object DruidBeams
       * Set the number of Druid partitions. This is just a helper method that modifies the [[Builder.tuning]] object.
       *
       * @param n number of partitions
-      * @return this instance
+      * @return new builder
       */
     def partitions(n: Int) = {
       val newTuning = config._tuning.getOrElse(ClusteredBeamTuning()).copy(partitions = n)
@@ -239,7 +240,7 @@ object DruidBeams
       * Set the number of Druid replicants. This is just a helper method that modifies the [[Builder.tuning]] object.
       *
       * @param n number of replicants
-      * @return this instance
+      * @return new builder
       */
     def replicants(n: Int) = {
       val newTuning = config._tuning.getOrElse(ClusteredBeamTuning()).copy(replicants = n)
@@ -252,7 +253,7 @@ object DruidBeams
       * These will be passed along to the Druid tasks.
       *
       * @param druidTuning tuning object
-      * @return this instance
+      * @return new builder
       */
     def druidTuning(druidTuning: DruidTuning) = new Builder[EventType](config.copy(_druidTuning = Some(druidTuning)))
 
@@ -263,7 +264,7 @@ object DruidBeams
       * dataSource to write to.
       *
       * @param location location object
-      * @return this instance
+      * @return new builder
       */
     def location(location: DruidLocation) = new Builder[EventType](config.copy(_location = Some(location)))
 
@@ -271,7 +272,7 @@ object DruidBeams
       * Provide rollup (dimensions, aggregators, query granularity). Required.
       *
       * @param rollup rollup object
-      * @return this instance
+      * @return new builder
       */
     def rollup(rollup: DruidRollup) = new Builder[EventType](config.copy(_rollup = Some(rollup)))
 
@@ -281,7 +282,7 @@ object DruidBeams
       * Druid will use this to parse the timestamp of your serialized events.
       *
       * @param timestampSpec timestampSpec object
-      * @return this instance
+      * @return new builder
       */
     def timestampSpec(timestampSpec: TimestampSpec) = {
       new Builder[EventType](config.copy(_timestampSpec = Some(timestampSpec)))
@@ -292,7 +293,7 @@ object DruidBeams
       * to "/tranquility/beams".
       *
       * @param path the path
-      * @return this instance
+      * @return new builder
       */
     def clusteredBeamZkBasePath(path: String) = {
       new Builder[EventType](config.copy(_clusteredBeamZkBasePath = Some(path)))
@@ -305,7 +306,7 @@ object DruidBeams
       * All beams with the same identity coordinate with each other on Druid tasks.
       *
       * @param ident ident string
-      * @return this instance
+      * @return new builder
       */
     def clusteredBeamIdent(ident: String) = new Builder[EventType](config.copy(_clusteredBeamIdent = Some(ident)))
 
@@ -313,7 +314,7 @@ object DruidBeams
       * Provide tunings for communication with Druid tasks. Optional, see [[DruidBeamConfig]] for defaults.
       *
       * @param beamConfig beam config tunings
-      * @return this instance
+      * @return new builder
       */
     def druidBeamConfig(beamConfig: DruidBeamConfig) = {
       new Builder[EventType](config.copy(_druidBeamConfig = Some(beamConfig)))
@@ -323,7 +324,7 @@ object DruidBeams
       * Provide an emitter that will be used to emit alerts. By default, alerts are emitted through a logger.
       *
       * @param emitter an emitter
-      * @return this instance
+      * @return new builder
       */
     def emitter(emitter: ServiceEmitter) = new Builder[EventType](config.copy(_emitter = Some(emitter)))
 
@@ -332,7 +333,7 @@ object DruidBeams
       * by default this is built based on [[Builder.curator]] and [[Builder.discoveryPath]].
       *
       * @param registry a registry
-      * @return this instance
+      * @return new builder
       */
     def finagleRegistry(registry: FinagleRegistry) = {
       new Builder[EventType](config.copy(_finagleRegistry = Some(registry)))
@@ -344,7 +345,7 @@ object DruidBeams
       * is expected that you will be using wall clock time.
       *
       * @param timekeeper a timekeeper
-      * @return this instance
+      * @return new builder
       */
     def timekeeper(timekeeper: Timekeeper) = new Builder[EventType](config.copy(_timekeeper = Some(timekeeper)))
 
@@ -353,7 +354,7 @@ object DruidBeams
       * decoration. This is often used for gathering metrics.
       *
       * @param f function
-      * @return this instance
+      * @return new builder
       */
     def beamDecorateFn(f: (Interval, Int) => Beam[EventType] => Beam[EventType]) = {
       new Builder(config.copy(_beamDecorateFn = Some(f)))
@@ -365,7 +366,7 @@ object DruidBeams
       * provide both a beamMergeFn and a partitioner.
       *
       * @param f function
-      * @return this instance
+      * @return new builder
       */
     def beamMergeFn(f: Seq[Beam[EventType]] => Beam[EventType]) = {
       if (config._partitioner.nonEmpty) {
@@ -381,7 +382,7 @@ object DruidBeams
       * optimal rollup. You cannot provide both a beamMergeFn and a partitioner.
       *
       * @param partitioner a partitioner
-      * @return this instance
+      * @return new builder
       */
     def partitioner(partitioner: Partitioner[EventType]) = {
       if (config._beamMergeFn.nonEmpty) {
@@ -394,7 +395,7 @@ object DruidBeams
       * Provide extra information that will be emitted along with alerts. Optional, by default this is empty.
       *
       * @param d extra information
-      * @return this instance
+      * @return new builder
       */
     def alertMap(d: Dict) = new Builder[EventType](config.copy(_alertMap = Some(d)))
 
@@ -409,7 +410,7 @@ object DruidBeams
       * This method is designed use for Scala users.
       *
       * @param writer the serializer
-      * @return this instance
+      * @return new builder
       */
     def objectWriter(writer: ObjectWriter[EventType]) = {
       new Builder[EventType](config.copy(_objectWriter = Some(writer)))
@@ -419,7 +420,7 @@ object DruidBeams
       * Provide a serializer for your event type. Optional, by default this uses a Jackson ObjectMapper.
       *
       * @param writer the serializer
-      * @return this instance
+      * @return new builder
       */
     def objectWriter(writer: JavaObjectWriter[EventType]) = {
       new Builder[EventType](config.copy(_objectWriter = Some(ObjectWriter.wrap(writer))))
@@ -490,6 +491,7 @@ object DruidBeams
       * Build a Finagle Service using this DruidBeams builder. This simply wraps the beam.
       * @return a service
       */
+    @deprecated("use buildTranquilizer", "0.7.0")
     def buildService(): Service[Seq[EventType], Int] = {
       new BeamService(buildBeam())
     }
@@ -498,9 +500,31 @@ object DruidBeams
       * Build a Finagle Service using this DruidBeams builder, designed for Java users. This simply wraps the beam.
       * @return a service
       */
+    @deprecated("use buildTranquilizer", "0.7.0")
     def buildJavaService(): Service[ju.List[EventType], jl.Integer] = {
       val delegate = buildService()
       Service.mk((xs: ju.List[EventType]) => delegate(xs.asScala).map(Int.box))
+    }
+
+    /**
+      * Build a Tranquilizer using this DruidBeams builder. This is a Finagle service, too, but unlike
+      * [[Builder.buildService]] and [[Builder.buildJavaService]], it takes a single message at a time and does
+      * batching for you.
+      * @return a service
+      */
+    def buildTranquilizer(): Tranquilizer[EventType] = {
+      Tranquilizer.builder().build(buildBeam())
+    }
+
+    /**
+      * Build a Tranquilizer using this DruidBeams builder. This is a Finagle service, too, but unlike
+      * [[Builder.buildService]] and [[Builder.buildJavaService]], it takes a single message at a time and does
+      * batching for you.
+      * @param builder a Tranquilizer builder with the desired configuration
+      * @return a service
+      */
+    def buildTranquilizer(builder: Tranquilizer.Builder): Tranquilizer[EventType] = {
+      builder.build(buildBeam())
     }
   }
 

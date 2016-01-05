@@ -42,6 +42,8 @@ import java.util.concurrent.atomic.AtomicReference
   *
   * Calling "start" or "stop" on this adapter will start or stop the underlying Tranquilizer. If you want to start
   * or stop the underlying Tranquilizer yourself, then do not call "start" or "stop" on this adapter.
+  *
+  * The expected use case of this class is that it is used by a single thread.
   */
 class SimpleTranquilizerAdapter[MessageType] private(
   tranquilizer: Tranquilizer[MessageType],
