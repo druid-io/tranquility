@@ -100,7 +100,7 @@ class DirectDruidTest
     withDruidStack {
       (curator, broker, coordinator, overlord) =>
         val timekeeper = new TestingTimekeeper
-        val indexing = Tranquilizer.create(newBuilder(curator, timekeeper).buildBeam())
+        val indexing = newBuilder(curator, timekeeper).buildTranquilizer()
         indexing.start()
         try {
           timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()

@@ -16,28 +16,10 @@ Many other options are configurable as well.
 
 Full configuration reference is available at: http://static.druid.io/tranquility/api/latest/#com.metamx.tranquility.druid.DruidBeams$
 
-## Example
+## Examples
 
-Here's an example of using the DruidBeams builder to create a simple Beam:
+- [Java example](https://github.com/druid-io/tranquility/blob/master/core/src/test/java/com/metamx/tranquility/example/JavaExample.java)
+- [Scala example](https://github.com/druid-io/tranquility/blob/master/core/src/test/scala/com/metamx/tranquility/example/ScalaExample.java)
 
-```java
-final Beam<Map<String, Object>> druidService = DruidBeams
-    .builder(timestamper)
-    .curator(curator)
-    .discoveryPath(discoveryPath)
-    .location(DruidLocation.create(indexService, dataSource))
-    .timestampSpec(timestampSpec)
-    .rollup(DruidRollup.create(DruidDimensions.specific(dimensions), aggregators, QueryGranularity.MINUTE))
-    .tuning(
-      ClusteredBeamTuning
-        .builder()
-        .segmentGranularity(Granularity.HOUR)
-        .windowPeriod(new Period("PT10M"))
-        .partitions(1)
-        .replicants(1)
-        .build()
-    )
-    .buildBeam();
-```
-
-For more examples, see the [Core API documentation](core.md).
+These examples use DruidBeams with the [Core API](core.md). However, the DruidBeams creation process is the same for
+all APIs, not just the Core API.
