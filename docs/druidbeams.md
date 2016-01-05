@@ -19,7 +19,7 @@ Full configuration reference is available at: http://static.druid.io/tranquility
 ## Examples
 
 - [Java example](https://github.com/druid-io/tranquility/blob/master/core/src/test/java/com/metamx/tranquility/example/JavaExample.java)
-- [Scala example](https://github.com/druid-io/tranquility/blob/master/core/src/test/scala/com/metamx/tranquility/example/ScalaExample.java)
+- [Scala example](https://github.com/druid-io/tranquility/blob/master/core/src/test/scala/com/metamx/tranquility/example/ScalaExample.scala)
 
 These examples use DruidBeams with the [Core API](core.md). However, the DruidBeams creation process is the same for
 all APIs, not just the Core API.
