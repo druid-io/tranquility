@@ -13,7 +13,7 @@ parallelExecution in Test := false
 concurrentRestrictions in Global += Tags.limitAll(1)
 
 val jacksonOneVersion = "1.9.13"
-val jacksonTwoVersion = "2.6.3"
+val jacksonTwoVersion = "2.4.6"
 val druidVersion = "0.8.2"
 val finagleVersion = "6.31.0"
 val twitterUtilVersion = "6.30.0"
