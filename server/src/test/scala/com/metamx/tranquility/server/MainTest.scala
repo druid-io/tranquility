@@ -44,5 +44,6 @@ class MainTest extends FunSuite with ShouldMatchers
     fooConfig.fireDepartment.getTuningConfig.getWindowPeriod should be(new Period("PT30S"))
     fooConfig.config.zookeeperConnect should be("zk.example.com")
     fooConfig.config.taskPartitions should be(3)
+    fooConfig.config.druidBeamConfig.firehoseGracePeriod should be(new Period("PT1S"))
   }
 }

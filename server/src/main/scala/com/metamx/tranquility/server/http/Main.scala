@@ -153,6 +153,7 @@ object Main
         .finagleRegistry(finagleRegistry)
         .partitions(dataSourceConfig.config.taskPartitions)
         .replicants(dataSourceConfig.config.taskReplicants)
+        .druidBeamConfig(dataSourceConfig.config.druidBeamConfig)
         .buildBeam()
 
       lifecycle.addManagedInstance(

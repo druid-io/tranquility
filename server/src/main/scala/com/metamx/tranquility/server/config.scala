@@ -21,6 +21,7 @@ package com.metamx.tranquility.server
 
 import com.metamx.common.scala.net.curator.DiscoAnnounceConfig
 import com.metamx.common.scala.net.curator.DiscoConfig
+import com.metamx.tranquility.druid.DruidBeamConfig
 import com.metamx.tranquility.tranquilizer.Tranquilizer
 import io.druid.segment.realtime.FireDepartment
 import org.joda.time.Period
@@ -69,10 +70,41 @@ object config
     @Config(Array("tranquility.lingerMillis"))
     def tranquilityLingerMillis: Int = Tranquilizer.DefaultLingerMillis
 
+    @Config(Array("druidBeam.firehoseGracePeriod"))
+    def firehoseGracePeriod: Period = DruidBeamConfig().firehoseGracePeriod
+
+    @Config(Array("druidBeam.firehoseQuietPeriod"))
+    def firehoseQuietPeriod: Period = DruidBeamConfig().firehoseQuietPeriod
+
+    @Config(Array("druidBeam.firehoseRetryPeriod"))
+    def firehoseRetryPeriod: Period = DruidBeamConfig().firehoseRetryPeriod
+
+    @Config(Array("druidBeam.firehoseChunkSize"))
+    def firehoseChunkSize: Int = DruidBeamConfig().firehoseChunkSize
+
+    @Config(Array("druidBeam.randomizeTaskId"))
+    def randomizeTaskId: Boolean = DruidBeamConfig().randomizeTaskId
+
+    @Config(Array("druidBeam.indexRetryPeriod"))
+    def indexRetryPeriod: Period = DruidBeamConfig().indexRetryPeriod
+
+    @Config(Array("druidBeam.firehoseBufferSize"))
+    def firehoseBufferSize: Int = DruidBeamConfig().firehoseBufferSize
+
     @Config(Array("druid.discovery.curator.path"))
     def discoPath: String = "/druid/discovery"
 
     override def discoAnnounce: Option[DiscoAnnounceConfig] = None
+
+    def druidBeamConfig: DruidBeamConfig = DruidBeamConfig.builder()
+      .firehoseGracePeriod(firehoseGracePeriod)
+      .firehoseQuietPeriod(firehoseQuietPeriod)
+      .firehoseRetryPeriod(firehoseRetryPeriod)
+      .firehoseChunkSize(firehoseChunkSize)
+      .randomizeTaskId(randomizeTaskId)
+      .indexRetryPeriod(indexRetryPeriod)
+      .firehoseBufferSize(firehoseBufferSize)
+      .build()
   }
 
   case class DataSourceConfig(
