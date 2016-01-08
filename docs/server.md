@@ -96,3 +96,10 @@ customization for certain dataSources.
 |`tranquility.maxBatchSize`|Maximum number of messages to send at once.|2000|
 |`tranquility.maxPendingBatches`|Maximum number of batches that may be in flight before we block and wait for one to finish.|5|
 |`tranquility.lingerMillis`|Wait this long for batches to collect more messages (up to maxBatchSize) before sending them. Set to zero to disable waiting.|0|
+|`druidBeam.firehoseGracePeriod`|Druid indexing tasks will shut down this long after the windowPeriod has elapsed.|PT5M|
+|`druidBeam.firehoseQuietPeriod`|Wait this long for a task to appear before complaining that it cannot be found.|PT1M|
+|`druidBeam.firehoseRetryPeriod`|Retry for this long before complaining that events could not be pushed|PT1M|
+|`druidBeam.firehoseChunkSize`|Maximum number of events to send to Druid in one HTTP request.|1000|
+|`druidBeam.randomizeTaskId`|True if we should add a random suffix to Druid task IDs. This is useful for testing.|false|
+|`druidBeam.indexRetryPeriod`|If an indexing service overlord call fails for some apparently-transient reason, retry for this long before giving up.|PT1M|
+|`druidBeam.firehoseBufferSize`|Size of buffer used by firehose to store events.|100000|

@@ -33,6 +33,7 @@ dataSources:
 
     properties:
       task.partitions: 3
+      druidBeam.firehoseGracePeriod: PT1S
 
 properties:
   http.port: 8080
