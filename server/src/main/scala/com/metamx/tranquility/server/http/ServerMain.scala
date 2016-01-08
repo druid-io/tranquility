@@ -21,6 +21,7 @@ package com.metamx.tranquility.server.http
 
 import com.metamx.common.lifecycle.Lifecycle
 import com.metamx.common.scala.Abort
+import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.Yaml
 import com.metamx.common.scala.collection.implicits._
@@ -39,6 +40,8 @@ import com.metamx.tranquility.server.config.GeneralConfig
 import com.metamx.tranquility.server.config.GlobalConfig
 import com.metamx.tranquility.server.config.GlobalProperties
 import com.metamx.tranquility.tranquilizer.Tranquilizer
+import com.twitter.app.App
+import com.twitter.app.Flag
 import io.druid.segment.realtime.FireDepartment
 import java.io.FileInputStream
 import java.io.InputStream
@@ -52,22 +55,34 @@ import org.eclipse.jetty.util.thread.QueuedThreadPool
 import org.scala_tools.time.Imports._
 import org.skife.config.ConfigurationObjectFactory
 
-object Main
+object ServerMain extends App with Logging
 {
   private val ConfigResource = "tranquility-server.yaml"
 
-  def main(args: Array[String]): Unit = {
-    val configInputStream = if (args.isEmpty) {
-      getClass.getClassLoader.getResourceAsStream(ConfigResource) mapNull {
-        System.err.println(s"Expected resource $ConfigResource (or provide path on the command line)")
-        sys.exit(1)
-      }
-    } else {
-      new FileInputStream(args(0))
+  private val configFile: Flag[String] = flag(
+    "configFile",
+    s"Path to alternate config file, from working directory (default: $ConfigResource from classpath)"
+  )
+
+  def main(): Unit = {
+    val configInputStream = configFile.get match {
+      case Some(file) =>
+        log.info(s"Reading configuration from file[$file].")
+        new FileInputStream(file)
+
+      case None =>
+        log.info(s"Reading configuration from resource[$ConfigResource].")
+        getClass.getClassLoader.getResourceAsStream(ConfigResource) mapNull {
+          System.err.println(s"Expected resource $ConfigResource (or provide -configFile <path>)")
+          sys.exit(1)
+        }
     }
 
     val lifecycle = new Lifecycle
     val (globalConfig, dataSourceConfigs) = readConfigYaml(configInputStream)
+
+    log.info(s"Read configuration for dataSources[${dataSourceConfigs.keys.mkString(", ")}].")
+
     val servlet = createServlet(lifecycle, dataSourceConfigs)
     val server = createJettyServer(lifecycle, globalConfig, servlet)
 

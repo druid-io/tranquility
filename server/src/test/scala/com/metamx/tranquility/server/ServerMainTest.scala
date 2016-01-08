@@ -19,15 +19,15 @@
 
 package com.metamx.tranquility.server
 
-import com.metamx.tranquility.server.http.Main
+import com.metamx.tranquility.server.http.ServerMain
 import org.joda.time.Period
 import org.scalatest.FunSuite
 import org.scalatest.ShouldMatchers
 
-class MainTest extends FunSuite with ShouldMatchers
+class ServerMainTest extends FunSuite with ShouldMatchers
 {
   test("readConfigYaml") {
-    val (globalConfig, dataSourceConfigs) = Main.readConfigYaml(
+    val (globalConfig, dataSourceConfigs) = ServerMain.readConfigYaml(
       getClass.getClassLoader.getResourceAsStream("tranquility-server.yaml")
     )
 
