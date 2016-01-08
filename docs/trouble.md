@@ -6,18 +6,21 @@ The most common reason for this is that your events are outside the configured w
 minutes, which means that any events with a timestamp older than ten minutes in the past will be dropped. Some things
 to check are:
 
-  1. Make sure you are sending events within the windowPeriod. See the [design document](design.md) for more information
-  about how this works.
+  1. Make sure you are sending events within the windowPeriod. See the
+  [overview](overview.md#segment-granularity-and-window-period) for more information about how this works.
   2. Make sure you have set up an appropriate Timestamper and TimestampSpec, so Tranquility and Druid both know
   what timestamp your events have.
 
 ## My tasks are never exiting.
 
 The most common reason for this is that handoff is not occurring- your historical nodes are not loading the segments
-created by your realtime tasks (see the [design document](design.md) for more information about how this works).
+created by your realtime tasks (see the [overview](overview.md) for more information about how this works).
 
 Ensure that your coordinator and historical nodes are running, and that your historical nodes have sufficient capacity
 to load new segments. You'll see warnings or errors in the coordinator logs if they do not.
+
+Another possibility is that your windowPeriod is excessively long. Keep in mind that tasks cannot hand off and exit
+until the segmentGranularity interval is over and the windowPeriod has elapsed.
 
 ## I'm getting strange Jackson or Curator exceptions.
 
