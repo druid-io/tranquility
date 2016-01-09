@@ -22,6 +22,7 @@ import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.untyped.Dict
 import com.metamx.tranquility.typeclass.JsonWriter
 import com.twitter.util.Future
+import scala.collection.immutable.BitSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
@@ -30,15 +31,15 @@ class MemoryBeam[A](
   jsonWriter: JsonWriter[A]
 ) extends Beam[A]
 {
-  def propagate(events: Seq[A]) = {
+  override def sendBatch(events: Seq[A]): Future[BitSet] = {
     events.map(event => Jackson.parse[Dict](jsonWriter.asBytes(event))) foreach {
       d =>
         MemoryBeam.add(key, d)
     }
-    Future.value(events.size)
+    Future.value(BitSet.empty ++ events.indices)
   }
 
-  def close() = Future.Done
+  override def close() = Future.Done
 
   override def toString = "MemoryBeam(key = %s)" format key
 }

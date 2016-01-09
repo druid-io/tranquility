@@ -43,39 +43,40 @@ import org.joda.time.Interval
 import org.joda.time.chrono.ISOChronology
 import org.scala_tools.time.Implicits._
 import scala.collection.JavaConverters._
+import scala.collection.immutable.BitSet
 import scala.collection.mutable
 import scala.language.reflectiveCalls
 import scala.util.Random
 
 /**
- * Beam composed of a stack of smaller beams. The smaller beams are split across two axes: timestamp (time shard
- * of the data) and partition (shard of the data within one time interval). The stack of beams for a particular
- * timestamp are created in a coordinated fashion, such that all ClusteredBeams for the same identifier will have
- * semantically identical stacks. This interaction is mediated through zookeeper. Beam information persists across
- * ClusteredBeam restarts.
- *
- * In the case of Druid, each merged beam corresponds to one segment partition number, and each inner beam corresponds
- * to either one index task or a set of redundant index tasks.
- *
- * {{{
- *                                            ClusteredBeam
- *
- *                                   +-------------+---------------+
- *               2010-01-02T03:00:00 |                             |   2010-01-02T04:00:00
- *                                   |                             |
- *                                   v                             v
- *
- *                         +----+ Merged +----+                   ...
- *                         |                  |
- *                    partition 1         partition 2
- *                         |                  |
- *                         v                  v
- *
- *                     Decorated           Decorated
- *
- *                   InnerBeamType       InnerBeamType
- * }}}
- */
+  * Beam composed of a stack of smaller beams. The smaller beams are split across two axes: timestamp (time shard
+  * of the data) and partition (shard of the data within one time interval). The stack of beams for a particular
+  * timestamp are created in a coordinated fashion, such that all ClusteredBeams for the same identifier will have
+  * semantically identical stacks. This interaction is mediated through zookeeper. Beam information persists across
+  * ClusteredBeam restarts.
+  *
+  * In the case of Druid, each merged beam corresponds to one segment partition number, and each inner beam corresponds
+  * to either one index task or a set of redundant index tasks.
+  *
+  * {{{
+  *                                            ClusteredBeam
+  *
+  *                                   +-------------+---------------+
+  *               2010-01-02T03:00:00 |                             |   2010-01-02T04:00:00
+  *                                   |                             |
+  *                                   v                             v
+  *
+  *                         +----+ Merged +----+                   ...
+  *                         |                  |
+  *                    partition 1         partition 2
+  *                         |                  |
+  *                         v                  v
+  *
+  *                     Decorated           Decorated
+  *
+  *                   InnerBeamType       InnerBeamType
+  * }}}
+  */
 class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
   zkBasePath: String,
   identifier: String,
@@ -92,7 +93,10 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
 {
   require(tuning.partitions > 0, "tuning.partitions > 0")
   require(tuning.minSegmentsPerBeam > 0, "tuning.minSegmentsPerBeam > 0")
-  require(tuning.maxSegmentsPerBeam >= tuning.minSegmentsPerBeam, "tuning.maxSegmentsPerBeam >= tuning.minSegmentsPerBeam")
+  require(
+    tuning.maxSegmentsPerBeam >= tuning.minSegmentsPerBeam,
+    "tuning.maxSegmentsPerBeam >= tuning.minSegmentsPerBeam"
+  )
 
   // Thread pool for blocking zk operations
   private[this] val zkFuturePool = FuturePool(
@@ -252,16 +256,18 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
                 )
                 val tsNewDicts = tsPrevDicts ++ ((tsPrevDicts.size until tuning.partitions) map {
                   partition =>
-                    newInnerBeamDictsByPartition.getOrElseUpdate(partition, {
-                      // Create sub-beams and then immediately close them, just so we can get the dict representations.
-                      // Close asynchronously, ignore return value.
-                      beamMaker.newBeam(intervalToCover, partition).withFinally(_.close()) {
-                        beam =>
-                          val beamDict = beamMaker.toDict(beam)
-                          log.info("Created beam: %s", objectMapper.writeValueAsString(beamDict))
-                          beamDict
+                    newInnerBeamDictsByPartition.getOrElseUpdate(
+                      partition, {
+                        // Create sub-beams and then immediately close them, just so we can get the dict representations.
+                        // Close asynchronously, ignore return value.
+                        beamMaker.newBeam(intervalToCover, partition).withFinally(_.close()) {
+                          beam =>
+                            val beamDict = beamMaker.toDict(beam)
+                            log.info("Created beam: %s", objectMapper.writeValueAsString(beamDict))
+                            beamDict
+                        }
                       }
-                    })
+                    )
                 })
                 (ts.millis, tsNewDicts)
               })
@@ -336,9 +342,13 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
     }
   }
 
-  def propagate(events: Seq[EventType]) = {
+  override def sendBatch(events: Seq[EventType]): Future[BitSet] = {
     val now = timekeeper.now.withZone(DateTimeZone.UTC)
-    val grouped = events.groupBy(x => tuning.segmentBucket(timestamper(x)).start).toSeq.sortBy(_._1.millis)
+    // Events, grouped and ordered by truncated timestamp, with their original indexes remembered
+    val grouped: Seq[(DateTime, IndexedSeq[(EventType, Int)])] = (Beam.index(events) groupBy {
+      case (event, index) =>
+        tuning.segmentBucket(timestamper(event)).start
+    }).toSeq.sortBy(_._1.millis)
     // Possibly warm up future beams
     def toBeWarmed(dt: DateTime, end: DateTime): List[DateTime] = {
       if (dt <= end) {
@@ -347,22 +357,31 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
         Nil
       }
     }
-    val warmingBeams = Future.collect(for (
-      latestEvent <- grouped.lastOption.map(_._2.maxBy(timestamper(_).millis)).map(timestamper).toList;
-      tbwTimestamp <- toBeWarmed(latestEvent, latestEvent + tuning.warmingPeriod) if tbwTimestamp > latestEvent
-    ) yield {
-      // Create beam asynchronously
-      beam(tbwTimestamp, now)
-    })
+    val latestEventTimestamp: Option[DateTime] = grouped.lastOption map { case (truncatedTimestamp, group) =>
+      val event: EventType = group.maxBy(tuple => timestamper(tuple._1).millis)._1
+      timestamper(event)
+    }
+    val warmingBeams = Future.collect(
+      for (
+        latest <- latestEventTimestamp.toList;
+        tbwTimestamp <- toBeWarmed(latest, latest + tuning.warmingPeriod) if tbwTimestamp > latest
+      ) yield {
+        // Create beam asynchronously
+        beam(tbwTimestamp, now)
+      }
+    )
     // Propagate data
-    val countFutures = for ((timestamp, eventGroup) <- grouped) yield {
+    val futures: Seq[Future[BitSet]] = for ((timestamp, eventGroup) <- grouped) yield {
       beam(timestamp, now) onFailure {
         e =>
           emitAlert(e, log, emitter, WARN, "Failed to create merged beam: %s" format identifier, alertMap)
       } flatMap {
         beam =>
           // We expect beams to handle retries, so if we get an exception here let's drop the batch
-          beam.propagate(eventGroup) rescue {
+          beam.sendBatch(eventGroup.map(_._1)) map { bitset =>
+            // Remap indexes
+            bitset.map(index => eventGroup(index)._2)
+          } rescue {
             case e: DefunctBeamException =>
               // Just drop data until the next segment starts. At some point we should look at doing something
               // more intelligent.
@@ -386,7 +405,7 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
                   beamWriteMonitor.synchronized {
                     beams.remove(timestamp.millis)
                   }
-              } map (_ => 0)
+              } map (_ => BitSet.empty)
 
             case e: Exception =>
               emitAlert(
@@ -398,12 +417,12 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
                     "beams" -> beam.toString
                   )
               )
-              Future.value(0)
+              Future.value(BitSet.empty)
           }
       }
     }
-    val countFuture = Future.collect(countFutures).map(_.sum)
-    warmingBeams.flatMap(_ => countFuture) // Resolve only when future beams are warmed up.
+    val future = Future.collect(futures).map(Beam.mergeBitsets)
+    warmingBeams.flatMap(_ => future) // Resolve only when future beams are warmed up.
   }
 
   def close() = {
@@ -419,11 +438,11 @@ class ClusteredBeam[EventType: Timestamper, InnerBeamType <: Beam[EventType]](
 }
 
 /**
- * Metadata stored in ZooKeeper for a ClusteredBeam.
- *
- * @param latestCloseTime Most recently shut-down interval (to prevent necromancy).
- * @param beamDictss Map of interval start -> beam metadata, partition by partition.
- */
+  * Metadata stored in ZooKeeper for a ClusteredBeam.
+  *
+  * @param latestCloseTime Most recently shut-down interval (to prevent necromancy).
+  * @param beamDictss Map of interval start -> beam metadata, partition by partition.
+  */
 case class ClusteredBeamMeta(latestCloseTime: DateTime, beamDictss: Map[Long, Seq[Dict]])
 {
   def toBytes(objectMapper: ObjectMapper) = objectMapper.writeValueAsBytes(

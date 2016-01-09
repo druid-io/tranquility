@@ -44,15 +44,17 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.util.zip.GZIPOutputStream
 import org.scala_tools.time.Imports._
+import scala.collection.immutable.BitSet
+import scala.collection.mutable
 
 /**
- * Emits events over http.
- *
- * This class is a little bit half-baked and might not work.
- *
- * @param uri service uri
- * @param auth basic authentication token (username:password, non-base64ed)
- */
+  * Emits events over http.
+  *
+  * This class is a little bit half-baked and might not work.
+  *
+  * @param uri service uri
+  * @param auth basic authentication token (username:password, non-base64ed)
+  */
 class HttpBeam[A: Timestamper](
   uri: URI,
   auth: Option[String],
@@ -77,7 +79,7 @@ class HttpBeam[A: Timestamper](
     val preTlsClientBuilder = ClientBuilder()
       .name(uri.toString)
       .codec(Http())
-      .dest(Name.Bound(resolver.bind(hostAndPort), "%s!%s" format (resolver.scheme, hostAndPort)))
+      .dest(Name.Bound(resolver.bind(hostAndPort), "%s!%s" format(resolver.scheme, hostAndPort)))
       .hostConnectionLimit(2)
       .hostConnectionMaxLifeTime(HttpBeam.DefaultConnectionMaxLifeTime)
       .tcpConnectTimeout(HttpBeam.DefaultConnectTimeout)
@@ -126,17 +128,18 @@ class HttpBeam[A: Timestamper](
     ).exists(_ apply e)
   } untilPeriod period
 
-  def propagate(events: Seq[A]) = {
-    val responses = events.grouped(HttpBeam.DefaultBatchSize) map {
+  override def sendBatch(events: Seq[A]): Future[BitSet] = {
+    val indexed: IndexedSeq[(A, Int)] = Beam.index(events)
+    val responses = indexed.grouped(HttpBeam.DefaultBatchSize) map {
       eventsChunk =>
         val retryable = isTransient(HttpBeam.DefaultRetryPeriod)
         val response = FutureRetry.onErrors(Seq(retryable), Backoff.standard(), new DateTime(0)) {
-          client(request(eventsChunk)) map {
+          client(request(eventsChunk.map(_._1))) map {
             response =>
               response.statusCode match {
                 case code if code / 100 == 2 =>
                   // 2xx means our events were accepted
-                  eventsChunk.size
+                  BitSet.empty ++ eventsChunk.indices
 
                 case code =>
                   throw new IOException(
@@ -154,13 +157,13 @@ class HttpBeam[A: Timestamper](
                 "eventCount" -> events.size
               )
             )
-            Future.value(0)
+            Future.value(BitSet.empty)
         }
     }
-    Future.collect(responses.toSeq).map(_.sum)
+    Future.collect(responses.toSeq).map(Beam.mergeBitsets)
   }
 
-  def close() = client.close()
+  override def close() = client.close()
 
   override def toString = "HttpBeam(%s)" format uri
 }

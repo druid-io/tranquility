@@ -32,6 +32,7 @@ import com.twitter.util.Promise
 import com.twitter.util.Return
 import com.twitter.util.Throw
 import com.twitter.util.Time
+import scala.collection.immutable.BitSet
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.Buffer
 
@@ -135,13 +136,8 @@ class Tranquilizer[MessageType] private(
     * MessageDroppedException, which means that a message was dropped due to unrecoverable reasons. With Druid this
     * can be caused by message timestamps being outside the configured windowPeriod.
     *
-    * NB: This can actually be wrong: if *any* message in a batch of messages is dropped, then all messages in that
-    * batch will be marked as dropped (even if they actually made it out). This is a limitation of how Tranquility
-    * tracks which messages were and were not dropped. This could be improved once
-    * https://github.com/druid-io/tranquility/issues/56 is addressed.
-    *
-    * @param message the message to send
-    * @return a future that resolves when the message is sent
+    * @param message message to send
+    * @return future that resolves when the message is sent, or fails to send
     */
   def send(message: MessageType): Future[Unit] = {
     requireStarted()
@@ -247,8 +243,8 @@ class Tranquilizer[MessageType] private(
       log.debug(s"Sending buffer with ${myBuffer.size} messages.")
     }
 
-    val propagate = try {
-      beam.propagate(myBuffer.map(_.message))
+    val propagate: Future[BitSet] = try {
+      beam.sendBatch(myBuffer.map(_.message))
     }
     catch {
       case e: Exception =>
@@ -258,14 +254,15 @@ class Tranquilizer[MessageType] private(
 
     propagate respond { result =>
       result match {
-        case Return(n) if n == myBuffer.size =>
-          log.debug(s"Sent $n out of ${myBuffer.size} messages. Marking batch complete.")
-          myBuffer.foreach(_.future.setValue(()))
-
-        case Return(n) =>
-          log.debug(s"Sent $n out of ${myBuffer.size} messages. Marking batch dropped.")
-          val e = new MessageDroppedException(s"Batch not complete ($n/${myBuffer.size})")
-          myBuffer.foreach(_.future.setException(e))
+        case Return(bitset) =>
+          log.debug(s"Sent ${bitset.size} out of ${myBuffer.size} messages.")
+          for ((holder, index) <- Beam.index(myBuffer)) {
+            if (bitset.contains(index)) {
+              holder.future.setValue(())
+            } else {
+              holder.future.setException(MessageDroppedException.instance)
+            }
+          }
 
         case Throw(e) =>
           log.warn(e, s"Failed to send ${myBuffer.size} messages.")
@@ -287,7 +284,12 @@ class Tranquilizer[MessageType] private(
   * Exception indicating that a message was dropped "on purpose" by the beam. This is not a recoverable exception
   * and so the message must be discarded.
   */
-class MessageDroppedException(message: String) extends Exception(message)
+class MessageDroppedException private() extends Exception with com.twitter.finagle.NoStacktrace
+
+object MessageDroppedException
+{
+  val instance = new MessageDroppedException
+}
 
 object Tranquilizer
 {

@@ -20,9 +20,9 @@
 package com.metamx.tranquility.test
 
 import com.fasterxml.jackson.core.JsonGenerator
-import com.metamx.common.scala.untyped.Dict
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Logging
+import com.metamx.common.scala.untyped.Dict
 import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.BeamPacketizer
 import com.metamx.tranquility.beam.BeamPacketizerListener
@@ -31,6 +31,7 @@ import com.metamx.tranquility.typeclass.JsonWriter
 import com.twitter.util.Future
 import java.util.concurrent.atomic.AtomicLong
 import org.scalatest.FunSuite
+import scala.collection.immutable.BitSet
 
 class BeamPacketizerTest extends FunSuite with Logging
 {
@@ -49,11 +50,11 @@ class BeamPacketizerTest extends FunSuite with Logging
       }
     )
     val beam = new Beam[String] {
-      override def propagate(events: Seq[String]) = {
+      override def sendBatch(events: Seq[String]): Future[BitSet] = {
         if (events.contains("__fail__")) {
           Future.exception(new IllegalStateException("fail!"))
         } else {
-          memoryBeam.propagate(events)
+          memoryBeam.sendBatch(events)
         }
       }
 

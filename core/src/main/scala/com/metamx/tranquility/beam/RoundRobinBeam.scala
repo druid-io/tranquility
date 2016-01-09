@@ -21,21 +21,22 @@ package com.metamx.tranquility.beam
 import com.metamx.common.scala.Logging
 import com.twitter.util.Future
 import java.util.concurrent.atomic.AtomicInteger
+import scala.collection.immutable.BitSet
 
 /**
- * Farms out events to various beams, round-robin.
- */
+  * Farms out events to various beams, round-robin.
+  */
 class RoundRobinBeam[A](
   beams: IndexedSeq[Beam[A]]
 ) extends Beam[A] with Logging
 {
   private[this] val n = new AtomicInteger(-1)
 
-  def propagate(events: Seq[A]) = {
-    beams(n.incrementAndGet() % beams.size).propagate(events)
+  override def sendBatch(events: Seq[A]): Future[BitSet] = {
+    beams(n.incrementAndGet() % beams.size).sendBatch(events)
   }
 
-  def close() = {
+  override def close() = {
     Future.collect(beams map (_.close())) map (_ => ())
   }
 

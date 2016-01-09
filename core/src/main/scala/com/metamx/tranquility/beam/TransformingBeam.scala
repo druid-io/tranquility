@@ -20,11 +20,12 @@
 package com.metamx.tranquility.beam
 
 import com.twitter.util.Future
+import scala.collection.immutable.BitSet
 
 class TransformingBeam[A, B](underlying: Beam[B], f: A => B) extends Beam[A]
 {
-  override def propagate(events: Seq[A]): Future[Int] = {
-    underlying.propagate(events.map(f))
+  override def sendBatch(events: Seq[A]): Future[BitSet] = {
+    underlying.sendBatch(events.map(f))
   }
 
   override def close(): Future[Unit] = {

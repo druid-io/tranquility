@@ -19,26 +19,69 @@
 package com.metamx.tranquility.beam
 
 import com.twitter.util.Future
+import scala.collection.immutable.BitSet
+import scala.collection.mutable
 
 /**
- * Beams can accept events and forward them along. The propagate method may throw a DefunctBeamException, which means
- * the beam should be discarded (after calling close()).
- */
-trait Beam[A]
+  * Beams can accept messages and forward them along. The propagate method may throw a DefunctBeamException, which
+  * means the beam should be discarded (after calling close()).
+  */
+trait Beam[MessageType]
 {
   /**
-   * Request propagation of events. The operation may fail in various ways, which tend to be specific to
-   * the implementing class. Returns the number of events propagated.
-   */
-  def propagate(events: Seq[A]): Future[Int]
+    * Request propagation of messages. The return value indicates the number of messages known to be sent
+    * successfully. Note that for some implementations, it is possible for a message to be sent and for the ack to
+    * be lost (e.g. if the send is occurring over a network).
+    * @param messages a batch of messages
+    * @return the number of messages propagated
+    */
+  @deprecated("use sendBatch", "0.7.0")
+  final def propagate(messages: Seq[MessageType]): Future[Int] = {
+    sendBatch(messages).map(_.size)
+  }
 
   /**
-   * Signal that no more events will be sent. Many implementations need this to do proper cleanup.
-   */
+    * Request propagation of messages. The returned bitset contains the indexes of messages known to be sent
+    * successfully. Note that for some implementations, it is possible for a message to be sent and for the ack to be
+    * lost (e.g. if the send is occurring over a network).
+    * @param messages a batch of messages
+    * @return a bitset containing indexes of messages that were sent successfully
+    */
+  def sendBatch(messages: Seq[MessageType]): Future[BitSet]
+
+  /**
+    * Signal that no more messages will be sent. Many implementations need this to do proper cleanup. This operation
+    * may happen asynchronously.
+    * @return future that resolves when closing is complete
+    */
   def close(): Future[Unit]
 }
 
 class DefunctBeamException(s: String, t: Throwable) extends Exception(s, t)
 {
   def this(s: String) = this(s, null)
+}
+
+object Beam
+{
+  /**
+    * Beam.index(xs) is like xs.zipWithIndex, but always returns an IndexedSeq so lookups by index will be efficient.
+    * @param xs elements
+    * @return indexed seq equivalent to xs.zipWithIndex
+    */
+  def index[A](xs: Seq[A]): IndexedSeq[(A, Int)] = {
+    val indexed = Vector.newBuilder[(A, Int)]
+    var i = 0
+    for (message <- xs) {
+      indexed += ((message, i))
+      i += 1
+    }
+    indexed.result()
+  }
+
+  def mergeBitsets[A](bitsets: Iterable[BitSet]): BitSet = {
+    val merged = mutable.BitSet()
+    bitsets.foreach(merged ++= _)
+    merged.toImmutable
+  }
 }
