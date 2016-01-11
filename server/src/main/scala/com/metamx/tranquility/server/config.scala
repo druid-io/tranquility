@@ -21,6 +21,7 @@ package com.metamx.tranquility.server
 
 import com.metamx.common.scala.net.curator.DiscoAnnounceConfig
 import com.metamx.common.scala.net.curator.DiscoConfig
+import com.metamx.tranquility.beam.ClusteredBeamTuning
 import com.metamx.tranquility.druid.DruidBeamConfig
 import com.metamx.tranquility.tranquilizer.Tranquilizer
 import io.druid.segment.realtime.FireDepartment
@@ -50,10 +51,13 @@ object config
     def druidIndexingServiceName: String = "druid/overlord"
 
     @Config(Array("task.partitions"))
-    def taskPartitions: Int = 1
+    def taskPartitions: Int = ClusteredBeamTuning().partitions
 
     @Config(Array("task.replicants"))
-    def taskReplicants: Int = 1
+    def taskReplicants: Int = ClusteredBeamTuning().replicants
+
+    @Config(Array("task.warmingPeriod"))
+    def taskWarmingPeriod: Period = ClusteredBeamTuning().warmingPeriod
 
     @Config(Array("zookeeper.connect"))
     def zookeeperConnect: String

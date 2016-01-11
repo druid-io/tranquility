@@ -91,6 +91,7 @@ customization for certain dataSources.
 |`druid.selectors.indexing.serviceName`|The druid.service name of the indexing service Overlord node.|druid/overlord|
 |`task.partitions`|Number of Druid partitions to create.|1|
 |`task.replicants`|Number of instances of each Druid partition to create. This is the *total* number of instances, so 2 replicants means 2 tasks will be created.|1|
+|`task.warmingPeriod`|If nonzero, create Druid tasks early. This can be useful if tasks take a long time to start up in your environment.|PT0M|
 |`zookeeper.connect`|ZooKeeper connect string.|none; must be provided|
 |`zookeeper.timeout`|ZooKeeper session timeout. ISO8601 duration.|PT20S|
 |`tranquility.maxBatchSize`|Maximum number of messages to send at once.|2000|
