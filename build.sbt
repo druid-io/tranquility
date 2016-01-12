@@ -2,8 +2,6 @@ scalaVersion := "2.10.5"
 
 crossScalaVersions := Seq("2.10.5", "2.11.7")
 
-net.virtualvoid.sbt.graph.Plugin.graphSettings
-
 // Disable parallel execution, the various Druid oriented tests need to claim ports
 parallelExecution in ThisBuild := false
 
@@ -23,6 +21,18 @@ val sparkVersion = "1.6.0"
 val scalatraVersion = "2.3.1"
 val jettyVersion = "9.2.5.v20141112"
 val apacheHttpVersion = "4.3.3"
+
+def dependOnDruid(artifact: String) = {
+  ("io.druid" % artifact % druidVersion
+    exclude("org.slf4j", "slf4j-log4j12")
+    exclude("log4j", "log4j")
+    exclude("org.apache.logging.log4j", "log4j-core")
+    exclude("org.apache.logging.log4j", "log4j-api")
+    exclude("org.apache.logging.log4j", "log4j-slf4j-impl")
+    exclude("org.apache.logging.log4j", "log4j-1.2-api")
+    exclude("com.lmax", "disruptor") // Pulled in by log4j2, conflicts with the one Storm wants.
+    force())
+}
 
 val coreDependencies = Seq(
   "com.metamx" %% "scala-util" % "1.11.6" exclude("log4j", "log4j") force(),
@@ -48,24 +58,7 @@ val coreDependencies = Seq(
   "com.fasterxml.jackson.datatype" % "jackson-datatype-joda" % jacksonTwoVersion,
   "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonTwoVersion
 ) ++ Seq(
-  "io.druid" % "druid-server" % druidVersion
-    exclude("org.slf4j", "slf4j-log4j12")
-    exclude("log4j", "log4j")
-    exclude("org.apache.logging.log4j", "log4j-core")
-    exclude("org.apache.logging.log4j", "log4j-api")
-    exclude("org.apache.logging.log4j", "log4j-slf4j-impl")
-    exclude("org.apache.logging.log4j", "log4j-1.2-api")
-    exclude("com.lmax", "disruptor") // Pulled in by log4j2, conflicts with the one Storm wants.
-    force(),
-  "io.druid" % "druid-indexing-service" % druidVersion
-    exclude("org.slf4j", "slf4j-log4j12")
-    exclude("log4j", "log4j")
-    exclude("org.apache.logging.log4j", "log4j-core")
-    exclude("org.apache.logging.log4j", "log4j-api")
-    exclude("org.apache.logging.log4j", "log4j-slf4j-impl")
-    exclude("org.apache.logging.log4j", "log4j-1.2-api")
-    exclude("com.lmax", "disruptor") // Pulled in by log4j2, conflicts with the one Storm wants.
-    force(),
+  dependOnDruid("druid-server"),
   "com.google.inject" % "guice" % "4.0-beta" force(),
   "com.google.inject.extensions" % "guice-servlet" % "4.0-beta" force(),
   "com.google.inject.extensions" % "guice-multibindings" % "4.0-beta" force(),
@@ -94,7 +87,7 @@ val samzaDependencies = Seq(
   "org.apache.samza" % "samza-api" % samzaVersion % "optional"
 )
 
-val sparkDependencies = Seq (
+val sparkDependencies = Seq(
   "org.apache.spark" %% "spark-streaming" % sparkVersion % "optional"
     exclude("org.slf4j", "log4j-over-slf4j")
     exclude("org.slf4j", "slf4j-log4j12")
@@ -109,16 +102,7 @@ val serverDependencies = Seq(
 
 val coreTestDependencies = Seq(
   "org.scalatest" %% "scalatest" % "2.2.5" % "test",
-  "io.druid" % "druid-services" % druidVersion % "test"
-    exclude("org.slf4j", "slf4j-log4j12")
-    exclude("log4j", "log4j")
-    exclude("org.apache.logging.log4j", "log4j-core")
-    exclude("org.apache.logging.log4j", "log4j-api")
-    exclude("org.apache.logging.log4j", "log4j-slf4j-impl")
-    exclude("org.apache.logging.log4j", "log4j-jul")
-    exclude("org.apache.logging.log4j", "log4j-1.2-api")
-    exclude("com.lmax", "disruptor") // Pulled in by log4j2, conflicts with the one Storm wants.
-    force(),
+  dependOnDruid("druid-services") % "test",
   "org.apache.curator" % "curator-test" % "2.6.0" % "test" exclude("log4j", "log4j") force(),
   "com.sun.jersey" % "jersey-servlet" % "1.17.1" % "test" force(),
   "junit" % "junit" % "4.11" % "test",
@@ -173,7 +157,7 @@ lazy val commonSettings = Seq(
       </developers>),
 
   fork in Test := true
-) ++ releaseSettings ++ Seq(
+) ++ releaseSettings ++ net.virtualvoid.sbt.graph.Plugin.graphSettings ++ Seq(
   ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
 )
 
@@ -206,7 +190,7 @@ lazy val samza = project.in(file("samza"))
   .settings(name := "tranquility-samza")
   .settings(libraryDependencies ++= (samzaDependencies ++ samzaTestDependencies))
   // don't compile or publish for Scala > 2.10
-  .settings((skip in compile) := scalaVersion { sv => ! sv.startsWith("2.10.") }.value)
+  .settings((skip in compile) := scalaVersion { sv => !sv.startsWith("2.10.") }.value)
   .settings((skip in test) := scalaVersion { sv => !sv.startsWith("2.10.") }.value)
   .settings(publishArtifact <<= scalaVersion { sv => sv.startsWith("2.10.") })
   .settings(publishArtifact in Test := false)
@@ -217,5 +201,13 @@ lazy val server = project.in(file("server"))
   .settings(name := "tranquility-server")
   .settings(libraryDependencies ++= (serverDependencies ++ serverTestDependencies))
   .settings(publishArtifact in Test := false)
-  .enablePlugins(JavaAppPackaging)
   .dependsOn(core % "test->test;compile->compile")
+
+lazy val distribution = project.in(file("distribution"))
+  .settings(commonSettings: _*)
+  .settings(name := "tranquility-distribution")
+  .settings(publishArtifact in Test := false)
+  .settings(mainClass in Compile := Some("com.metamx.tranquility.distribution.DistributionMain"))
+  .settings(executableScriptName := "tranquility")
+  .enablePlugins(JavaAppPackaging)
+  .dependsOn(server)
