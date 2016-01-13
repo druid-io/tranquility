@@ -25,36 +25,37 @@ Modules:
 
 - [Core](docs/core.md) - The most basic data-sending API. You will likely use this one unless you are using
   one of the higher-level modules.
-- [Server](docs/server.md) - HTTP server that allows you to use Tranquility without developing a JVM app. Note that
-  the Server module is not yet in the stable release.
+- [Server](docs/server.md) - HTTP server that allows you to use Tranquility without developing a JVM app.
 - [Samza](docs/samza.md) - Tranquility includes a Samza SystemProducer.
 - [Spark](docs/spark.md) - Tranquility works with RDDs and DStreams.
 - [Storm](docs/storm.md) - Tranquility includes a Storm Bolt and a Trident State.
 
 ### Getting Tranquility with Maven
 
-Tranquility modules are hosted on Maven Central. The current stable versions are:
+Tranquility [Core](docs/core.md), [Samza](docs/samza.md), [Spark](docs/spark.md), and [Storm](docs/storm.md) are
+meant to be included in an application that you write. Those modules are hosted on Maven Central to make them
+easy to include. The current stable versions are:
 
 ```xml
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-core_2.11</artifactId>
-  <version>0.6.4</version>
+  <version>0.7.0</version>
 </dependency>
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-samza_2.10</artifactId>
-  <version>0.6.4</version>
+  <version>0.7.0</version>
 </dependency>
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-spark_2.11</artifactId>
-  <version>0.6.4</version>
+  <version>0.7.0</version>
 </dependency>
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-storm_2.11</artifactId>
-  <version>0.6.4</version>
+  <version>0.7.0</version>
 </dependency>
 ```
 
@@ -69,3 +70,10 @@ v0.3.2, which is the most recent version built for use with Druid 0.6.x.
 
 Tranquility is built with [SBT](http://www.scala-sbt.org/). If you want to build the jars yourself, you can
 run `sbt +package`.
+
+### Getting Tranquility Server
+
+Tranquility Server is available as a tarball that you can download and run. The current version is in
+[tranquility-distribution-0.7.0](http://static.druid.io/tranquility/releases/tranquility-distribution-0.7.0.tgz).
+
+For more information please see the [Tranquility Server documentation](docs/server.md).
