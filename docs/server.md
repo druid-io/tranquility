@@ -35,13 +35,12 @@ If there is an error sending the data, you will get an HTTP error code (4xx or 5
 
 ## Setup
 
-### Building
+### Getting Tranquility Server
 
-Tranquility Server is not available through Maven, so it must be built to be used.
-
-1. Build an artifact by running `sbt 'project server' universal:packageZipTarball`.
-2. This will produce a tarball in `server/target/universal/tranquility-server-VERSION.tgz`.
-3. Unpack the artifact into your directory of choice by running `tar -xzf server/target/universal/tranquility-server-VERSION.tgz`.
+Tranquility Server is included in the
+[tranquility-distribution-0.7.0](http://static.druid.io/tranquility/releases/tranquility-distribution-0.7.0.tgz)
+tarball. To use it, first download it and then unpack it into your directory of choice by running
+`tar -xzf tranquility-distribution-0.7.0.tgz`.
 
 ### Configuration
 
@@ -65,7 +64,7 @@ because Tranquility supplies its own firehose and plumber.
 If you've saved your configuration into `conf/server.yaml`, run the server with:
 
 ```bash
-bin/tranquility-server conf/server.yaml
+bin/tranquility server -configFile conf/server.yaml
 ```
 
 ## Configuration reference
