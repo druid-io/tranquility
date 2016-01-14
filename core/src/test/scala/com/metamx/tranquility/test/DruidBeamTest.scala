@@ -131,7 +131,7 @@ class DruidBeamTest extends FunSuite with Matchers
           }
         }
       }
-    ).forType(classOf[Task])
+    ).withType(classOf[Task])
 
     val task = objectReader.readValue(taskBytes).asInstanceOf[RealtimeIndexTask]
     task.getId should be("index_realtime_mydatasource_2000-01-01T00:00:00.000Z_1_2")
