@@ -40,22 +40,22 @@ easy to include. The current stable versions are:
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-core_2.11</artifactId>
-  <version>0.7.0</version>
+  <version>0.7.1</version>
 </dependency>
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-samza_2.10</artifactId>
-  <version>0.7.0</version>
+  <version>0.7.1</version>
 </dependency>
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-spark_2.11</artifactId>
-  <version>0.7.0</version>
+  <version>0.7.1</version>
 </dependency>
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-storm_2.11</artifactId>
-  <version>0.7.0</version>
+  <version>0.7.1</version>
 </dependency>
 ```
 
@@ -74,6 +74,6 @@ run `sbt +package`.
 ### Getting Tranquility Server
 
 Tranquility Server is available as a tarball that you can download and run. The current version is in
-[tranquility-distribution-0.7.0](http://static.druid.io/tranquility/releases/tranquility-distribution-0.7.0.tgz).
+[tranquility-distribution-0.7.1](http://static.druid.io/tranquility/releases/tranquility-distribution-0.7.1.tgz).
 
 For more information please see the [Tranquility Server documentation](docs/server.md).
