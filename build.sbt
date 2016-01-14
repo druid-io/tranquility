@@ -13,6 +13,7 @@ concurrentRestrictions in Global += Tags.limitAll(1)
 val jacksonOneVersion = "1.9.13"
 // See https://github.com/druid-io/druid/pull/1669, https://github.com/druid-io/tranquility/pull/81 before upgrading Jackson
 val jacksonTwoVersion = "2.4.6"
+val jacksonTwoModuleScalaVersion = "2.4.5"
 val druidVersion = "0.8.2"
 val finagleVersion = "6.31.0"
 val twitterUtilVersion = "6.30.0"
@@ -38,25 +39,25 @@ val coreDependencies = Seq(
   "com.metamx" %% "scala-util" % "1.11.6" exclude("log4j", "log4j") force(),
   "com.metamx" % "java-util" % "0.27.4" exclude("log4j", "log4j") force(),
   "io.netty" % "netty" % "3.10.5.Final" force(),
-  "com.twitter" %% "util-core" % twitterUtilVersion,
-  "com.twitter" %% "finagle-core" % finagleVersion,
-  "com.twitter" %% "finagle-http" % finagleVersion,
+  "com.twitter" %% "util-core" % twitterUtilVersion force(),
+  "com.twitter" %% "finagle-core" % finagleVersion force(),
+  "com.twitter" %% "finagle-http" % finagleVersion force(),
   "org.slf4j" % "slf4j-api" % "1.7.12" force() force(),
   "org.slf4j" % "jul-to-slf4j" % "1.7.12" force() force(),
-  "org.apache.httpcomponents" % "httpclient" % apacheHttpVersion,
-  "org.apache.httpcomponents" % "httpcore" % apacheHttpVersion,
+  "org.apache.httpcomponents" % "httpclient" % apacheHttpVersion force(),
+  "org.apache.httpcomponents" % "httpcore" % apacheHttpVersion force(),
 
   // Curator uses Jackson 1.x internally, and older version cause problems with service discovery.
   "org.codehaus.jackson" % "jackson-core-asl" % jacksonOneVersion force(),
   "org.codehaus.jackson" % "jackson-mapper-asl" % jacksonOneVersion force(),
 
   // We use Jackson 2.x internally (and so does Druid).
-  "com.fasterxml.jackson.core" % "jackson-core" % jacksonTwoVersion,
-  "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonTwoVersion,
-  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonTwoVersion,
-  "com.fasterxml.jackson.dataformat" % "jackson-dataformat-smile" % jacksonTwoVersion,
-  "com.fasterxml.jackson.datatype" % "jackson-datatype-joda" % jacksonTwoVersion,
-  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonTwoVersion
+  "com.fasterxml.jackson.core" % "jackson-core" % jacksonTwoVersion force(),
+  "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonTwoVersion force(),
+  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonTwoVersion force(),
+  "com.fasterxml.jackson.dataformat" % "jackson-dataformat-smile" % jacksonTwoVersion force(),
+  "com.fasterxml.jackson.datatype" % "jackson-datatype-joda" % jacksonTwoVersion force(),
+  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonTwoModuleScalaVersion force()
 ) ++ Seq(
   dependOnDruid("druid-server"),
   "com.google.inject" % "guice" % "4.0-beta" force(),
