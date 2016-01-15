@@ -77,3 +77,7 @@ Tranquility Server is available as a tarball that you can download and run. The 
 [tranquility-distribution-0.7.1](http://static.druid.io/tranquility/releases/tranquility-distribution-0.7.1.tgz).
 
 For more information please see the [Tranquility Server documentation](docs/server.md).
+
+### How to Contribute
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
