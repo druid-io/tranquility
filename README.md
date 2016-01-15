@@ -30,6 +30,7 @@ Modules:
 - [Spark](docs/spark.md) - Tranquility works with RDDs and DStreams.
 - [Storm](docs/storm.md) - Tranquility includes a Storm Bolt and a Trident State.
 - [Kafka](docs/kafka.md) - Application to push messages from Kafka into Druid through Tranquility.
+- [Flink](docs/flink.md) - Tranquility includes a Flink Sink.
 
 ### Getting Tranquility with Maven
 
