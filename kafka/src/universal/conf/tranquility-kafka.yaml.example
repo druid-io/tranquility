@@ -1,0 +1,97 @@
+dataSources:
+  twitter:
+    spec:
+      dataSchema:
+        dataSource: twitter
+        parser:
+          type: string
+          parseSpec:
+            format: json
+            timestampSpec:
+              column: timestamp
+              format: auto
+            dimensionsSpec:
+              dimensions: [text, hashtags, lat, lon, source, retweet, lang, utc_offset, screen_name, verified]
+              spatialDimensions: [ { dimName: geo, dims: [lat, lon]} ]
+
+        metricsSpec:
+          - { type: count, name: tweets }
+          - { type: longSum, name: followers, fieldName: followers }
+          - { type: longSum, name: retweets, fieldName: retweets }
+          - { type: longSum, name: friends, fieldName: friends }
+          - { type: longSum, name: statuses, fieldName: statuses }
+
+        granularitySpec:
+          type: uniform
+          segmentGranularity: hour
+          queryGranularity: none
+
+      ioConfig:
+        type: realtime
+
+      tuningConfig:
+        type: realtime
+        maxRowsInMemory: 100000
+        intermediatePersistPeriod: PT10M
+        windowPeriod: PT10M
+
+    properties:
+      topicPattern: twitter
+      topicPattern.priority: 1
+      useTopicAsDataSource: false
+
+  wikipedia:
+    spec:
+      dataSchema:
+        dataSource: wikipedia
+        parser:
+          type: string
+          parseSpec:
+            format: json
+            timestampSpec:
+              column: timestamp
+              format: auto
+            dimensionsSpec:
+              dimensions: [page, language, user, unpatrolled, newPage, robot, anonymous, namespace, continent, country, region, city]
+
+        metricsSpec:
+          - { type: count, name: count }
+          - { type: doubleSum, name: added, fieldName: added }
+          - { type: doubleSum, name: deleted, fieldName: deleted }
+          - { type: doubleSum, name: delta, fieldName: delta }
+
+        granularitySpec:
+          type: uniform
+          segmentGranularity: hour
+          queryGranularity: none
+
+      ioConfig:
+        type: realtime
+
+      tuningConfig:
+        type: realtime
+        maxRowsInMemory: 100000
+        intermediatePersistPeriod: PT10M
+        windowPeriod: PT10M
+
+    properties:
+      task.partitions: 2
+      task.replicants: 2
+      topicPattern: wikipedia.*
+      topicPattern.priority: 1
+      useTopicAsDataSource: true
+
+properties:
+  zookeeper.connect: localhost:2181
+  zookeeper.timeout: PT20S
+  druid.discovery.curator.path: /druid/discovery
+  druid.selectors.indexing.serviceName: druid/overlord
+  kafka.zookeeper.connect: localhost:2181
+  kafka.group.id: tranquility-kafka
+  consumer.numThreads: 2
+  commit.periodMillis: 15000
+  task.partitions: 1
+  task.replicants: 1
+  reportDropsAsExceptions: false
+  #druid.extensions.coordinates: "[\"io.druid.extensions:druid-histogram:0.8.2\"]"
+  #druid.extensions.localRepository: /path/to/druid/extensions-repo

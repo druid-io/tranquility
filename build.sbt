@@ -22,6 +22,8 @@ val sparkVersion = "1.6.0"
 val scalatraVersion = "2.3.1"
 val jettyVersion = "9.2.5.v20141112"
 val apacheHttpVersion = "4.3.3"
+val kafkaVersion = "0.9.0.0"
+val airlineVersion = "0.7"
 
 def dependOnDruid(artifact: String) = {
   ("io.druid" % artifact % druidVersion
@@ -101,13 +103,21 @@ val serverDependencies = Seq(
   "org.eclipse.jetty" % "jetty-servlet" % jettyVersion
 ) ++ loggingDependencies
 
+val kafkaDependencies = Seq(
+  "org.apache.kafka" %% "kafka" % kafkaVersion
+    exclude("org.slf4j", "slf4j-log4j12")
+    exclude("log4j", "log4j")
+    force(),
+  "io.airlift" % "airline" % airlineVersion
+) ++ loggingDependencies
+
 val coreTestDependencies = Seq(
   "org.scalatest" %% "scalatest" % "2.2.5" % "test",
   dependOnDruid("druid-services") % "test",
   "org.apache.curator" % "curator-test" % "2.6.0" % "test" exclude("log4j", "log4j") force(),
   "com.sun.jersey" % "jersey-servlet" % "1.17.1" % "test" force(),
-  "junit" % "junit" % "4.11" % "test",
-  "com.novocode" % "junit-interface" % "0.11-RC1" % "test",
+  "junit" % "junit" % "4.12" % "test",
+  "com.novocode" % "junit-interface" % "0.11" % "test",
   "ch.qos.logback" % "logback-core" % "1.1.2" % "test",
   "ch.qos.logback" % "logback-classic" % "1.1.2" % "test",
   "org.apache.logging.log4j" % "log4j-to-slf4j" % "2.4" % "test",
@@ -124,6 +134,10 @@ val samzaTestDependencies = Seq(
 
 val serverTestDependencies = Seq(
   "org.scalatra" %% "scalatra-test" % scalatraVersion % "test"
+)
+
+val kafkaTestDependencies = Seq(
+  "org.easymock" % "easymock" % "3.4" % "test"
 )
 
 lazy val commonSettings = Seq(
@@ -165,7 +179,7 @@ lazy val commonSettings = Seq(
 lazy val root = project.in(file("."))
   .settings(commonSettings: _*)
   .settings(publishArtifact := false)
-  .aggregate(core, storm, samza, spark, server)
+  .aggregate(core, storm, samza, spark, server, kafka)
 
 lazy val core = project.in(file("core"))
   .settings(commonSettings: _*)
@@ -202,6 +216,15 @@ lazy val server = project.in(file("server"))
   .settings(name := "tranquility-server")
   .settings(libraryDependencies ++= (serverDependencies ++ serverTestDependencies))
   .settings(publishArtifact in Test := false)
+  .dependsOn(core % "test->test;compile->compile")
+
+lazy val kafka = project.in(file("kafka"))
+  .settings(commonSettings: _*)
+  .settings(name := "tranquility-kafka")
+  .settings(libraryDependencies ++= (kafkaDependencies ++ kafkaTestDependencies))
+  .settings(publishArtifact in Test := false)
+  .settings(javaOptions in Universal ++= Seq("-J-Dfile.encoding=UTF-8", "-J-Duser.timezone=UTC"))
+  .enablePlugins(JavaAppPackaging)
   .dependsOn(core % "test->test;compile->compile")
 
 lazy val distribution = project.in(file("distribution"))

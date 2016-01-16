@@ -17,22 +17,20 @@
  * under the License.
  */
 
-package com.metamx.tranquility.server
+package com.metamx.tranquility.test
 
-import com.metamx.tranquility.server.http.ServerMain
+import com.metamx.tranquility.config.ConfigHelper
+import com.metamx.tranquility.config.TranquilityConfig
 import org.joda.time.Period
 import org.scalatest.FunSuite
 import org.scalatest.ShouldMatchers
 
-class ServerMainTest extends FunSuite with ShouldMatchers
+class ConfigHelperTest extends FunSuite with ShouldMatchers
 {
   test("readConfigYaml") {
-    val (globalConfig, dataSourceConfigs) = ServerMain.readConfigYaml(
-      getClass.getClassLoader.getResourceAsStream("tranquility-server.yaml")
+    val (globalConfig, dataSourceConfigs, globalProperties) = ConfigHelper.readConfigYaml(
+      getClass.getClassLoader.getResourceAsStream("tranquility-core.yaml"), classOf[TranquilityConfig]
     )
-
-    globalConfig.httpPort should be(8080)
-    globalConfig.httpThreads should be(2)
 
     dataSourceConfigs.keySet should be(Set("foo"))
 
@@ -44,6 +42,6 @@ class ServerMainTest extends FunSuite with ShouldMatchers
     fooConfig.fireDepartment.getTuningConfig.getWindowPeriod should be(new Period("PT30S"))
     fooConfig.config.zookeeperConnect should be("zk.example.com")
     fooConfig.config.taskPartitions should be(3)
-    fooConfig.config.druidBeamConfig.firehoseGracePeriod should be(new Period("PT1S"))
+    fooConfig.config.druidBeamConfig.firehoseGracePeriod should be(new Period("PT5M"))
   }
 }
