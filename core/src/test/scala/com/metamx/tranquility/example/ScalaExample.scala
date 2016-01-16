@@ -78,6 +78,8 @@ object ScalaExample extends Logging
       )
       .buildTranquilizer()
 
+    druidService.start()
+
     try {
       // Build a sample message to send; make sure we use a current date
       val obj = Map("timestamp" -> new DateTime().toString, "bar" -> "barVal", "baz" -> 3)

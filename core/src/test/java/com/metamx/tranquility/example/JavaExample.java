@@ -105,9 +105,15 @@ public class JavaExample
         )
         .buildTranquilizer();
 
+    druidService.start();
+
     try {
       // Build a sample event to send; make sure we use a current date
-      Map<String, Object> obj = ImmutableMap.of("timestamp", new DateTime().toString(), "bar", "barVal", "baz", 3);
+      Map<String, Object> obj = ImmutableMap.<String, Object>of(
+          "timestamp", new DateTime().toString(),
+          "bar", "barVal",
+          "baz", 3
+      );
 
       // Send event to Druid:
       final Future<BoxedUnit> future = druidService.send(obj);
