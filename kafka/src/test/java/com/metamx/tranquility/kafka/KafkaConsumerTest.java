@@ -139,7 +139,7 @@ public class KafkaConsumerTest
     return new KafkaConfig(props);
   }
 
-  @Test(timeout = 15000)
+  @Test(timeout = 60_000L)
   public void testStartConsumersNoCommit() throws Exception
   {
     final String topic = "testStartConsumersNoCommit";
@@ -225,7 +225,7 @@ public class KafkaConsumerTest
     EasyMock.verify(mockWriterController, mockEventWriter);
   }
 
-  @Test(timeout = 15000)
+  @Test(timeout = 60_000L)
   public void testStartConsumersWithCommitThread() throws Exception
   {
     final String topic = "testStartConsumersWithCommitThread";
