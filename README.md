@@ -41,22 +41,22 @@ easy to include. The current stable versions are:
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-core_2.11</artifactId>
-  <version>0.7.1</version>
+  <version>0.7.2</version>
 </dependency>
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-samza_2.10</artifactId>
-  <version>0.7.1</version>
+  <version>0.7.2</version>
 </dependency>
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-spark_2.11</artifactId>
-  <version>0.7.1</version>
+  <version>0.7.2</version>
 </dependency>
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-storm_2.11</artifactId>
-  <version>0.7.1</version>
+  <version>0.7.2</version>
 </dependency>
 ```
 
@@ -80,10 +80,10 @@ run them directly. The distribution also includes the [Core API](docs/core.md) a
 them rather than get them through Maven.
 
 The current distribution is:
-[tranquility-distribution-0.7.1](http://static.druid.io/tranquility/releases/tranquility-distribution-0.7.1.tgz).
+[tranquility-distribution-0.7.2](http://static.druid.io/tranquility/releases/tranquility-distribution-0.7.2.tgz).
 
 To use it, first download it and then unpack it into your directory of choice by running
-`tar -xzf tranquility-distribution-0.7.1.tgz`.
+`tar -xzf tranquility-distribution-0.7.2.tgz`.
 
 ### How to Contribute
 
