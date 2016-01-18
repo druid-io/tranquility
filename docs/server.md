@@ -37,10 +37,7 @@ If there is an error sending the data, you will get an HTTP error code (4xx or 5
 
 ### Getting Tranquility Server
 
-Tranquility Server is included in the
-[tranquility-distribution-0.7.1](http://static.druid.io/tranquility/releases/tranquility-distribution-0.7.1.tgz)
-tarball. To use it, first download it and then unpack it into your directory of choice by running
-`tar -xzf tranquility-distribution-0.7.1.tgz`.
+Tranquility Server is included in the [downloadable distribution](../README.md#downloadable-distribution).
 
 ### Configuration
 

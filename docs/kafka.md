@@ -8,9 +8,7 @@ Kafka topics into multiple Druid dataSources.
 
 ### Getting Tranquility Kafka
 
-Tranquility Kafka currently must be built from source. To build, run `sbt universal:packageZipTarball`. The build output
-will be contained in the archive `/kafka/target/universal/tranquility-kafka-x.x.x.tgz`. Unpack this tarball to the
-directory of choice by running `tar -xzf tranquility-kafka-x-x-x.tgz`.
+Tranquility Kafka is included in the [downloadable distribution](../README.md#downloadable-distribution).
 
 ### Configuration
 
@@ -34,7 +32,7 @@ because Tranquility supplies its own firehose and plumber.
 If you've saved your configuration into `conf/tranquility-kafka.yaml`, run the application with:
 
 ```bash
-bin/tranquility-kafka -configFile conf/tranquility-kafka.yaml
+bin/tranquility kafka -configFile conf/tranquility-kafka.yaml
 ```
 
 ## Configuration reference

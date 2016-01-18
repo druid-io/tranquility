@@ -19,6 +19,7 @@
 
 package com.metamx.tranquility.distribution
 
+import com.metamx.tranquility.kafka.KafkaMain
 import com.metamx.tranquility.server.http.ServerMain
 
 object DistributionMain
@@ -27,6 +28,9 @@ object DistributionMain
     args.headOption match {
       case Some("server") =>
         ServerMain.main(args.drop(1))
+
+      case Some("kafka") =>
+        KafkaMain.main(args.drop(1))
 
       case _ =>
         System.err.println(s"Usage: ${getClass.getCanonicalName} <command> [args]")
