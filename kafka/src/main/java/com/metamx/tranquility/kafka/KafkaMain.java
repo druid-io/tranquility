@@ -43,9 +43,9 @@ import java.util.Properties;
  * tranquility-kafka main.
  */
 @Command(name = "tranquility-kafka", description = "Kafka consumer which pushes events to Druid through Tranquility")
-public class Main
+public class KafkaMain
 {
-  private static final Logger log = new Logger(Main.class);
+  private static final Logger log = new Logger(KafkaMain.class);
 
   @Inject
   public HelpOption helpOption;
@@ -55,13 +55,13 @@ public class Main
 
   public static void main(String[] args) throws Exception
   {
-    Main main;
+    KafkaMain main;
     try {
-      main = SingleCommand.singleCommand(Main.class).parse(args);
+      main = SingleCommand.singleCommand(KafkaMain.class).parse(args);
     }
     catch (Exception e) {
       log.error(e, "Exception parsing arguments");
-      Help.help(SingleCommand.singleCommand(Main.class).getCommandMetadata());
+      Help.help(SingleCommand.singleCommand(KafkaMain.class).getCommandMetadata());
       return;
     }
 

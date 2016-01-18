@@ -72,12 +72,18 @@ v0.3.2, which is the most recent version built for use with Druid 0.6.x.
 Tranquility is built with [SBT](http://www.scala-sbt.org/). If you want to build the jars yourself, you can
 run `sbt +package`.
 
-### Getting Tranquility Server
+### Downloadable Distribution
 
-Tranquility Server is available as a tarball that you can download and run. The current version is in
+The Tranquility downloadable distribution includes the [Server](docs/server.md) and [Kafka](docs/kafka.md) programs,
+which are standalone programs that can be used without writing any code. You can download the distribution and
+run them directly. The distribution also includes the [Core API](docs/core.md) artifacts, if you prefer to download
+them rather than get them through Maven.
+
+The current distribution is:
 [tranquility-distribution-0.7.1](http://static.druid.io/tranquility/releases/tranquility-distribution-0.7.1.tgz).
 
-For more information please see the [Tranquility Server documentation](docs/server.md).
+To use it, first download it and then unpack it into your directory of choice by running
+`tar -xzf tranquility-distribution-0.7.1.tgz`.
 
 ### How to Contribute
 

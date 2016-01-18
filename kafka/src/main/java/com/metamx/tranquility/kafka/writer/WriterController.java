@@ -103,8 +103,8 @@ public class WriterController
   {
     Map<String, MessageCounters> flushedEvents = new HashMap<>();
     for (Map.Entry<String, TranquilityEventWriter> entry : writers.entrySet()) {
-      flushedEvents.put(entry.getKey(), entry.getValue().getMessageCounters());
       entry.getValue().flush();
+      flushedEvents.put(entry.getKey(), entry.getValue().getMessageCounters());
     }
 
     return flushedEvents;
