@@ -20,6 +20,8 @@
 package com.metamx.tranquility.server
 
 import com.metamx.tranquility.config.ConfigHelper
+import com.metamx.tranquility.druid.DruidBeams
+import com.metamx.tranquility.druid.DruidEnvironment
 import org.joda.time.Period
 import org.scalatest.FunSuite
 import org.scalatest.ShouldMatchers
@@ -37,13 +39,19 @@ class ServerConfigTest extends FunSuite with ShouldMatchers
     dataSourceConfigs.keySet should be(Set("foo"))
 
     val fooConfig = dataSourceConfigs("foo")
-    fooConfig.fireDepartment.getDataSchema.getDataSource should be("foo")
-    fooConfig.fireDepartment.getDataSchema.getAggregators.map(_.getName).toList should be(Seq("count", "x"))
-    fooConfig.fireDepartment.getTuningConfig.getMaxRowsInMemory should be(100000)
-    fooConfig.fireDepartment.getTuningConfig.getIntermediatePersistPeriod should be(new Period("PT45S"))
-    fooConfig.fireDepartment.getTuningConfig.getWindowPeriod should be(new Period("PT30S"))
     fooConfig.config.zookeeperConnect should be("zk.example.com")
     fooConfig.config.taskPartitions should be(3)
     fooConfig.config.druidBeamConfig.firehoseGracePeriod should be(new Period("PT1S"))
+
+    val builder = DruidBeams.builderFromSpecScala(
+      DruidEnvironment("overlord"),
+      fooConfig.specMap
+    )
+    builder.config._location.get.dataSource should be("foo")
+    builder.config._rollup.get.aggregators.map(_.getName) should be(Seq("count", "x"))
+    builder.config._druidTuning.get.maxRowsInMemory should be(100000)
+    builder.config._druidTuning.get.intermediatePersistPeriod should be(new Period("PT45S"))
+    builder.config._druidTuning.get.buildV9Directly should be(true)
+    builder.config._tuning.get.windowPeriod should be(new Period("PT30S"))
   }
 }

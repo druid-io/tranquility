@@ -19,29 +19,57 @@
 
 package com.metamx.tranquility.test
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.metamx.common.scala.Jackson
+import com.metamx.common.scala.untyped.Dict
 import com.metamx.tranquility.config.ConfigHelper
 import com.metamx.tranquility.config.TranquilityConfig
+import com.metamx.tranquility.druid.DruidBeams
+import com.metamx.tranquility.druid.DruidEnvironment
 import org.joda.time.Period
 import org.scalatest.FunSuite
 import org.scalatest.ShouldMatchers
 
 class ConfigHelperTest extends FunSuite with ShouldMatchers
 {
-  test("readConfigYaml") {
+  test("readConfigYaml: YAML") {
     val (globalConfig, dataSourceConfigs, globalProperties) = ConfigHelper.readConfigYaml(
-      getClass.getClassLoader.getResourceAsStream("tranquility-core.yaml"), classOf[TranquilityConfig]
+      getClass.getClassLoader.getResourceAsStream("tranquility-core.yaml"),
+      classOf[TranquilityConfig]
     )
 
     dataSourceConfigs.keySet should be(Set("foo"))
 
     val fooConfig = dataSourceConfigs("foo")
-    fooConfig.fireDepartment.getDataSchema.getDataSource should be("foo")
-    fooConfig.fireDepartment.getDataSchema.getAggregators.map(_.getName).toList should be(Seq("count", "x"))
-    fooConfig.fireDepartment.getTuningConfig.getMaxRowsInMemory should be(100000)
-    fooConfig.fireDepartment.getTuningConfig.getIntermediatePersistPeriod should be(new Period("PT45S"))
-    fooConfig.fireDepartment.getTuningConfig.getWindowPeriod should be(new Period("PT30S"))
     fooConfig.config.zookeeperConnect should be("zk.example.com")
     fooConfig.config.taskPartitions should be(3)
     fooConfig.config.druidBeamConfig.firehoseGracePeriod should be(new Period("PT5M"))
+
+    for (builder <- makeBuilders(fooConfig.specMap)) {
+      builder.config._location.get.dataSource should be("foo")
+      builder.config._rollup.get.aggregators.map(_.getName) should be(Seq("count", "x"))
+      builder.config._druidTuning.get.maxRowsInMemory should be(100000)
+      builder.config._druidTuning.get.intermediatePersistPeriod should be(new Period("PT45S"))
+      builder.config._druidTuning.get.buildV9Directly should be(true)
+      builder.config._tuning.get.windowPeriod should be(new Period("PT30S"))
+    }
+  }
+
+  private def makeBuilders(
+    specMap: Dict
+  ): Seq[DruidBeams.Builder[_]] =
+  {
+    val scalaBuilder = DruidBeams.builderFromSpecScala(
+      DruidEnvironment("overlord"),
+      specMap
+    )
+    val javaBuilder = DruidBeams.builderFromSpecJava(
+      DruidEnvironment("overlord"),
+      new ObjectMapper().readValue(
+        Jackson.generate(specMap),
+        classOf[java.util.Map[String, AnyRef]]
+      )
+    )
+    Seq(scalaBuilder, javaBuilder)
   }
 }

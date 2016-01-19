@@ -31,9 +31,6 @@ import com.metamx.tranquility.kafka.model.TranquilityKafkaConfig;
 import com.metamx.tranquility.tranquilizer.SimpleTranquilizerAdapter;
 import com.metamx.tranquility.tranquilizer.Tranquilizer;
 import org.apache.curator.framework.CuratorFramework;
-import scala.Predef;
-import scala.Tuple2;
-import scala.collection.JavaConverters;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -48,7 +45,7 @@ public class TranquilityEventWriter
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   private final DataSourceConfig<TranquilityKafkaConfig> dataSourceConfig;
-  private final SimpleTranquilizerAdapter<scala.collection.immutable.Map<String, Object>> simpleTranquilizerAdapter;
+  private final SimpleTranquilizerAdapter<Map<String, Object>> simpleTranquilizerAdapter;
 
   private long rejectedLogCount = 0;
 
@@ -61,8 +58,8 @@ public class TranquilityEventWriter
   {
     this.dataSourceConfig = dataSourceConfig;
 
-    final Tranquilizer<scala.collection.immutable.Map<String, Object>> tranquilizer =
-        ConfigHelper.createTranquilizerWithLocation(
+    final Tranquilizer<Map<String, Object>> tranquilizer =
+        ConfigHelper.createTranquilizerJava(
             dataSourceConfig,
             finagleRegistry,
             curator,
@@ -70,7 +67,7 @@ public class TranquilityEventWriter
                 dataSourceConfig.config().druidIndexingServiceName(),
                 dataSourceConfig.config().useTopicAsDataSource()
                 ? topic
-                : dataSourceConfig.fireDepartment().getDataSchema().getDataSource()
+                : dataSourceConfig.dataSource()
             )
         );
 
@@ -106,11 +103,7 @@ public class TranquilityEventWriter
     }
 
     // this call may throw an exception for an unrelated message due to SimpleTranquilizerAdapter's implementation
-    simpleTranquilizerAdapter.send(
-        JavaConverters.mapAsScalaMapConverter(map).asScala().toMap(
-            Predef.<Tuple2<String, Object>>conforms()
-        )
-    );
+    simpleTranquilizerAdapter.send(map);
   }
 
   public void flush() throws InterruptedException
