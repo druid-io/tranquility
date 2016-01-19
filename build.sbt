@@ -15,6 +15,7 @@ val jacksonOneVersion = "1.9.13"
 val jacksonTwoVersion = "2.4.6"
 val jacksonTwoModuleScalaVersion = "2.4.5"
 val druidVersion = "0.8.2"
+val flinkVersion = "0.10.1"
 val finagleVersion = "6.31.0"
 val twitterUtilVersion = "6.30.0"
 val samzaVersion = "0.8.0"
@@ -77,6 +78,17 @@ val loggingDependencies = Seq(
   "org.slf4j" % "jul-to-slf4j" % "1.7.12"
 )
 
+// Flink 2.10 dependency names do not contain the scala version suffix. 2.11 dependencies do.
+def flinkDependencies(scalaVersion: String) = {
+  val suffix = if (scalaVersion.startsWith("2.11")) "_2.11" else ""
+  Seq(
+    "org.apache.flink" % s"flink-streaming-scala$suffix" % flinkVersion % "optional"
+    exclude("log4j", "log4j")
+    exclude("org.slf4j", "slf4j-log4j12")
+    force()
+  )
+}
+
 val stormDependencies = Seq(
   "org.apache.storm" % "storm-core" % "0.9.3" % "optional"
     exclude("javax.jms", "jms")
@@ -125,6 +137,15 @@ val coreTestDependencies = Seq(
   "org.slf4j" % "log4j-over-slf4j" % "1.7.12" % "test",
   "org.slf4j" % "jul-to-slf4j" % "1.7.12" % "test"
 ) ++ loggingDependencies.map(_ % "test")
+
+def flinkTestDependencies(scalaVersion: String) = {
+  val suffix = if (scalaVersion.startsWith("2.11")) "_2.11" else ""
+  Seq("org.apache.flink" % s"flink-core$suffix" % flinkVersion % "test" classifier "tests",
+    "org.apache.flink" % s"flink-runtime$suffix" % flinkVersion % "test" classifier "tests",
+    "org.apache.flink" % s"flink-test-utils$suffix" % flinkVersion % "test"
+  ).map(_ exclude("log4j", "log4j") exclude("org.slf4j", "slf4j-log4j12") force()) ++
+    loggingDependencies.map(_ % "test")
+}
 
 // Force 2.10 here, makes update resolution happy, but since w'ere not building for 2.11
 // we won't end up in runtime version hell by doing this.
@@ -179,13 +200,20 @@ lazy val commonSettings = Seq(
 lazy val root = project.in(file("."))
   .settings(commonSettings: _*)
   .settings(publishArtifact := false)
-  .aggregate(core, storm, samza, spark, server, kafka)
+  .aggregate(core, flink, storm, samza, spark, server, kafka)
 
 lazy val core = project.in(file("core"))
   .settings(commonSettings: _*)
   .settings(name := "tranquility-core")
   .settings(publishArtifact in(Test, packageBin) := true)
   .settings(libraryDependencies ++= (coreDependencies ++ coreTestDependencies))
+
+lazy val flink = project.in(file("flink"))
+  .settings(commonSettings: _*)
+  .settings(name := "tranquility-flink")
+  .settings(libraryDependencies <++= scalaVersion(flinkDependencies))
+  .settings(libraryDependencies <++= scalaVersion(flinkTestDependencies))
+  .dependsOn(core % "test->test;compile->compile")
 
 lazy val spark = project.in(file("spark"))
   .settings(commonSettings: _*)
