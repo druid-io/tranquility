@@ -30,8 +30,9 @@ class SimpleEventBeamFactory extends BeamFactory[SimpleEvent]
     val dimensions = IndexedSeq("bar")
     val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
 
+    // Expects simpleEvent.timestamp to return a Joda DateTime object.
     DruidBeams
-      .builder((eventMap: SimpleEvent) => new DateTime())
+      .builder((simpleEvent: SimpleEvent) => simpleEvent.timestamp)
       .curator(curator)
       .discoveryPath(discoveryPath)
       .location(DruidLocation.create(indexService, dataSource))
