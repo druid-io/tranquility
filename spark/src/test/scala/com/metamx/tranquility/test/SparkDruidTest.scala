@@ -78,7 +78,8 @@ class SparkDruidTest
         val lines = mutable.Queue[RDD[SimpleEvent]]()
         val dstream = ssc.queueStream(lines)
         lines += sparkContext.makeRDD(inputs)
-        dstream.foreachRDD(rdd => rdd.propagate(new SimpleEventBeamFactory(zkConnect)))
+        val beamFactory = new SimpleEventBeamFactory(zkConnect)
+        dstream.foreachRDD(rdd => rdd.propagate(beamFactory))
         ssc.start()
 
         runTestQueriesAndAssertions(

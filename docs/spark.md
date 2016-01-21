@@ -24,17 +24,17 @@ lazy val makeBeam : Beam[SimpleEvent] = {
     curator.start()
 
     val indexService = "druid/overlord" // Your overlord's druid.service, with slashes replaced by colons.
-    val firehosePattern = "druid:firehose:%s" // Make up a service pattern, include %s somewhere in it.
     val discoveryPath = "/druid/discovery"     // Your overlord's druid.discovery.curator.path
     val dataSource = "foo"
     val dimensions = IndexedSeq("bar")
     val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
 
+    // Expects simpleEvent.timestamp to return a Joda DateTime object.
     DruidBeams
-      .builder((eventMap: SimpleEvent) => new DateTime())
+      .builder((simpleEvent: SimpleEvent) => simpleEvent.timestamp)
       .curator(curator)
       .discoveryPath(discoveryPath)
-      .location(DruidLocation(indexService, firehosePattern, dataSource))
+      .location(DruidLocation(indexService, dataSource))
       .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularity.MINUTE))
       .tuning(
         ClusteredBeamTuning(
@@ -51,4 +51,5 @@ lazy val makeBeam : Beam[SimpleEvent] = {
 import com.metamx.tranquility.spark.BeamRDD._
 
 //now given a spark dstream, you could propagate events
-dstream.foreachRDD(rdd => rdd.propagate(new SimpleEventBeamFactory))
+val beamFactory = new SimpleEventBeamFactory(zkConnect)
+dstream.foreachRDD(rdd => rdd.propagate(beamFactory))

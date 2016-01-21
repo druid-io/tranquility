@@ -53,7 +53,7 @@ public class JavaExample
 
   public static void main(String[] args)
   {
-    final String indexService = "druid/overlord"; // Your overlord's service name.
+    final String indexService = "druid/overlord"; // Your overlord's druid.service
     final String discoveryPath = "/druid/discovery"; // Your overlord's druid.discovery.curator.path
     final String dataSource = "foo";
     final List<String> dimensions = ImmutableList.of("bar", "qux");
