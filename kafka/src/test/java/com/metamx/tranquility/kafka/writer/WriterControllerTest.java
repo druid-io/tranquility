@@ -22,6 +22,7 @@ package com.metamx.tranquility.kafka.writer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.metamx.tranquility.config.DataSourceConfig;
+import com.metamx.tranquility.kafka.KafkaConsumerTest;
 import com.metamx.tranquility.kafka.model.MessageCounters;
 import com.metamx.tranquility.kafka.model.TranquilityKafkaConfig;
 import io.druid.query.aggregation.AggregatorFactory;
@@ -39,6 +40,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.skife.config.ConfigurationObjectFactory;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -69,7 +71,7 @@ public class WriterControllerTest
   private TestableWriterController writerController;
 
   @Before
-  public void setUp()
+  public void setUp() throws IOException
   {
     Properties props = new Properties();
     props.setProperty("kafka.zookeeper.connect", "localhost:2181");
@@ -99,9 +101,17 @@ public class WriterControllerTest
 
     Map<String, DataSourceConfig<TranquilityKafkaConfig>> datasourceConfigs = ImmutableMap.of(
         "twitter",
-        new DataSourceConfig<>(new ConfigurationObjectFactory(propsTwitter).build(TranquilityKafkaConfig.class), fd),
+        new DataSourceConfig<>(
+            new ConfigurationObjectFactory(propsTwitter).build(TranquilityKafkaConfig.class),
+            "twitter",
+            KafkaConsumerTest.fireDepartmentToScalaMap(fd)
+        ),
         "test[0-9]",
-        new DataSourceConfig<>(new ConfigurationObjectFactory(propsTest).build(TranquilityKafkaConfig.class), fd)
+        new DataSourceConfig<>(
+            new ConfigurationObjectFactory(propsTest).build(TranquilityKafkaConfig.class),
+            "test[0-9]",
+            KafkaConsumerTest.fireDepartmentToScalaMap(fd)
+        )
     );
 
     writerController = new TestableWriterController(datasourceConfigs);

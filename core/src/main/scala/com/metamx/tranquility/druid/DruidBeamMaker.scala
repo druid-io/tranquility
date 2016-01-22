@@ -129,7 +129,8 @@ class DruidBeamMaker[A: Timestamper](
         Map("type" -> "serverTime").asJava
       } else {
         Map("type" -> "none").asJava
-      })
+      }),
+      "buildV9Directly" -> druidTuning.buildV9Directly
     ).asJava
     val taskMap = Map(
       "type" -> "index_realtime",

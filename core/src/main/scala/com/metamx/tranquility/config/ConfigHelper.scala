@@ -35,21 +35,21 @@ import org.apache.curator.framework.CuratorFramework
 import org.skife.config.ConfigurationObjectFactory
 
 /**
- * Helper methods to perform shared tasks based on common configuration file semantics.
- */
+  * Helper methods to perform shared tasks based on common configuration file semantics.
+  */
 object ConfigHelper
 {
   /**
-   * Builds configuration object from YAML file.
-   *
-   * This method may have the side effect of modifying system properties if the YAML file contains properties beginning
-   * with "druid.extensions." - this is necessary as DruidGuicer reads the system properties to know what extensions
-   * need to be loaded. If the properties have already been set elsewhere, the system properties will not be modified.
-   */
+    * Builds configuration object from YAML file.
+    *
+    * This method may have the side effect of modifying system properties if the YAML file contains properties beginning
+    * with "druid.extensions." - this is necessary as DruidGuicer reads the system properties to know what extensions
+    * need to be loaded. If the properties have already been set elsewhere, the system properties will not be modified.
+    */
   def readConfigYaml[T <: TranquilityConfig](
     in: InputStream,
     clazz: Class[T]
-    ): (T, Map[String, DataSourceConfig[T]], Dict) =
+  ): (T, Map[String, DataSourceConfig[T]], Dict) =
   {
     val yaml = in.withFinally(_.close()) { in =>
       dict(Yaml.load(in))
@@ -57,8 +57,7 @@ object ConfigHelper
     val globalProperties: Dict = getAsDict(yaml, "properties")
     val globalConfig = mapConfig(globalProperties, clazz)
 
-    for (prop <- globalProperties.filterKeys(_.startsWith("druid.extensions.")))
-    {
+    for (prop <- globalProperties.filterKeys(_.startsWith("druid.extensions."))) {
       if (!sys.props.contains(prop._1)) {
         // copy properties to system as DruidGuicer reads system properties to know what extensions need to be loaded
         sys.props += (prop._1 -> prop._2.toString)
@@ -74,16 +73,19 @@ object ConfigHelper
       }
 
       val dataSourceSpec = getAsDict(d, "spec")
-      val fireDepartment = DruidGuicer.objectMapper.convertValue(normalizeJava(dataSourceSpec), classOf[FireDepartment])
       val config = mapConfig(globalProperties ++ dataSourceProperties, clazz)
 
       // Sanity check: two ways of providing dataSource, they must match
+      val specDataSource = DruidGuicer.objectMapper.convertValue(
+        normalizeJava(dataSourceSpec),
+        classOf[FireDepartment]
+      ).getDataSchema.getDataSource
       require(
-        dataSource == fireDepartment.getDataSchema.getDataSource,
-        s"dataSource[$dataSource] did not match spec[${fireDepartment.getDataSchema.getDataSource}]"
+        dataSource == specDataSource,
+        s"dataSource[$dataSource] did not match spec[$specDataSource]"
       )
 
-      (dataSource, DataSourceConfig(config, fireDepartment))
+      (dataSource, DataSourceConfig(config, dataSource, dataSourceSpec))
     }
 
     (globalConfig, dataSourceConfigs, globalProperties)
@@ -102,27 +104,53 @@ object ConfigHelper
     Option(d.getOrElse(k, null)).map(dict(_)).getOrElse(Dict())
   }
 
-  def createTranquilizer[T <: TranquilityConfig](
+  def createTranquilizerScala[T <: TranquilityConfig](
     dataSourceConfig: DataSourceConfig[T],
     finagleRegistry: FinagleRegistry,
-    curator: CuratorFramework
-    ): Tranquilizer[Dict] =
+    curator: CuratorFramework,
+    location: DruidLocation = null
+  ): Tranquilizer[Dict] =
   {
-    createTranquilizerWithLocation(dataSourceConfig, finagleRegistry, curator, null)
+    createTranquilizer(
+      (environment, specMap) => DruidBeams.builderFromSpecScala(environment, specMap),
+      dataSourceConfig,
+      finagleRegistry,
+      curator,
+      location
+    )
   }
 
-  def createTranquilizerWithLocation[T <: TranquilityConfig](
+  def createTranquilizerJava[T <: TranquilityConfig](
+    dataSourceConfig: DataSourceConfig[T],
+    finagleRegistry: FinagleRegistry,
+    curator: CuratorFramework,
+    location: DruidLocation = null
+  ): Tranquilizer[java.util.Map[String, AnyRef]] =
+  {
+    createTranquilizer(
+      (environment, specMap) => DruidBeams.builderFromSpecJava(
+        environment,
+        normalizeJava(specMap).asInstanceOf[java.util.Map[String, AnyRef]]
+      ),
+      dataSourceConfig,
+      finagleRegistry,
+      curator,
+      location
+    )
+  }
+
+  private def createTranquilizer[MessageType, T <: TranquilityConfig](
+    builderMaker: (DruidEnvironment, Dict) => DruidBeams.Builder[MessageType],
     dataSourceConfig: DataSourceConfig[T],
     finagleRegistry: FinagleRegistry,
     curator: CuratorFramework,
     location: DruidLocation
-    ): Tranquilizer[Dict] =
+  ): Tranquilizer[MessageType] =
   {
     val environment = DruidEnvironment(dataSourceConfig.config.druidIndexingServiceName)
 
     // Create beam for this dataSource
-    var beamBuilder = DruidBeams
-      .builder(environment, dataSourceConfig.fireDepartment)
+    var beamBuilder = builderMaker(environment, dataSourceConfig.specMap)
       .curator(curator)
       .finagleRegistry(finagleRegistry)
       .partitions(dataSourceConfig.config.taskPartitions)

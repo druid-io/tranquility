@@ -24,7 +24,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.io.Files;
+import com.metamx.common.scala.Jackson$;
 import com.metamx.tranquility.config.DataSourceConfig;
+import com.metamx.tranquility.druid.DruidGuicer;
 import com.metamx.tranquility.kafka.model.MessageCounters;
 import com.metamx.tranquility.kafka.model.TranquilityKafkaConfig;
 import com.metamx.tranquility.kafka.writer.TranquilityEventWriter;
@@ -61,6 +63,7 @@ import org.junit.Test;
 import org.skife.config.ConfigurationObjectFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.Map;
 import java.util.Properties;
@@ -193,7 +196,8 @@ public class KafkaConsumerTest
         topic,
         new DataSourceConfig<>(
             config,
-            fd
+            topic,
+            fireDepartmentToScalaMap(fd)
         )
     );
 
@@ -279,7 +283,8 @@ public class KafkaConsumerTest
         topic,
         new DataSourceConfig<>(
             config,
-            fd
+            topic,
+            fireDepartmentToScalaMap(fd)
         )
     );
 
@@ -330,5 +335,15 @@ public class KafkaConsumerTest
     OffsetFetchResponse fetchResponse = OffsetFetchResponse.readFrom(channel.receive().payload());
     OffsetMetadataAndError result = fetchResponse.offsets().get(partition);
     return result.offset();
+  }
+
+  public static scala.collection.immutable.Map<String, Object> fireDepartmentToScalaMap(
+      final FireDepartment fireDepartment
+  ) throws IOException
+  {
+    return Jackson$.MODULE$.newObjectMapper().readValue(
+        DruidGuicer.objectMapper().writeValueAsBytes(fireDepartment),
+        scala.collection.immutable.Map.class
+    );
   }
 }

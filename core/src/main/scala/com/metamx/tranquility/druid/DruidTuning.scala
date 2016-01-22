@@ -25,7 +25,8 @@ import org.scala_tools.time.Imports._
 case class DruidTuning(
   maxRowsInMemory: Int = 75000,
   intermediatePersistPeriod: Period = 10.minutes,
-  maxPendingPersists: Int = 0
+  maxPendingPersists: Int = 0,
+  buildV9Directly: Boolean = false
 )
 
 object DruidTuning
@@ -38,6 +39,7 @@ object DruidTuning
     * @param intermediatePersistPeriod period that determines the rate at which intermediate persists occur
     * @param maxPendingPersists number of persists that can be pending, but not started
     */
+  @deprecated("0.7.3", "use 'apply' or 'builder'")
   def create(
     maxRowsInMemory: Int,
     intermediatePersistPeriod: Period,
@@ -74,6 +76,14 @@ object DruidTuning
       * Default is 0.
       */
     def maxPendingPersists(x: Int) = new Builder(config.copy(maxPendingPersists = x))
+
+    /**
+      * Should Druid be asked to build v9 segments directly? Only supported in certain versions of Druid.
+      * See your Druid version's documentation for details.
+      *
+      * Default is false.
+      */
+    def buildV9Directly(x: Boolean) = new Builder(config.copy(buildV9Directly = x))
 
     def build(): DruidTuning = config
   }

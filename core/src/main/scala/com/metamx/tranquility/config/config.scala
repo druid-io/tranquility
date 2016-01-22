@@ -21,6 +21,7 @@ package com.metamx.tranquility.config
 
 import com.metamx.common.scala.net.curator.DiscoAnnounceConfig
 import com.metamx.common.scala.net.curator.DiscoConfig
+import com.metamx.common.scala.untyped.Dict
 import com.metamx.tranquility.beam.ClusteredBeamTuning
 import com.metamx.tranquility.druid.DruidBeamConfig
 import com.metamx.tranquility.tranquilizer.Tranquilizer
@@ -100,4 +101,4 @@ abstract class TranquilityConfig(globalProperties: Set[String]) extends DiscoCon
   override def discoAnnounce: Option[DiscoAnnounceConfig] = None
 }
 
-case class DataSourceConfig[T <: TranquilityConfig](config: T, fireDepartment: FireDepartment)
+case class DataSourceConfig[T <: TranquilityConfig](config: T, dataSource: String, specMap: Dict)

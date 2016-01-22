@@ -91,7 +91,7 @@ object ServerMain extends App with Logging
   def createServlet[T <: TranquilityConfig](
     lifecycle: Lifecycle,
     dataSourceConfigs: Map[String, DataSourceConfig[T]]
-    ): TranquilityServlet =
+  ): TranquilityServlet =
   {
     val curators = ConcurrentMap[String, CuratorFramework]()
     val finagleRegistries = ConcurrentMap[(String, String), FinagleRegistry]()
@@ -105,13 +105,19 @@ object ServerMain extends App with Logging
         Curator.create(zookeeperConnect, dataSourceConfig.config.zookeeperTimeout.standardDuration, lifecycle)
       )
       val finagleRegistry = finagleRegistries.getOrElseUpdate(
-      (zookeeperConnect, discoPath), {
-        val disco = lifecycle.addManagedInstance(new Disco(curator, dataSourceConfig.config))
-        new FinagleRegistry(FinagleRegistryConfig(), disco)
-      }
+        (zookeeperConnect, discoPath), {
+          val disco = lifecycle.addManagedInstance(new Disco(curator, dataSourceConfig.config))
+          new FinagleRegistry(FinagleRegistryConfig(), disco)
+        }
       )
 
-      lifecycle.addManagedInstance(ConfigHelper.createTranquilizer(dataSourceConfig, finagleRegistry, curator))
+      lifecycle.addManagedInstance(
+        ConfigHelper.createTranquilizerScala(
+          dataSourceConfig,
+          finagleRegistry,
+          curator
+        )
+      )
     }
 
     new TranquilityServlet(tranquilizers)
@@ -121,7 +127,7 @@ object ServerMain extends App with Logging
     lifecycle: Lifecycle,
     globalConfig: ServerConfig,
     servlet: TranquilityServlet
-    ): Server =
+  ): Server =
   {
     new Server(new QueuedThreadPool(globalConfig.httpThreads)) withEffect { server =>
       val connector = new ServerConnector(server)

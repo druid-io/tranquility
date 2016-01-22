@@ -71,7 +71,7 @@ public class WriterController
       log.info(
           "  [%s] -> %s (priority: %d)",
           dataSourceConfig.config().getTopicPattern(),
-          dataSourceConfig.fireDepartment().getDataSchema().getDataSource(),
+          dataSourceConfig.dataSource(),
           dataSourceConfig.config().getTopicPatternPriority()
       );
     }
@@ -86,7 +86,7 @@ public class WriterController
           log.info(
               "Creating EventWriter for topic [%s] using dataSource [%s]",
               topic,
-              dataSourceConfig.fireDepartment().getDataSchema().getDataSource()
+              dataSourceConfig.dataSource()
           );
           writers.put(topic, createWriter(topic, dataSourceConfig));
           return writers.get(topic);
