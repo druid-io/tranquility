@@ -1,0 +1,174 @@
+{
+   "properties" : {
+      "zookeeper.timeout" : "PT20S",
+      "task.partitions" : "1",
+      "commit.periodMillis" : "15000",
+      "druid.selectors.indexing.serviceName" : "druid/overlord",
+      "kafka.group.id" : "tranquility-kafka",
+      "consumer.numThreads" : "2",
+      "task.replicants" : "1",
+      "reportDropsAsExceptions" : "false",
+      "kafka.zookeeper.connect" : "localhost:2181",
+      "zookeeper.connect" : "localhost:2181",
+      "druid.discovery.curator.path" : "/druid/discovery"
+   },
+   "dataSources" : {
+      "twitter" : {
+         "spec" : {
+            "dataSchema" : {
+               "parser" : {
+                  "type" : "string",
+                  "parseSpec" : {
+                     "timestampSpec" : {
+                        "format" : "auto",
+                        "column" : "timestamp"
+                     },
+                     "dimensionsSpec" : {
+                        "spatialDimensions" : [
+                           {
+                              "dims" : [
+                                 "lat",
+                                 "lon"
+                              ],
+                              "dimName" : "geo"
+                           }
+                        ],
+                        "dimensions" : [
+                           "text",
+                           "hashtags",
+                           "lat",
+                           "lon",
+                           "source",
+                           "retweet",
+                           "lang",
+                           "utc_offset",
+                           "screen_name",
+                           "verified"
+                        ]
+                     },
+                     "format" : "json"
+                  }
+               },
+               "dataSource" : "twitter",
+               "granularitySpec" : {
+                  "segmentGranularity" : "hour",
+                  "type" : "uniform",
+                  "queryGranularity" : "none"
+               },
+               "metricsSpec" : [
+                  {
+                     "type" : "count",
+                     "name" : "tweets"
+                  },
+                  {
+                     "fieldName" : "followers",
+                     "type" : "longSum",
+                     "name" : "followers"
+                  },
+                  {
+                     "name" : "retweets",
+                     "type" : "longSum",
+                     "fieldName" : "retweets"
+                  },
+                  {
+                     "fieldName" : "friends",
+                     "type" : "longSum",
+                     "name" : "friends"
+                  },
+                  {
+                     "name" : "statuses",
+                     "type" : "longSum",
+                     "fieldName" : "statuses"
+                  }
+               ]
+            },
+            "tuningConfig" : {
+               "maxRowsInMemory" : "100000",
+               "type" : "realtime",
+               "windowPeriod" : "PT10M",
+               "intermediatePersistPeriod" : "PT10M"
+            }
+         },
+         "properties" : {
+            "topicPattern.priority" : "1",
+            "topicPattern" : "twitter",
+            "useTopicAsDataSource" : "false"
+         }
+      },
+      "wikipedia" : {
+         "spec" : {
+            "ioConfig" : {
+               "type" : "realtime"
+            },
+            "dataSchema" : {
+               "granularitySpec" : {
+                  "queryGranularity" : "none",
+                  "type" : "uniform",
+                  "segmentGranularity" : "hour"
+               },
+               "dataSource" : "wikipedia",
+               "parser" : {
+                  "type" : "string",
+                  "parseSpec" : {
+                     "timestampSpec" : {
+                        "format" : "auto",
+                        "column" : "timestamp"
+                     },
+                     "format" : "json",
+                     "dimensionsSpec" : {
+                        "dimensions" : [
+                           "page",
+                           "language",
+                           "user",
+                           "unpatrolled",
+                           "newPage",
+                           "robot",
+                           "anonymous",
+                           "namespace",
+                           "continent",
+                           "country",
+                           "region",
+                           "city"
+                        ]
+                     }
+                  }
+               },
+               "metricsSpec" : [
+                  {
+                     "type" : "count",
+                     "name" : "count"
+                  },
+                  {
+                     "type" : "doubleSum",
+                     "name" : "added",
+                     "fieldName" : "added"
+                  },
+                  {
+                     "name" : "deleted",
+                     "type" : "doubleSum",
+                     "fieldName" : "deleted"
+                  },
+                  {
+                     "name" : "delta",
+                     "type" : "doubleSum",
+                     "fieldName" : "delta"
+                  }
+               ]
+            },
+            "tuningConfig" : {
+               "intermediatePersistPeriod" : "PT10M",
+               "windowPeriod" : "PT10M",
+               "type" : "realtime",
+               "maxRowsInMemory" : "100000"
+            }
+         },
+         "properties" : {
+            "useTopicAsDataSource" : "true",
+            "topicPattern" : "wikipedia.*",
+            "task.partitions" : "2",
+            "topicPattern.priority" : "1",
+            "task.replicants" : "2"
+         }
+      }
+   }
+}

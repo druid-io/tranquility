@@ -39,7 +39,7 @@ object DruidTuning
     * @param intermediatePersistPeriod period that determines the rate at which intermediate persists occur
     * @param maxPendingPersists number of persists that can be pending, but not started
     */
-  @deprecated("0.7.3", "use 'apply' or 'builder'")
+  @deprecated("use 'apply' or 'builder'", "0.7.3")
   def create(
     maxRowsInMemory: Int,
     intermediatePersistPeriod: Period,

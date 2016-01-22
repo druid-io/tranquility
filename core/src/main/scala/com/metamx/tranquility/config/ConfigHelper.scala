@@ -24,11 +24,9 @@ import com.metamx.common.scala.Yaml
 import com.metamx.common.scala.untyped._
 import com.metamx.tranquility.druid.DruidBeams
 import com.metamx.tranquility.druid.DruidEnvironment
-import com.metamx.tranquility.druid.DruidGuicer
 import com.metamx.tranquility.druid.DruidLocation
 import com.metamx.tranquility.finagle.FinagleRegistry
 import com.metamx.tranquility.tranquilizer.Tranquilizer
-import io.druid.segment.realtime.FireDepartment
 import java.io.InputStream
 import java.util.Properties
 import org.apache.curator.framework.CuratorFramework
@@ -76,10 +74,13 @@ object ConfigHelper
       val config = mapConfig(globalProperties ++ dataSourceProperties, clazz)
 
       // Sanity check: two ways of providing dataSource, they must match
-      val specDataSource = DruidGuicer.objectMapper.convertValue(
-        normalizeJava(dataSourceSpec),
-        classOf[FireDepartment]
-      ).getDataSchema.getDataSource
+      val specDataSource = try {
+        str(dict(dataSourceSpec("dataSchema"))("dataSource"))
+      }
+      catch {
+        case e: ClassCastException =>
+          throw new IllegalArgumentException(s"spec[$dataSource] is missing 'dataSource' inside 'dataSchema'")
+      }
       require(
         dataSource == specDataSource,
         s"dataSource[$dataSource] did not match spec[$specDataSource]"

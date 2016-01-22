@@ -26,9 +26,6 @@ dataSources:
           segmentGranularity: hour
           queryGranularity: none
 
-      ioConfig:
-        type: realtime
-
       tuningConfig:
         type: realtime
         maxRowsInMemory: 100000

@@ -40,13 +40,6 @@
             "segmentGranularity" : "hour"
           },
           "dataSource" : "foo"
-        },
-        "tuningConfig" : {
-          "type" : "realtime",
-          "intermediatePersistPeriod" : "PT45S",
-          "maxRowsInMemory" : "100000",
-          "buildV9Directly" : "true",
-          "windowPeriod" : "PT30S"
         }
       }
     }

@@ -55,6 +55,52 @@ class ConfigHelperTest extends FunSuite with ShouldMatchers
     }
   }
 
+  test("readConfigYaml: JSON") {
+    val (globalConfig, dataSourceConfigs, globalProperties) = ConfigHelper.readConfigYaml(
+      getClass.getClassLoader.getResourceAsStream("tranquility-core.json"),
+      classOf[TranquilityConfig]
+    )
+
+    dataSourceConfigs.keySet should be(Set("foo"))
+
+    val fooConfig = dataSourceConfigs("foo")
+    fooConfig.config.zookeeperConnect should be("zk.example.com")
+    fooConfig.config.taskPartitions should be(3)
+    fooConfig.config.druidBeamConfig.firehoseGracePeriod should be(new Period("PT5M"))
+
+    for (builder <- makeBuilders(fooConfig.specMap)) {
+      builder.config._location.get.dataSource should be("foo")
+      builder.config._rollup.get.aggregators.map(_.getName) should be(Seq("count", "x"))
+      builder.config._druidTuning.get.maxRowsInMemory should be(100000)
+      builder.config._druidTuning.get.intermediatePersistPeriod should be(new Period("PT45S"))
+      builder.config._druidTuning.get.buildV9Directly should be(true)
+      builder.config._tuning.get.windowPeriod should be(new Period("PT30S"))
+    }
+  }
+
+  test("readConfigYaml: JSON, no tuning config") {
+    val (globalConfig, dataSourceConfigs, globalProperties) = ConfigHelper.readConfigYaml(
+      getClass.getClassLoader.getResourceAsStream("tranquility-core-no-tuningConfig.json"),
+      classOf[TranquilityConfig]
+    )
+
+    dataSourceConfigs.keySet should be(Set("foo"))
+
+    val fooConfig = dataSourceConfigs("foo")
+    fooConfig.config.zookeeperConnect should be("zk.example.com")
+    fooConfig.config.taskPartitions should be(3)
+    fooConfig.config.druidBeamConfig.firehoseGracePeriod should be(new Period("PT5M"))
+
+    for (builder <- makeBuilders(fooConfig.specMap)) {
+      builder.config._location.get.dataSource should be("foo")
+      builder.config._rollup.get.aggregators.map(_.getName) should be(Seq("count", "x"))
+      builder.config._druidTuning.get.maxRowsInMemory should be(75000)
+      builder.config._druidTuning.get.intermediatePersistPeriod should be(new Period("PT10M"))
+      builder.config._druidTuning.get.buildV9Directly should be(false)
+      builder.config._tuning.get.windowPeriod should be(new Period("PT10M"))
+    }
+  }
+
   private def makeBuilders(
     specMap: Dict
   ): Seq[DruidBeams.Builder[_]] =
