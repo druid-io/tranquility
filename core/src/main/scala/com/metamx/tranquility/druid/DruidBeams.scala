@@ -95,7 +95,7 @@ object DruidBeams
     * @param fireDepartment druid realtime spec
     * @return a new builder
     */
-  @deprecated("0.7.3", "use builderFromSpecJava or builderFromSpecScala")
+  @deprecated("use builderFromSpecJava or builderFromSpecScala", "0.7.3")
   def builder(
     environment: DruidEnvironment,
     fireDepartment: FireDepartment
@@ -166,13 +166,13 @@ object DruidBeams
     *
     * @param messageToJavaMap function that translates messages to Java maps
     * @param environment druid environment
-    * @param specMap druid realtime spec map
+    * @param specMap0 druid realtime spec map
     * @return a new builder
     */
   private def builderFromSpec[MessageType](
     messageToJavaMap: MessageType => java.util.Map[String, AnyRef],
     environment: DruidEnvironment,
-    specMap: Dict
+    specMap0: Dict
   ): Builder[MessageType] =
   {
     def j2s[A](xs: ju.List[A]): IndexedSeq[A] = xs match {
@@ -183,8 +183,11 @@ object DruidBeams
       case null => Set.empty
       case _ => xs.asScala.toSet
     }
+    // Don't require people to specify a needless ioConfig
+    val specMap = Map("ioConfig" -> Dict("type" -> "realtime")) ++ specMap0
     val fireDepartment = DruidGuicer.objectMapper.convertValue(normalizeJava(specMap), classOf[FireDepartment])
     require(fireDepartment.getIOConfig.getFirehoseFactory == null, "Expected null 'firehose'")
+    require(fireDepartment.getIOConfig.getFirehoseFactoryV2 == null, "Expected null 'firehoseV2'")
     require(fireDepartment.getIOConfig.getPlumberSchool == null, "Expected null 'plumber'")
     val parseSpec = fireDepartment.getDataSchema.getParser.getParseSpec
     val timestampSpec = parseSpec.getTimestampSpec

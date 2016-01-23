@@ -41,27 +41,28 @@ Tranquility Server is included in the [downloadable distribution](../README.md#d
 
 ### Configuration
 
-Tranquility Server uses a YAML file for configuration. You can see an example in `conf/server.yaml.example` of the
-tarball distribution. You can start off your installation by copying this example file to `conf/server.yaml`. The
-YAML file has two sections:
+Tranquility Server uses a JSON or YAML file for configuration. You can see examples in `conf/server.json.sample` and
+`conf/server.yaml.example` of the tarball distribution. You can start off your installation by copying either example
+file to `conf/server.json` or `conf/server.yaml`.
+
+The file has two sections:
 
 1. `dataSources` - per dataSource configuration.
-2. `properties` - general server properties that apply to all dataSources. See "Configuration reference" for details.
+2. `properties` - general properties that apply to all dataSources. See "Configuration reference" for details.
 
 The dataSources key should contain a mapping of dataSource name to configuration. Each dataSource configuration
 has two sections:
 
-1. `spec` - a YAML representation of a [Druid ingestion spec](http://druid.io/docs/latest/ingestion/index.html). Note
-that the `ioConfig` is expected to be of type `realtime` but otherwise empty (null firehose, null plumber). This is
-because Tranquility supplies its own firehose and plumber.
+1. `spec` - a [Druid ingestion spec](http://druid.io/docs/latest/ingestion/index.html) with no `ioConfig`. Tranquility
+supplies its own firehose and plumber.
 2. `properties` - per dataSource properties. See "Configuration reference" for details.
 
 ### Running
 
-If you've saved your configuration into `conf/server.yaml`, run the server with:
+If you've saved your configuration into `conf/server.json`, run the server with:
 
 ```bash
-bin/tranquility server -configFile conf/server.yaml
+bin/tranquility server -configFile conf/server.json
 ```
 
 ## Configuration reference

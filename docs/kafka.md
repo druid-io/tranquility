@@ -12,9 +12,11 @@ Tranquility Kafka is included in the [downloadable distribution](../README.md#do
 
 ### Configuration
 
-Tranquility Kafka uses a YAML file for configuration. You can see an example in `conf/tranquility-kafka.yaml.example` of the
-tarball distribution. You can start off your installation by copying this example file to `conf/tranquility-kafka.yaml`. The
-YAML file has two sections:
+Tranquility Kafka uses a JSON or YAML file for configuration. You can see examples in `conf/kafka.json.sample` and
+`conf/kafka.yaml.example` of the tarball distribution. You can start off your installation by copying either example
+file to `conf/kafka.json` or `conf/kafka.yaml`.
+
+The file has two sections:
 
 1. `dataSources` - per dataSource configuration.
 2. `properties` - general properties that apply to all dataSources. See "Configuration reference" for details.
@@ -22,17 +24,16 @@ YAML file has two sections:
 The dataSources key should contain a mapping of dataSource name to configuration. Each dataSource configuration
 has two sections:
 
-1. `spec` - a YAML representation of a [Druid ingestion spec](http://druid.io/docs/latest/ingestion/index.html). Note
-that the `ioConfig` is expected to be of type `realtime` but otherwise empty (null firehose, null plumber). This is
-because Tranquility supplies its own firehose and plumber.
+1. `spec` - a [Druid ingestion spec](http://druid.io/docs/latest/ingestion/index.html) with no `ioConfig`. Tranquility
+supplies its own firehose and plumber.
 2. `properties` - per dataSource properties. See "Configuration reference" for details.
 
 ### Running
 
-If you've saved your configuration into `conf/tranquility-kafka.yaml`, run the application with:
+If you've saved your configuration into `conf/tranquility-kafka.json`, run the application with:
 
 ```bash
-bin/tranquility kafka -configFile conf/tranquility-kafka.yaml
+bin/tranquility kafka -configFile conf/tranquility-kafka.json
 ```
 
 ## Configuration reference
@@ -61,7 +62,7 @@ customization for certain dataSources.
 |`druid.selectors.indexing.serviceName`|The druid.service name of the indexing service Overlord node.|druid/overlord|
 |`topicPattern`|A regular expression used to match Kafka topics to dataSource configurations. See "Matching Topics to Data Sources" for details.|{match nothing}, must be provided|
 |`topicPattern.priority`|If multiple topicPatterns match the same topic name, the highest priority dataSource configuration will be used. A higher number indicates a higher priority. See "Matching Topics to Data Sources" for details.|1|
-|`useTopicAsDataSource`|Use the Kafka topic as the dataSource name instead of the one provided in the YAML. Useful when combined with a topicPattern that matches more than one Kafka topic. See "Matching Topics to Data Sources" for details.|false|
+|`useTopicAsDataSource`|Use the Kafka topic as the dataSource name instead of the one provided in the configuration file. Useful when combined with a topicPattern that matches more than one Kafka topic. See "Matching Topics to Data Sources" for details.|false|
 |`reportDropsAsExceptions`|Whether or not dropped messages will cause an exception and terminate the application.|false|
 |`task.partitions`|Number of Druid partitions to create.|1|
 |`task.replicants`|Number of instances of each Druid partition to create. This is the *total* number of instances, so 2 replicants means 2 tasks will be created.|1|
@@ -116,7 +117,7 @@ dataSources:
 Given the list of Kafka topics *[wikipedia, wikipedia-fr, wikipedia-es]*:
 
   - The topic *wikipedia* will be matched to the `wikipedia` configuration, even though it also matches `wikipedia-lang`
-  (order in the YAML does not matter) since `wikipedia` has a higher `topicPattern.priority` than `wikipedia-lang`
+  (order in the configuration file does not matter) since `wikipedia` has a higher `topicPattern.priority` than `wikipedia-lang`
   (which has the default priority of 1). This will be mapped to a dataSource named **wikipedia**.
   - The topics *wikipedia-fr* and *wikipedia-es* will both be matched to `wikipedia-lang`. Since `useTopicAsDataSource`
   is set to true, they will be mapped to dataSources named **wikipedia-fr** and **wikipedia-es** respectively and will
