@@ -111,6 +111,8 @@ public class KafkaConsumerTest
     consumerProperties.setProperty("group.id", GROUP_ID);
     consumerProperties.setProperty("zookeeper.connect", zk.getConnectString());
     consumerProperties.setProperty("kafka.zookeeper.connect", zk.getConnectString());
+    consumerProperties.setProperty("commit.periodMillis", "90000");
+    consumerProperties.setProperty("auto.offset.reset", "smallest");
 
     zkUtils = ZkUtils.apply(zk.getConnectString(), 5000, 5000, false);
   }
@@ -210,7 +212,6 @@ public class KafkaConsumerTest
     );
     kafkaConsumer.start();
 
-    producer.send(new ProducerRecord<>("waitForReady", MESSAGE)).get(); // give Kafka time to settle before starting
     Assert.assertEquals("Unexpected consumer offset", -1, getConsumerOffset(topic));
 
     for (int i = numMessages; i > 0; i--) {
@@ -297,7 +298,6 @@ public class KafkaConsumerTest
     );
     kafkaConsumer.start();
 
-    producer.send(new ProducerRecord<>("waitForReady", MESSAGE)).get(); // give Kafka time to settle before starting
     Assert.assertEquals("Unexpected consumer offset", -1, getConsumerOffset(topic));
 
     for (int i = numMessages; i > 0; i--) {
