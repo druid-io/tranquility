@@ -88,7 +88,7 @@ class DruidBeam[A](
       if (log.isTraceEnabled) {
         log.trace(
           "Sending %,d events to task[%s], firehose[%s]: %s",
-          eventsChunk,
+          eventsChunk.size,
           task.id,
           task.serviceKey,
           new String(eventsChunkBytes)
