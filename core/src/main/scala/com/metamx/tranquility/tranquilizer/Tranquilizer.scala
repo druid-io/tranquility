@@ -62,25 +62,39 @@ class Tranquilizer[MessageType] private(
 
   case class MessageHolder(message: MessageType, future: Promise[Unit])
 
-  // lock synchronizes access to buffer, bufferStartMillis, pendingBatches.
-  // lock should be notified when waiters might be waiting: buffer becomes non-empty, or pendingBatches decreases
+  // lock synchronizes buffer, bufferStartMillis, pendingBatches, currentBatchNumber, currentBatchFuture, flushing.
+  // lock should be notified when waiters might be waiting: buffer becomes non-empty, buffer is sent, flush starts.
   private val lock: AnyRef = new AnyRef
 
-  private var buffer           : Buffer[MessageHolder] = new ArrayBuffer[MessageHolder]
-  private var bufferStartMillis: Long                  = 0L
-  private var pendingBatches   : Int                   = 0
+  // Current batch of pending messages. Not yet handed off to the Beam.
+  private var buffer: Buffer[MessageHolder] = new ArrayBuffer[MessageHolder]
 
-  // closed future lets the close method return asynchronously
+  // How long "buffer" has been open for
+  private var bufferStartMillis: Long = 0L
+
+  // Batches currently pending in the Beam. Does not include the current buffer
+  private var pendingBatches: Map[Long, Promise[Unit]] = Map.empty
+
+  // Index that the current batch will have in pendingBatches when it goes in
+  private var currentBatchNumber: Long = 0L
+
+  // Future that the current batch will have in pendingBatches when it goes in
+  private var currentBatchFuture: Promise[Unit] = Promise()
+
+  // True if there is a flush in progress
+  private var flushing: Boolean = false
+
+  // Lets the close method return asynchronously
   private val closed = Promise[Unit]()
 
   private val sendThread = loggingThread {
     try {
       while (!Thread.currentThread().isInterrupted) {
-        val exBuffer = lock.synchronized {
+        val (exIndex, exBuffer) = lock.synchronized {
           while (
             buffer.isEmpty ||
-              pendingBatches >= maxPendingBatches ||
-              (lingerMillis > 0 && System.currentTimeMillis() < bufferStartMillis + lingerMillis)
+              pendingBatches.size >= maxPendingBatches ||
+              (!flushing && lingerMillis > 0 && System.currentTimeMillis() < bufferStartMillis + lingerMillis)
           ) {
             if (lingerMillis == 0 || bufferStartMillis == 0) {
               lock.wait()
@@ -89,13 +103,14 @@ class Tranquilizer[MessageType] private(
             }
           }
           if (log.isDebugEnabled) {
-            log.debug(s"Buffer with ${buffer.size} messages has lingered too long, sending.")
+            log.debug(s"Sending buffer with ${buffer.size} messages (from background send thread).")
           }
 
+          flushing = false
           swap()
         }
 
-        sendBuffer(exBuffer)
+        sendBuffer(exIndex, exBuffer)
       }
     }
     catch {
@@ -146,12 +161,12 @@ class Tranquilizer[MessageType] private(
     }
     val holder = MessageHolder(message, Promise())
 
-    val (exBuffer, future) = lock.synchronized {
-      while (buffer.size >= maxBatchSize - 1 && pendingBatches >= maxPendingBatches) {
+    val (exIndexBufferPair, future) = lock.synchronized {
+      while (buffer.size >= maxBatchSize - 1 && pendingBatches.size >= maxPendingBatches) {
         if (log.isDebugEnabled) {
           log.debug(
             s"Buffer size[${buffer.size}] >= maxBatchSize[$maxBatchSize] - 1 and " +
-              s"pendingBatches[$pendingBatches] >= maxPendingBatches[$maxPendingBatches], waiting..."
+              s"pendingBatches[${pendingBatches.size}] >= maxPendingBatches[$maxPendingBatches], waiting..."
           )
         }
         lock.wait()
@@ -164,18 +179,18 @@ class Tranquilizer[MessageType] private(
 
       buffer += holder
 
-      val _exBuffer: Option[Buffer[MessageHolder]] = if (buffer.size == maxBatchSize) {
+      val _exIndexBufferPair: Option[(Long, Buffer[MessageHolder])] = if (buffer.size == maxBatchSize) {
         Some(swap())
-      } else if (lingerMillis == 0 && pendingBatches < maxPendingBatches) {
+      } else if (lingerMillis == 0 && pendingBatches.size < maxPendingBatches) {
         Some(swap())
       } else {
         None
       }
 
-      (_exBuffer, holder.future)
+      (_exIndexBufferPair, holder.future)
     }
 
-    exBuffer foreach sendBuffer
+    exIndexBufferPair.foreach(t => sendBuffer(t._1, t._2))
 
     future
   }
@@ -190,6 +205,32 @@ class Tranquilizer[MessageType] private(
     */
   def simple(reportDropsAsExceptions: Boolean = false): SimpleTranquilizerAdapter[MessageType] = {
     SimpleTranquilizerAdapter.wrap(this, reportDropsAsExceptions)
+  }
+
+  /**
+    * Block until all messages that have been passed to "send" before this call to "flush" have been processed
+    * and their futures have been resolved.
+    *
+    * This method will not throw any exceptions, even if some messages failed to send. You need to check the
+    * returned futures for that.
+    */
+  def flush(): Unit = {
+    val futures: Seq[Future[Unit]] = lock.synchronized {
+      val _futures = Vector.newBuilder[Future[Unit]]
+      pendingBatches.values foreach (_futures += _)
+      if (buffer.nonEmpty) {
+        flushing = true
+        lock.notifyAll()
+        _futures += currentBatchFuture
+      }
+      _futures.result()
+    }
+
+    if (log.isDebugEnabled) {
+      log.debug(s"Flushing ${futures.size} batches.")
+    }
+
+    Await.result(Future.collect(futures))
   }
 
   /**
@@ -220,25 +261,29 @@ class Tranquilizer[MessageType] private(
 
   // Swap out the current buffer immediately, returning it and incrementing pendingBatches.
   // Must be called while holding the "lock".
-  // Preconditions: buffer must be non-empty and pendingBatches must be lower than maxPendingBatches.
-  private def swap(): Buffer[MessageHolder] = {
+  // Preconditions: buffer must be non-empty and pendingBatches.size must be lower than maxPendingBatches.
+  // Postconditions: buffer is empty
+  private def swap(): (Long, Buffer[MessageHolder]) = {
     assert(buffer.nonEmpty && buffer.size <= maxBatchSize)
-    assert(pendingBatches < maxPendingBatches)
+    assert(pendingBatches.size < maxPendingBatches)
 
     val _buffer = buffer
+    val _currentBatchNumber = currentBatchNumber
+    pendingBatches = pendingBatches + (currentBatchNumber -> currentBatchFuture)
     buffer = new ArrayBuffer[MessageHolder]()
+    currentBatchNumber += 1
+    currentBatchFuture = Promise()
     bufferStartMillis = 0L
-    pendingBatches += 1
     lock.notifyAll()
     if (log.isDebugEnabled) {
-      log.debug(s"Swapping out buffer with ${_buffer.size} messages, $pendingBatches batches now pending.")
+      log.debug(s"Swapping out buffer with ${_buffer.size} messages, ${pendingBatches.size} batches now pending.")
     }
-    _buffer
+    (_currentBatchNumber, _buffer)
   }
 
   // Send a buffer of messages. Decrement pendingBatches once the send finishes.
   // Generally should be called outside of the "lock".
-  private def sendBuffer(myBuffer: Buffer[MessageHolder]): Unit = {
+  private def sendBuffer(myIndex: Long, myBuffer: Buffer[MessageHolder]): Unit = {
     if (log.isDebugEnabled) {
       log.debug(s"Sending buffer with ${myBuffer.size} messages.")
     }
@@ -270,10 +315,12 @@ class Tranquilizer[MessageType] private(
       }
 
       lock.synchronized {
-        pendingBatches -= 1
+        val batchFuture: Promise[Unit] = pendingBatches(myIndex)
+        pendingBatches = pendingBatches - myIndex
+        batchFuture.setValue(())
         lock.notifyAll()
         if (log.isDebugEnabled) {
-          log.debug(s"Sent buffer, $pendingBatches batches pending.")
+          log.debug(s"Sent buffer, ${pendingBatches.size} batches pending.")
         }
       }
     }
