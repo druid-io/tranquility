@@ -23,7 +23,7 @@ val sparkVersion = "1.6.0"
 val scalatraVersion = "2.3.1"
 val jettyVersion = "9.2.5.v20141112"
 val apacheHttpVersion = "4.3.3"
-val kafkaVersion = "0.9.0.0"
+val kafkaVersion = "0.8.2.2"
 val airlineVersion = "0.7"
 
 def dependOnDruid(artifact: String) = {

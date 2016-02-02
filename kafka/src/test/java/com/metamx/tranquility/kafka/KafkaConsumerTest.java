@@ -41,7 +41,6 @@ import io.druid.segment.realtime.firehose.LocalFirehoseFactory;
 import io.druid.segment.realtime.plumber.Plumber;
 import io.druid.segment.realtime.plumber.PlumberSchool;
 import junit.framework.Assert;
-import kafka.admin.AdminUtils;
 import kafka.common.OffsetMetadataAndError;
 import kafka.common.TopicAndPartition;
 import kafka.javaapi.OffsetFetchRequest;
@@ -49,7 +48,6 @@ import kafka.javaapi.OffsetFetchResponse;
 import kafka.network.BlockingChannel;
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServerStartable;
-import kafka.utils.ZkUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.curator.test.TestingServer;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -81,7 +79,6 @@ public class KafkaConsumerTest
   private static KafkaProducer<String, String> producer;
   private static BlockingChannel channel;
   private static Properties consumerProperties;
-  private static ZkUtils zkUtils;
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception
@@ -113,8 +110,6 @@ public class KafkaConsumerTest
     consumerProperties.setProperty("kafka.zookeeper.connect", zk.getConnectString());
     consumerProperties.setProperty("commit.periodMillis", "90000");
     consumerProperties.setProperty("auto.offset.reset", "smallest");
-
-    zkUtils = ZkUtils.apply(zk.getConnectString(), 5000, 5000, false);
   }
 
   @AfterClass
@@ -137,7 +132,7 @@ public class KafkaConsumerTest
     Properties props = new Properties();
     props.put("broker.id", "0");
     props.put("host.name", "localhost");
-    props.put("port", port);
+    props.put("port", String.valueOf(port));
     props.put("log.dir", tempDir.getPath());
     props.put("zookeeper.connect", zk.getConnectString());
     props.put("replica.socket.timeout.ms", "1500");
@@ -151,7 +146,6 @@ public class KafkaConsumerTest
     final int numMessages = 5;
     final CountDownLatch latch = new CountDownLatch(numMessages);
 
-    AdminUtils.createTopic(zkUtils, topic, 1, 1, new Properties());
     consumerProperties.setProperty("topicPattern", topic);
 
     TranquilityEventWriter mockEventWriter = EasyMock.mock(TranquilityEventWriter.class);
@@ -217,7 +211,6 @@ public class KafkaConsumerTest
     for (int i = numMessages; i > 0; i--) {
       producer.send(new ProducerRecord<>(topic, MESSAGE)).get();
     }
-    producer.flush();
     latch.await();
 
     // check that offset wasn't committed since commit thread didn't run
@@ -237,7 +230,6 @@ public class KafkaConsumerTest
     final int numMessages = 8;
     final CountDownLatch latch = new CountDownLatch(numMessages);
 
-    AdminUtils.createTopic(zkUtils, topic, 1, 1, new Properties());
     consumerProperties.setProperty("topicPattern", topic);
 
     TranquilityEventWriter mockEventWriter = EasyMock.mock(TranquilityEventWriter.class);
@@ -303,7 +295,6 @@ public class KafkaConsumerTest
     for (int i = numMessages; i > 0; i--) {
       producer.send(new ProducerRecord<>(topic, MESSAGE)).get();
     }
-    producer.flush();
     latch.await();
 
     kafkaConsumer.commit();
@@ -332,7 +323,7 @@ public class KafkaConsumerTest
 
     channel.send(fetchRequest.underlying());
 
-    OffsetFetchResponse fetchResponse = OffsetFetchResponse.readFrom(channel.receive().payload());
+    OffsetFetchResponse fetchResponse = OffsetFetchResponse.readFrom(channel.receive().buffer());
     OffsetMetadataAndError result = fetchResponse.offsets().get(partition);
     return result.offset();
   }
