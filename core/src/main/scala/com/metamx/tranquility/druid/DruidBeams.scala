@@ -564,7 +564,7 @@ object DruidBeams
       {
         override def sendBatch(events: Seq[EventType]) = clusteredBeam.sendBatch(events)
 
-        override def close() = clusteredBeam.close() map (_ => indexService.close())
+        override def close() = clusteredBeam.close() flatMap (_ => indexService.close())
 
         override def toString = clusteredBeam.toString
       }
