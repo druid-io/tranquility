@@ -27,15 +27,20 @@ import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Walker
 import com.metamx.common.scala.untyped.Dict
 import com.metamx.tranquility.server.http.TranquilityServlet._
-import com.metamx.tranquility.tranquilizer.SimpleTranquilizerAdapter
+import com.metamx.tranquility.tranquilizer.MessageDroppedException
 import com.metamx.tranquility.tranquilizer.Tranquilizer
+import com.twitter.util.Return
+import com.twitter.util.Throw
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import javax.ws.rs.core.MediaType
 import org.jboss.netty.handler.codec.http.HttpResponseStatus
 import org.scalatra.ScalatraServlet
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 class TranquilityServlet(
-  tranquilizers: Map[String, Tranquilizer[Dict]]
+  tranquilizers: Map[String, Tranquilizer[java.util.Map[String, AnyRef]]]
 ) extends ScalatraServlet with Logging
 {
   get("/") {
@@ -64,7 +69,7 @@ class TranquilityServlet(
       |                             └▓▓▓▓▓▓▓   ▀▓▓▓▓▓▓▓███▀▀
       |
       |
-      |""".stripMargin
+      | """.stripMargin
   }
 
   post("/v1/post") {
@@ -118,22 +123,35 @@ class TranquilityServlet(
   }
 
   private def doSend(messages: Walker[(String, Dict)]): (Long, Long) = {
-    val senders = mutable.HashMap[String, SimpleTranquilizerAdapter[Dict]]()
-
+    val senders = mutable.HashMap[String, Tranquilizer[java.util.Map[String, AnyRef]]]()
+    val received = new AtomicLong
+    val sent = new AtomicLong
+    val exception = new AtomicReference[Throwable]
     for ((dataSource, message) <- messages) {
       val sender = senders.getOrElseUpdate(
         dataSource, {
-          val tranquilizer: Tranquilizer[Dict] = tranquilizers.get(dataSource) getOrElse {
-            throw new HttpException(HttpResponseStatus.BAD_REQUEST, s"No beam defined for dataSource '$dataSource'")
-          }
-          tranquilizer.simple(false)
+          tranquilizers.getOrElse(
+            dataSource, {
+              throw new HttpException(HttpResponseStatus.BAD_REQUEST, s"No beam defined for dataSource '$dataSource'")
+            }
+          )
         }
       )
-      sender.send(message)
+      received.incrementAndGet()
+      sender.send(message.asJava.asInstanceOf[java.util.Map[String, AnyRef]]) respond {
+        case Return(_) => sent.incrementAndGet()
+        case Throw(e: MessageDroppedException) => // Suppress
+        case Throw(e) => exception.compareAndSet(null, e)
+      }
     }
 
     senders.values.foreach(_.flush())
-    (senders.values.map(_.receivedCount).sum, senders.values.map(_.sentCount).sum)
+
+    if (exception.get() != null) {
+      throw exception.get()
+    }
+
+    (received.get(), sent.get())
   }
 }
 

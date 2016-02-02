@@ -25,7 +25,7 @@ import com.metamx.tranquility.config.DataSourceConfig;
 import com.metamx.tranquility.finagle.FinagleRegistry;
 import com.metamx.tranquility.finagle.FinagleRegistryConfig;
 import com.metamx.tranquility.kafka.model.MessageCounters;
-import com.metamx.tranquility.kafka.model.TranquilityKafkaConfig;
+import com.metamx.tranquility.kafka.model.PropertiesBasedKafkaConfig;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -47,32 +47,32 @@ public class WriterController
   private static final Logger log = new Logger(WriterController.class);
   private static final RetryPolicy RETRY_POLICY = new ExponentialBackoffRetry(1000, 500, 30000);
 
-  private List<DataSourceConfig<TranquilityKafkaConfig>> dataSourceConfigList;
+  private List<DataSourceConfig<PropertiesBasedKafkaConfig>> dataSourceConfigList;
   private Map<String, TranquilityEventWriter> writers = new ConcurrentHashMap<>();
   private Map<String, CuratorFramework> curators = new ConcurrentHashMap<>();
   private Map<String, FinagleRegistry> finagleRegistries = new ConcurrentHashMap<>();
 
-  public WriterController(Map<String, DataSourceConfig<TranquilityKafkaConfig>> dataSourceConfigs)
+  public WriterController(Map<String, DataSourceConfig<PropertiesBasedKafkaConfig>> dataSourceConfigs)
   {
     this.dataSourceConfigList = new ArrayList<>(dataSourceConfigs.values());
     this.dataSourceConfigList.sort(
-        new Comparator<DataSourceConfig<TranquilityKafkaConfig>>()
+        new Comparator<DataSourceConfig<PropertiesBasedKafkaConfig>>()
         {
           @Override
-          public int compare(DataSourceConfig<TranquilityKafkaConfig> o1, DataSourceConfig<TranquilityKafkaConfig> o2)
+          public int compare(DataSourceConfig<PropertiesBasedKafkaConfig> o1, DataSourceConfig<PropertiesBasedKafkaConfig> o2)
           {
-            return o2.config().getTopicPatternPriority().compareTo(o1.config().getTopicPatternPriority());
+            return o2.propertiesBasedConfig().getTopicPatternPriority().compareTo(o1.propertiesBasedConfig().getTopicPatternPriority());
           }
         }
     );
 
     log.info("Ready: [topicPattern] -> dataSource mappings:");
-    for (DataSourceConfig<TranquilityKafkaConfig> dataSourceConfig : this.dataSourceConfigList) {
+    for (DataSourceConfig<PropertiesBasedKafkaConfig> dataSourceConfig : this.dataSourceConfigList) {
       log.info(
           "  [%s] -> %s (priority: %d)",
-          dataSourceConfig.config().getTopicPattern(),
+          dataSourceConfig.propertiesBasedConfig().getTopicPattern(),
           dataSourceConfig.dataSource(),
-          dataSourceConfig.config().getTopicPatternPriority()
+          dataSourceConfig.propertiesBasedConfig().getTopicPatternPriority()
       );
     }
   }
@@ -81,8 +81,8 @@ public class WriterController
   {
     if (!writers.containsKey(topic)) {
       // create a EventWriter using the spec mapped to the first matching topicPattern
-      for (DataSourceConfig<TranquilityKafkaConfig> dataSourceConfig : dataSourceConfigList) {
-        if (Pattern.matches(dataSourceConfig.config().getTopicPattern(), topic)) {
+      for (DataSourceConfig<PropertiesBasedKafkaConfig> dataSourceConfig : dataSourceConfigList) {
+        if (Pattern.matches(dataSourceConfig.propertiesBasedConfig().getTopicPattern(), topic)) {
           log.info(
               "Creating EventWriter for topic [%s] using dataSource [%s]",
               topic,
@@ -121,12 +121,12 @@ public class WriterController
     }
   }
 
-  protected TranquilityEventWriter createWriter(String topic, DataSourceConfig<TranquilityKafkaConfig> dataSourceConfig)
+  protected TranquilityEventWriter createWriter(String topic, DataSourceConfig<PropertiesBasedKafkaConfig> dataSourceConfig)
   {
-    final String curatorKey = dataSourceConfig.config().zookeeperConnect();
+    final String curatorKey = dataSourceConfig.propertiesBasedConfig().zookeeperConnect();
     if (!curators.containsKey(curatorKey)) {
       final int zkTimeout = Ints.checkedCast(
-          dataSourceConfig.config()
+          dataSourceConfig.propertiesBasedConfig()
                           .zookeeperTimeout()
                           .toStandardDuration()
                           .getMillis()
@@ -134,7 +134,7 @@ public class WriterController
 
       final CuratorFramework curator = CuratorFrameworkFactory.builder()
                                                               .connectString(
-                                                                  dataSourceConfig.config()
+                                                                  dataSourceConfig.propertiesBasedConfig()
                                                                                   .zookeeperConnect()
                                                               )
                                                               .connectionTimeoutMs(zkTimeout)
@@ -144,12 +144,12 @@ public class WriterController
       curators.put(curatorKey, curator);
     }
 
-    final String finagleKey = String.format("%s:%s", curatorKey, dataSourceConfig.config().discoPath());
+    final String finagleKey = String.format("%s:%s", curatorKey, dataSourceConfig.propertiesBasedConfig().discoPath());
     if (!finagleRegistries.containsKey(finagleKey)) {
       finagleRegistries.put(
           finagleKey, new FinagleRegistry(
               FinagleRegistryConfig.builder().build(),
-              new Disco(curators.get(curatorKey), dataSourceConfig.config())
+              new Disco(curators.get(curatorKey), dataSourceConfig.propertiesBasedConfig())
           )
       );
     }

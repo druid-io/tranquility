@@ -19,6 +19,7 @@
 
 package com.metamx.tranquility.druid
 
+import com.metamx.common.scala.untyped.Dict
 import org.joda.time.Period
 import org.scala_tools.time.Imports._
 
@@ -53,6 +54,22 @@ object DruidTuning
     * Builder for DruidTuning objects.
     */
   def builder() = new Builder(DruidTuning())
+
+  /**
+    * For internal use in DruidBeams.
+    */
+  private[tranquility] def fromMap(d: Dict): DruidTuning = {
+    val defaults = DruidTuning()
+    DruidTuning(
+      maxRowsInMemory = d.get("maxRowsInMemory").map(String.valueOf(_).toInt).getOrElse(defaults.maxRowsInMemory),
+      intermediatePersistPeriod = d.get("intermediatePersistPeriod").map(new Period(_)).getOrElse(
+        defaults.intermediatePersistPeriod
+      ),
+      maxPendingPersists = d.get("maxPendingPersists").map(String.valueOf(_).toInt)
+        .getOrElse(defaults.maxPendingPersists),
+      buildV9Directly = d.get("buildV9Directly").map(String.valueOf(_).toBoolean).getOrElse(defaults.buildV9Directly)
+    )
+  }
 
   class Builder private[tranquility](config: DruidTuning)
   {

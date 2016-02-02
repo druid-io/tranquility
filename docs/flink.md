@@ -3,8 +3,8 @@
 If you're using Flink to process your event stream, you can use Tranquility's BeamSink to send data to
 Druid. The BeamSink can be added to any DataStream object. The BeamSink requires a BeamFactory to 
 propagate events. You will be overriding the makeBeam() function and within that
-using the DruidBeams builder's "buildBeam()" to build the beam. See the [DruidBeams documentation](druidbeams.md)
-for details about creating beams.
+using the DruidBeams builder's "buildBeam()" to build the beam. See the [Configuration documentation](configuration.md)
+for details.
 
 It is recommended that you implement makeBeam as a lazy val so the Beam can be reused.
 

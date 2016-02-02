@@ -22,19 +22,23 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Throwables;
 import com.metamx.common.logger.Logger;
-import com.metamx.tranquility.config.ConfigHelper;
 import com.metamx.tranquility.config.DataSourceConfig;
+import com.metamx.tranquility.druid.DruidBeams;
 import com.metamx.tranquility.druid.DruidLocation;
 import com.metamx.tranquility.finagle.FinagleRegistry;
 import com.metamx.tranquility.kafka.model.MessageCounters;
-import com.metamx.tranquility.kafka.model.TranquilityKafkaConfig;
-import com.metamx.tranquility.tranquilizer.SimpleTranquilizerAdapter;
+import com.metamx.tranquility.kafka.model.PropertiesBasedKafkaConfig;
+import com.metamx.tranquility.tranquilizer.MessageDroppedException;
 import com.metamx.tranquility.tranquilizer.Tranquilizer;
+import com.twitter.util.FutureEventListener;
 import org.apache.curator.framework.CuratorFramework;
+import scala.runtime.BoxedUnit;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Pushes events to Druid through Tranquility using the SimpleTranquilizerAdapter.
@@ -44,43 +48,41 @@ public class TranquilityEventWriter
   private static final Logger log = new Logger(TranquilityEventWriter.class);
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  private final DataSourceConfig<TranquilityKafkaConfig> dataSourceConfig;
-  private final SimpleTranquilizerAdapter<Map<String, Object>> simpleTranquilizerAdapter;
+  private final DataSourceConfig<PropertiesBasedKafkaConfig> dataSourceConfig;
+  private final Tranquilizer<Map<String, Object>> tranquilizer;
 
-  private long rejectedLogCount = 0;
+  private final AtomicLong receivedCounter = new AtomicLong();
+  private final AtomicLong sentCounter = new AtomicLong();
+  private final AtomicLong failedCounter = new AtomicLong();
+  private final AtomicLong rejectedLogCounter = new AtomicLong();
+  private final AtomicReference<Throwable> exception = new AtomicReference<>();
 
   public TranquilityEventWriter(
       String topic,
-      DataSourceConfig<TranquilityKafkaConfig> dataSourceConfig,
+      DataSourceConfig<PropertiesBasedKafkaConfig> dataSourceConfig,
       CuratorFramework curator,
       FinagleRegistry finagleRegistry
   )
   {
     this.dataSourceConfig = dataSourceConfig;
-
-    final Tranquilizer<Map<String, Object>> tranquilizer =
-        ConfigHelper.createTranquilizerJava(
-            dataSourceConfig,
-            finagleRegistry,
-            curator,
-            DruidLocation.create(
-                dataSourceConfig.config().druidIndexingServiceName(),
-                dataSourceConfig.config().useTopicAsDataSource()
-                ? topic
-                : dataSourceConfig.dataSource()
-            )
-        );
-
-    simpleTranquilizerAdapter = SimpleTranquilizerAdapter.wrap(
-        tranquilizer,
-        dataSourceConfig.config().reportDropsAsExceptions()
-    );
-
-    simpleTranquilizerAdapter.start();
+    this.tranquilizer =
+        DruidBeams.fromConfig(dataSourceConfig)
+                  .location(DruidLocation.create(
+                      dataSourceConfig.propertiesBasedConfig().druidIndexingServiceName(),
+                      dataSourceConfig.propertiesBasedConfig().useTopicAsDataSource()
+                      ? topic
+                      : dataSourceConfig.dataSource()
+                  ))
+                  .curator(curator)
+                  .finagleRegistry(finagleRegistry)
+                  .buildTranquilizer(dataSourceConfig.tranquilizerBuilder());
+    this.tranquilizer.start();
   }
 
   public void send(byte[] message) throws InterruptedException
   {
+    receivedCounter.incrementAndGet();
+
     Map<String, Object> map;
     try {
       map = MAPPER.readValue(
@@ -90,31 +92,59 @@ public class TranquilityEventWriter
       );
     }
     catch (IOException e) {
-      if (++rejectedLogCount <= 5
+      failedCounter.incrementAndGet();
+
+      final long rejectedLogCount = rejectedLogCounter.incrementAndGet();
+      if (rejectedLogCount <= 5
           || (rejectedLogCount <= 100 && rejectedLogCount % 10 == 0)
           || rejectedLogCount % 100 == 0) {
         log.debug(e, "%d message(s) failed to parse as JSON and were rejected", rejectedLogCount);
       }
-      if (dataSourceConfig.config().reportDropsAsExceptions()) {
-        Throwables.propagate(e);
+
+      if (dataSourceConfig.propertiesBasedConfig().reportDropsAsExceptions()) {
+        throw Throwables.propagate(e);
       }
 
       return;
     }
 
-    // this call may throw an exception for an unrelated message due to SimpleTranquilizerAdapter's implementation
-    simpleTranquilizerAdapter.send(map);
+    tranquilizer.send(map).addEventListener(
+        new FutureEventListener<BoxedUnit>()
+        {
+          @Override
+          public void onSuccess(BoxedUnit value)
+          {
+            sentCounter.incrementAndGet();
+          }
+
+          @Override
+          public void onFailure(Throwable cause)
+          {
+            failedCounter.incrementAndGet();
+
+            if (!dataSourceConfig.propertiesBasedConfig().reportDropsAsExceptions()
+                && cause instanceof MessageDroppedException) {
+              return;
+            }
+
+            exception.compareAndSet(null, cause);
+          }
+        }
+    );
+
+    maybeThrow();
   }
 
   public void flush() throws InterruptedException
   {
-    simpleTranquilizerAdapter.flush();
+    tranquilizer.flush();
+    maybeThrow();
   }
 
   public void stop()
   {
     try {
-      simpleTranquilizerAdapter.stop();
+      tranquilizer.stop();
     }
     catch (IllegalStateException e) {
       log.info(e, "Exception while stopping Tranquility");
@@ -124,9 +154,16 @@ public class TranquilityEventWriter
   public MessageCounters getMessageCounters()
   {
     return new MessageCounters(
-        simpleTranquilizerAdapter.receivedCount(),
-        simpleTranquilizerAdapter.sentCount(),
-        simpleTranquilizerAdapter.failedCount()
+        receivedCounter.get(),
+        sentCounter.get(),
+        failedCounter.get()
     );
+  }
+
+  private void maybeThrow()
+  {
+    if (exception.get() != null) {
+      throw Throwables.propagate(exception.get());
+    }
   }
 }

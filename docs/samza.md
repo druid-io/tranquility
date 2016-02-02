@@ -18,7 +18,7 @@ systems.druid.beam.maxPendingBatches: 5 # Optional; maximum number of in-flight 
 ```
 
 To make this work, you need to implement com.example.MyBeamFactory. It should return a `Beam<Object>`. See the
-[DruidBeams documentation](druidbeams.md) for details about creating beams.
+[Configuration documentation](configuration.md) for details.
 
 For example:
 

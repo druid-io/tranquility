@@ -19,8 +19,9 @@
 package com.metamx.tranquility.samza
 
 import com.metamx.common.scala.Logging
-import com.metamx.tranquility.tranquilizer.SimpleTranquilizerAdapter
+import com.metamx.tranquility.tranquilizer.MessageDroppedException
 import com.metamx.tranquility.tranquilizer.Tranquilizer
+import java.util.concurrent.atomic.AtomicReference
 import org.apache.samza.config.Config
 import org.apache.samza.system.OutgoingMessageEnvelope
 import org.apache.samza.system.SystemProducer
@@ -33,11 +34,31 @@ class BeamProducer(
   config: Config,
   batchSize: Int,
   maxPendingBatches: Int,
+  lingerMillis: Long,
   throwOnError: Boolean
 ) extends SystemProducer with Logging
 {
+  def this(
+    beamFactory: BeamFactory,
+    systemName: String,
+    config: Config,
+    batchSize: Int,
+    maxPendingBatches: Int,
+    throwOnError: Boolean
+  ) = this(
+    beamFactory,
+    systemName,
+    config,
+    batchSize,
+    maxPendingBatches,
+    Tranquilizer.DefaultLingerMillis,
+    throwOnError
+  )
+
   // stream => sender
-  private val senders = mutable.Map[String, SimpleTranquilizerAdapter[Any]]()
+  private val senders = mutable.Map[String, Tranquilizer[Any]]()
+
+  private val exception = new AtomicReference[Throwable]()
 
   override def start() {}
 
@@ -59,38 +80,33 @@ class BeamProducer(
           beamFactory.makeBeam(new SystemStream(systemName, streamName), config),
           batchSize,
           maxPendingBatches,
-          Tranquilizer.DefaultLingerMillis
+          lingerMillis
         )
         t.start()
-        t.simple(false)
+        t
       }
     )
 
-    try {
-      sender.send(message)
+    sender.send(message) handle {
+      case e: MessageDroppedException => // Suppress
+      case e => exception.compareAndSet(null, e)
     }
-    catch {
-      case e: Exception =>
-        log.error(e, "Send failed")
-        if (throwOnError) {
-          throw e
-        }
-    }
+
+    maybeThrow()
   }
 
   override def flush(source: String) {
     // So flippin' lazy. Flush ALL the data!
     for ((streamName, sender) <- senders) {
-      try {
-        sender.flush()
-      }
-      catch {
-        case e: Exception =>
-          log.error(e, "Send failed")
-          if (throwOnError) {
-            throw e
-          }
-      }
+      sender.flush()
+    }
+
+    maybeThrow()
+  }
+
+  private def maybeThrow() {
+    if (exception.get() != null) {
+      throw exception.get()
     }
   }
 }

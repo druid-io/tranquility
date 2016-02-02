@@ -19,34 +19,32 @@
 
 package com.metamx.tranquility.server
 
-import com.metamx.tranquility.config.ConfigHelper
+import com.metamx.tranquility.config.TranquilityConfig
 import com.metamx.tranquility.druid.DruidBeams
 import com.metamx.tranquility.druid.DruidEnvironment
 import org.joda.time.Period
 import org.scalatest.FunSuite
 import org.scalatest.ShouldMatchers
 
-class ServerConfigTest extends FunSuite with ShouldMatchers
+class PropertiesBasedServerConfigTest extends FunSuite with ShouldMatchers
 {
   test("readConfigYaml") {
-    val (globalConfig, dataSourceConfigs, globalProperties) = ConfigHelper.readConfigYaml(
-      getClass.getClassLoader.getResourceAsStream("tranquility-server.yaml"), classOf[ServerConfig]
+    val config = TranquilityConfig.read(
+      getClass.getClassLoader.getResourceAsStream("tranquility-server.yaml"),
+      classOf[PropertiesBasedServerConfig]
     )
 
-    globalConfig.httpPort should be(8080)
-    globalConfig.httpThreads should be(2)
+    config.globalConfig.httpPort should be(8080)
+    config.globalConfig.httpThreads should be(2)
 
-    dataSourceConfigs.keySet should be(Set("foo"))
+    config.dataSourceConfigs.keySet should be(Set("foo"))
 
-    val fooConfig = dataSourceConfigs("foo")
-    fooConfig.config.zookeeperConnect should be("zk.example.com")
-    fooConfig.config.taskPartitions should be(3)
-    fooConfig.config.druidBeamConfig.firehoseGracePeriod should be(new Period("PT1S"))
+    val fooConfig = config.dataSourceConfigs("foo")
+    fooConfig.propertiesBasedConfig.zookeeperConnect should be("zk.example.com")
+    fooConfig.propertiesBasedConfig.taskPartitions should be(3)
+    fooConfig.propertiesBasedConfig.druidBeamConfig.firehoseGracePeriod should be(new Period("PT1S"))
 
-    val builder = DruidBeams.builderFromSpecScala(
-      DruidEnvironment("overlord"),
-      fooConfig.specMap
-    )
+    val builder = DruidBeams.fromConfig(fooConfig)
     builder.config._location.get.dataSource should be("foo")
     builder.config._rollup.get.aggregators.map(_.getName) should be(Seq("count", "x"))
     builder.config._druidTuning.get.maxRowsInMemory should be(100000)

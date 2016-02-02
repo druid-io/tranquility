@@ -23,7 +23,7 @@ import com.google.common.base.Throwables;
 import com.metamx.common.logger.Logger;
 import com.metamx.tranquility.config.DataSourceConfig;
 import com.metamx.tranquility.kafka.model.MessageCounters;
-import com.metamx.tranquility.kafka.model.TranquilityKafkaConfig;
+import com.metamx.tranquility.kafka.model.PropertiesBasedKafkaConfig;
 import com.metamx.tranquility.kafka.writer.WriterController;
 import io.druid.concurrent.Execs;
 import kafka.consumer.Consumer;
@@ -70,9 +70,9 @@ public class KafkaConsumer
   private Map<String, MessageCounters> previousMessageCounters = new HashMap<>();
 
   public KafkaConsumer(
-      final TranquilityKafkaConfig globalConfig,
+      final PropertiesBasedKafkaConfig globalConfig,
       final Properties kafkaProperties,
-      final Map<String, DataSourceConfig<TranquilityKafkaConfig>> dataSourceConfigs,
+      final Map<String, DataSourceConfig<PropertiesBasedKafkaConfig>> dataSourceConfigs,
       final WriterController writerController
   )
   {
@@ -261,11 +261,11 @@ public class KafkaConsumer
     return Consumer.createJavaConsumerConnector(config);
   }
 
-  private static String buildTopicFilter(Map<String, DataSourceConfig<TranquilityKafkaConfig>> dataSourceConfigs)
+  private static String buildTopicFilter(Map<String, DataSourceConfig<PropertiesBasedKafkaConfig>> dataSourceConfigs)
   {
     StringBuilder topicFilter = new StringBuilder();
-    for (Map.Entry<String, DataSourceConfig<TranquilityKafkaConfig>> entry : dataSourceConfigs.entrySet()) {
-      topicFilter.append(String.format("(%s)|", entry.getValue().config().getTopicPattern()));
+    for (Map.Entry<String, DataSourceConfig<PropertiesBasedKafkaConfig>> entry : dataSourceConfigs.entrySet()) {
+      topicFilter.append(String.format("(%s)|", entry.getValue().propertiesBasedConfig().getTopicPattern()));
     }
 
     return topicFilter.length() > 0 ? topicFilter.substring(0, topicFilter.length() - 1) : "";

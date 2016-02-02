@@ -41,21 +41,17 @@ Tranquility Server is included in the [downloadable distribution](../README.md#d
 
 ### Configuration
 
-Tranquility Server uses a JSON or YAML file for configuration. You can see examples in `conf/server.json.sample` and
-`conf/server.yaml.example` of the tarball distribution. You can start off your installation by copying either example
-file to `conf/server.json` or `conf/server.yaml`.
+Tranquility Server uses a standard [Tranquility configuration file](configuration.md) with some extra properties.
+There's an example file at `conf/server.json.example` of the tarball distribution. You can start off your installation
+by copying that file to `conf/server.json` and customizing it for your own setup.
 
-The file has two sections:
+These Server-specific properties, if used, must be specified at the global level:
 
-1. `dataSources` - per dataSource configuration.
-2. `properties` - general properties that apply to all dataSources. See "Configuration reference" for details.
-
-The dataSources key should contain a mapping of dataSource name to configuration. Each dataSource configuration
-has two sections:
-
-1. `spec` - a [Druid ingestion spec](http://druid.io/docs/latest/ingestion/index.html) with no `ioConfig`. Tranquility
-supplies its own firehose and plumber.
-2. `properties` - per dataSource properties. See "Configuration reference" for details.
+|Property|Description|Default|
+|--------|-----------|-------|
+|`http.port`|Port to listen on.|8200|
+|`http.threads`|Number of threads for HTTP requests.|8|
+|`http.idleTimeout`|Abort connections that have had no activity for longer than this timeout. Set to zero to disable. ISO8601 duration.|PT5M|
 
 ### Running
 
@@ -64,40 +60,3 @@ If you've saved your configuration into `conf/server.json`, run the server with:
 ```bash
 bin/tranquility server -configFile conf/server.json
 ```
-
-## Configuration reference
-
-With the exception of the global properties (which must be provided at the top level), most properties can be provided
-at the top level or per-dataSource. If the same property is provided at both levels, the per-dataSource version will
-take precedence. This provides a way to set default properties that apply to all dataSources, while still allowing
-customization for certain dataSources.
-
-### Global properties
-
-|Property|Description|Default|
-|--------|-----------|-------|
-|`http.port`|Port to listen on.|8200|
-|`http.threads`|Number of threads for HTTP requests.|8|
-|`http.idleTimeout`|Abort connections that have had no activity for longer than this timeout. Set to zero to disable. ISO8601 duration.|PT5M|
-
-### Other properties
-
-|Property|Description|Default|
-|--------|-----------|-------|
-|`druid.discovery.curator.path`|Curator service discovery path.|/druid/discovery|
-|`druid.selectors.indexing.serviceName`|The druid.service name of the indexing service Overlord node.|druid/overlord|
-|`task.partitions`|Number of Druid partitions to create.|1|
-|`task.replicants`|Number of instances of each Druid partition to create. This is the *total* number of instances, so 2 replicants means 2 tasks will be created.|1|
-|`task.warmingPeriod`|If nonzero, create Druid tasks early. This can be useful if tasks take a long time to start up in your environment.|PT0M|
-|`zookeeper.connect`|ZooKeeper connect string.|none; must be provided|
-|`zookeeper.timeout`|ZooKeeper session timeout. ISO8601 duration.|PT20S|
-|`tranquility.maxBatchSize`|Maximum number of messages to send at once.|2000|
-|`tranquility.maxPendingBatches`|Maximum number of batches that may be in flight before we block and wait for one to finish.|5|
-|`tranquility.lingerMillis`|Wait this long for batches to collect more messages (up to maxBatchSize) before sending them. Set to zero to disable waiting.|0|
-|`druidBeam.firehoseGracePeriod`|Druid indexing tasks will shut down this long after the windowPeriod has elapsed.|PT5M|
-|`druidBeam.firehoseQuietPeriod`|Wait this long for a task to appear before complaining that it cannot be found.|PT1M|
-|`druidBeam.firehoseRetryPeriod`|Retry for this long before complaining that events could not be pushed|PT1M|
-|`druidBeam.firehoseChunkSize`|Maximum number of events to send to Druid in one HTTP request.|1000|
-|`druidBeam.randomizeTaskId`|True if we should add a random suffix to Druid task IDs. This is useful for testing.|false|
-|`druidBeam.indexRetryPeriod`|If an indexing service overlord call fails for some apparently-transient reason, retry for this long before giving up.|PT1M|
-|`druidBeam.firehoseBufferSize`|Size of buffer used by firehose to store events.|100000|

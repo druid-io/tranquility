@@ -26,9 +26,9 @@ import com.google.common.collect.Maps;
 import com.google.common.io.Files;
 import com.metamx.common.scala.Jackson$;
 import com.metamx.tranquility.config.DataSourceConfig;
-import com.metamx.tranquility.druid.DruidGuicer;
+import com.metamx.tranquility.druid.DruidGuicer$;
 import com.metamx.tranquility.kafka.model.MessageCounters;
-import com.metamx.tranquility.kafka.model.TranquilityKafkaConfig;
+import com.metamx.tranquility.kafka.model.PropertiesBasedKafkaConfig;
 import com.metamx.tranquility.kafka.writer.TranquilityEventWriter;
 import com.metamx.tranquility.kafka.writer.WriterController;
 import io.druid.query.aggregation.AggregatorFactory;
@@ -171,7 +171,8 @@ public class KafkaConsumerTest
 
     EasyMock.replay(mockWriterController, mockEventWriter);
 
-    TranquilityKafkaConfig config = new ConfigurationObjectFactory(consumerProperties).build(TranquilityKafkaConfig.class);
+    PropertiesBasedKafkaConfig config = new ConfigurationObjectFactory(consumerProperties).build(
+        PropertiesBasedKafkaConfig.class);
 
     FireDepartment fd = new FireDepartment(
         new DataSchema(topic, null, new AggregatorFactory[]{}, null, new ObjectMapper()),
@@ -188,11 +189,11 @@ public class KafkaConsumerTest
         null
     );
 
-    Map<String, DataSourceConfig<TranquilityKafkaConfig>> datasourceConfigs = ImmutableMap.of(
+    Map<String, DataSourceConfig<PropertiesBasedKafkaConfig>> datasourceConfigs = ImmutableMap.of(
         topic,
         new DataSourceConfig<>(
-            config,
             topic,
+            config,
             fireDepartmentToScalaMap(fd)
         )
     );
@@ -255,7 +256,8 @@ public class KafkaConsumerTest
 
     EasyMock.replay(mockWriterController, mockEventWriter);
 
-    TranquilityKafkaConfig config = new ConfigurationObjectFactory(consumerProperties).build(TranquilityKafkaConfig.class);
+    PropertiesBasedKafkaConfig config = new ConfigurationObjectFactory(consumerProperties).build(
+        PropertiesBasedKafkaConfig.class);
 
     FireDepartment fd = new FireDepartment(
         new DataSchema(topic, null, new AggregatorFactory[]{}, null, new ObjectMapper()),
@@ -272,11 +274,11 @@ public class KafkaConsumerTest
         null
     );
 
-    Map<String, DataSourceConfig<TranquilityKafkaConfig>> datasourceConfigs = ImmutableMap.of(
+    Map<String, DataSourceConfig<PropertiesBasedKafkaConfig>> datasourceConfigs = ImmutableMap.of(
         topic,
         new DataSourceConfig<>(
-            config,
             topic,
+            config,
             fireDepartmentToScalaMap(fd)
         )
     );
@@ -333,7 +335,7 @@ public class KafkaConsumerTest
   ) throws IOException
   {
     return Jackson$.MODULE$.newObjectMapper().readValue(
-        DruidGuicer.objectMapper().writeValueAsBytes(fireDepartment),
+        DruidGuicer$.MODULE$.Default().objectMapper().writeValueAsBytes(fireDepartment),
         scala.collection.immutable.Map.class
     );
   }

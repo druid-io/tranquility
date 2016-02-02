@@ -1,0 +1,32 @@
+dataSources:
+  xxx:
+    spec:
+      dataSchema:
+        dataSource: xxx
+        parser:
+          type: string
+          parseSpec:
+            format: json
+            timestampSpec:
+              column: ts
+              format: posix
+            dimensionsSpec:
+              dimensions: [foo]
+              spatialDimensions:
+                - { dimName: coord.geo, dims: [lat, lon] }
+
+        metricsSpec:
+          - { type: longSum, name: barr, fieldName: bar }
+
+        granularitySpec:
+          type: uniform
+          segmentGranularity: hour
+          queryGranularity: minute
+
+      tuningConfig:
+        type: realtime
+        buildV9Directly: true
+
+properties:
+  druid.selectors.indexing.serviceName: druid/tranquility/indexer
+  zookeeper.connect: @ZKPLACEHOLDER@

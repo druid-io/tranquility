@@ -1,19 +1,6 @@
 {
-   "properties" : {
-      "zookeeper.timeout" : "PT20S",
-      "task.partitions" : "1",
-      "commit.periodMillis" : "15000",
-      "druid.selectors.indexing.serviceName" : "druid/overlord",
-      "kafka.group.id" : "tranquility-kafka",
-      "consumer.numThreads" : "2",
-      "task.replicants" : "1",
-      "reportDropsAsExceptions" : "false",
-      "kafka.zookeeper.connect" : "localhost:2181",
-      "zookeeper.connect" : "localhost:2181",
-      "druid.discovery.curator.path" : "/druid/discovery"
-   },
-   "dataSources" : {
-      "twitter" : {
+   "dataSources" : [
+      {
          "spec" : {
             "dataSchema" : {
                "parser" : {
@@ -91,15 +78,11 @@
          },
          "properties" : {
             "topicPattern.priority" : "1",
-            "topicPattern" : "twitter",
-            "useTopicAsDataSource" : "false"
+            "topicPattern" : "twitter"
          }
       },
-      "wikipedia" : {
+      {
          "spec" : {
-            "ioConfig" : {
-               "type" : "realtime"
-            },
             "dataSchema" : {
                "granularitySpec" : {
                   "queryGranularity" : "none",
@@ -163,12 +146,22 @@
             }
          },
          "properties" : {
-            "useTopicAsDataSource" : "true",
-            "topicPattern" : "wikipedia.*",
             "task.partitions" : "2",
-            "topicPattern.priority" : "1",
-            "task.replicants" : "2"
+            "task.replicants" : "2",
+            "topicPattern" : "wikipedia.*",
+            "topicPattern.priority" : "1"
          }
       }
-   }
+   ],
+   "properties" : {
+       "zookeeper.connect" : "localhost:2181",
+       "zookeeper.timeout" : "PT20S",
+       "druid.selectors.indexing.serviceName" : "druid/overlord",
+       "druid.discovery.curator.path" : "/druid/discovery",
+       "kafka.zookeeper.connect" : "localhost:2181",
+       "kafka.group.id" : "tranquility-kafka",
+       "consumer.numThreads" : "2",
+       "commit.periodMillis" : "15000",
+       "reportDropsAsExceptions" : "false"
+    }
 }

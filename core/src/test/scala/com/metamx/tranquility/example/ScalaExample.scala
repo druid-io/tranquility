@@ -19,84 +19,57 @@
 
 package com.metamx.tranquility.example
 
-import com.metamx.common.Granularity
 import com.metamx.common.scala.Logging
-import com.metamx.tranquility.beam.ClusteredBeamTuning
+import com.metamx.tranquility.config.DataSourceConfig
+import com.metamx.tranquility.config.PropertiesBasedConfig
+import com.metamx.tranquility.config.TranquilityConfig
 import com.metamx.tranquility.druid.DruidBeams
-import com.metamx.tranquility.druid.DruidLocation
-import com.metamx.tranquility.druid.DruidRollup
-import com.metamx.tranquility.druid.SpecificDruidDimensions
-import com.twitter.util.Await
-import com.twitter.util.Future
-import io.druid.granularity.QueryGranularity
-import io.druid.query.aggregation.CountAggregatorFactory
-import io.druid.query.aggregation.LongSumAggregatorFactory
-import org.apache.curator.framework.CuratorFrameworkFactory
-import org.apache.curator.retry.ExponentialBackoffRetry
+import com.metamx.tranquility.tranquilizer.MessageDroppedException
+import com.metamx.tranquility.tranquilizer.Tranquilizer
+import com.twitter.util.Return
+import com.twitter.util.Throw
 import org.joda.time.DateTime
-import org.joda.time.Period
+import scala.collection.JavaConverters._
 
 object ScalaExample extends Logging
 {
   def main(args: Array[String]) {
-    // Your overlord's druid.service.
-    val indexService = "overlord"
+    // Read config from "example.json" on the classpath.
+    val configStream = getClass.getClassLoader.getResourceAsStream("example.json")
+    val config: TranquilityConfig[PropertiesBasedConfig] = TranquilityConfig.read(configStream)
+    val wikipediaConfig: DataSourceConfig[PropertiesBasedConfig] = config.getDataSource("wikipedia")
+    val sender: Tranquilizer[java.util.Map[String, AnyRef]] = DruidBeams
+      .fromConfig(config.getDataSource("wikipedia"))
+      .buildTranquilizer(wikipediaConfig.tranquilizerBuilder())
 
-    // Your overlord's druid.discovery.curator.path.
-    val discoveryPath = "/druid/discovery"
-
-    // Your Druid schema.
-    val dataSource = "foo"
-    val dimensions = Seq("bar", "qux")
-    val aggregators = Seq(new CountAggregatorFactory("cnt"), new LongSumAggregatorFactory("baz", "baz"))
-
-    // Tranquility needs to be able to extract timestamps from your object type (in this case, Map[String, Any]).
-    val timestamper = (message: Map[String, Any]) => new DateTime(message("timestamp"))
-
-    // Tranquility uses ZooKeeper (through Curator) for coordination.
-    val curator = CuratorFrameworkFactory
-      .builder()
-      .connectString("zk.example.com:2181")
-      .retryPolicy(new ExponentialBackoffRetry(1000, 20, 30000))
-      .build()
-    curator.start()
-
-    // Build a Tranquilizer that we can use to send messages.
-    val druidService = DruidBeams
-      .builder(timestamper)
-      .curator(curator)
-      .discoveryPath(discoveryPath)
-      .location(DruidLocation.create(indexService, dataSource))
-      .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularity.MINUTE))
-      .tuning(
-        ClusteredBeamTuning(
-          segmentGranularity = Granularity.HOUR,
-          windowPeriod = new Period("PT10M"),
-          partitions = 1,
-          replicants = 1
-        )
-      )
-      .buildTranquilizer()
-
-    druidService.start()
+    sender.start()
 
     try {
-      // Build a sample message to send; make sure we use a current date
-      val obj = Map("timestamp" -> new DateTime().toString, "bar" -> "barVal", "baz" -> 3)
+      // Send 10000 objects.
 
-      // Send messages to Druid:
-      val future: Future[Unit] = druidService.send(obj)
+      for (i <- 0 until 10000) {
+        val obj = Map[String, AnyRef](
+          "timestamp" -> new DateTime().toString,
+          "page" -> "foo",
+          "added" -> Int.box(i)
+        )
 
-      // Wait for confirmation:
-      Await.result(future)
-    }
-    catch {
-      case e: Exception =>
-        log.warn(e, "Failed to send message")
+        // Asynchronously send event to Druid:
+        sender.send(obj.asJava) respond {
+          case Return(_) =>
+            log.info("Sent message: %s", obj)
+
+          case Throw(e: MessageDroppedException) =>
+            log.warn(e, "Dropped message: %s", obj)
+
+          case Throw(e) =>
+            log.error(e, "Failed to send message: %s", obj)
+        }
+      }
     }
     finally {
-      druidService.stop()
-      curator.close()
+      sender.flush()
+      sender.stop()
     }
   }
 }

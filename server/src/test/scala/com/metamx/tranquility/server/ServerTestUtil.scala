@@ -22,16 +22,23 @@ package com.metamx.tranquility.server
 import com.metamx.common.scala.collection.implicits._
 import com.metamx.common.scala.untyped._
 import com.metamx.tranquility.beam.Beam
+import com.metamx.tranquility.beam.TransformingBeam
 import com.metamx.tranquility.server.http.TranquilityServlet
 import com.metamx.tranquility.tranquilizer.Tranquilizer
 import org.scalatra.test.ScalatraTests
+import scala.collection.JavaConverters._
 
 object ServerTestUtil
 {
   def withTester(beams: Map[String, Beam[Dict]])(f: ScalatraTests => Unit): Unit = {
     val tester = new ScalatraTests {}
     val tranquilizers = beams strictMapValues { beam =>
-      val t = Tranquilizer.create(beam)
+      val t = Tranquilizer.create(
+        new TransformingBeam[java.util.Map[String, AnyRef], Dict](
+          beam,
+          _.asScala.toMap
+        )
+      )
       t.start()
       t
     }

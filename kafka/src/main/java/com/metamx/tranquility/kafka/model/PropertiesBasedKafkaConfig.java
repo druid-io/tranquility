@@ -20,7 +20,7 @@
 package com.metamx.tranquility.kafka.model;
 
 import com.google.common.collect.Lists;
-import com.metamx.tranquility.config.TranquilityConfig;
+import com.metamx.tranquility.config.PropertiesBasedConfig;
 import org.skife.config.Config;
 import org.skife.config.Default;
 import scala.collection.JavaConversions;
@@ -28,9 +28,9 @@ import scala.collection.JavaConversions;
 /**
  * Configuration object which extends Tranquility configuration with Kafka specific parameters.
  */
-public abstract class TranquilityKafkaConfig extends TranquilityConfig
+public abstract class PropertiesBasedKafkaConfig extends PropertiesBasedConfig
 {
-  public TranquilityKafkaConfig()
+  public PropertiesBasedKafkaConfig()
   {
     super(
         JavaConversions.asScalaBuffer(

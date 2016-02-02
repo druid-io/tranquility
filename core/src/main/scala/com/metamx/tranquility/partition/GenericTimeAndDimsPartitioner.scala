@@ -31,8 +31,6 @@ import scala.collection.JavaConverters._
 
 object GenericTimeAndDimsPartitioner
 {
-  private val StringSeparator: Byte = 0xff.toByte
-
   /**
     * Create a Partitioner that can partition Scala and Java Maps according to their Druid grouping key (truncated
     * timestamp and dimensions). For other types, you should implement your own Partitioner that accesses your

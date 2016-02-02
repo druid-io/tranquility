@@ -12,38 +12,11 @@ Tranquility Kafka is included in the [downloadable distribution](../README.md#do
 
 ### Configuration
 
-Tranquility Kafka uses a JSON or YAML file for configuration. You can see examples in `conf/kafka.json.sample` and
-`conf/kafka.yaml.example` of the tarball distribution. You can start off your installation by copying either example
-file to `conf/kafka.json` or `conf/kafka.yaml`.
+Tranquility Kafka uses a standard [Tranquility configuration file](configuration.md) with some extra properties.
+There's an example file at `conf/server.json.example` of the tarball distribution. You can start off your installation
+by copying that file to `conf/server.json` and customizing it for your own setup.
 
-The file has two sections:
-
-1. `dataSources` - per dataSource configuration.
-2. `properties` - general properties that apply to all dataSources. See "Configuration reference" for details.
-
-The dataSources key should contain a mapping of dataSource name to configuration. Each dataSource configuration
-has two sections:
-
-1. `spec` - a [Druid ingestion spec](http://druid.io/docs/latest/ingestion/index.html) with no `ioConfig`. Tranquility
-supplies its own firehose and plumber.
-2. `properties` - per dataSource properties. See "Configuration reference" for details.
-
-### Running
-
-If you've saved your configuration into `conf/tranquility-kafka.json`, run the application with:
-
-```bash
-bin/tranquility kafka -configFile conf/tranquility-kafka.json
-```
-
-## Configuration reference
-
-With the exception of the global properties (which must be provided at the top level), most properties can be provided
-at the top level or per-dataSource. If the same property is provided at both levels, the per-dataSource version will
-take precedence. This provides a way to set default properties that apply to all dataSources, while still allowing
-customization for certain dataSources.
-
-### Global properties
+These Kafka-specific properties, if used, must be specified at the global level:
 
 |Property|Description|Default|
 |--------|-----------|-------|
@@ -52,34 +25,23 @@ customization for certain dataSources.
 |`consumer.numThreads`|The number of threads that will be made available to the Kafka consumer for fetching messages.|{numProcessors} - 1|
 |`commit.periodMillis`|The frequency with which consumer offsets will be committed to ZooKeeper to track processed messages.|15000|
 |`kafka.*`|Any properties that begin with *kafka.* will be passed to the underlying Kafka consumer with the *kafka.* prefix removed. For example, if you set `kafka.consumer.id=myConsumer`, the Kafka consumer will be passed the property `consumer.id=myConsumer`. Note that Tranquility Kafka requires `auto.commit.enable` to be *false* and any attempt to set this property will be overridden. |none|
-|`druid.extensions.*`|You may load Druid extensions into Tranquility Kafka using the extension properties defined on the Druid [common configuration](http://druid.io/docs/latest/configuration/index.html) page. This is required if your dataSource configuration contains fields not part of core Druid such as *approxHistogram*. As an example, to load the histogram extension, set `druid.extensions.coordinates: "[\"io.druid.extensions:druid-histogram:x.x.x\"]"`.|none|
 
-### Other properties
+These Kafka-specific properties, if used, may be specified either at the global level or at the dataSource level:
 
 |Property|Description|Default|
 |--------|-----------|-------|
-|`druid.discovery.curator.path`|Curator service discovery path.|/druid/discovery|
-|`druid.selectors.indexing.serviceName`|The druid.service name of the indexing service Overlord node.|druid/overlord|
 |`topicPattern`|A regular expression used to match Kafka topics to dataSource configurations. See "Matching Topics to Data Sources" for details.|{match nothing}, must be provided|
 |`topicPattern.priority`|If multiple topicPatterns match the same topic name, the highest priority dataSource configuration will be used. A higher number indicates a higher priority. See "Matching Topics to Data Sources" for details.|1|
 |`useTopicAsDataSource`|Use the Kafka topic as the dataSource name instead of the one provided in the configuration file. Useful when combined with a topicPattern that matches more than one Kafka topic. See "Matching Topics to Data Sources" for details.|false|
 |`reportDropsAsExceptions`|Whether or not dropped messages will cause an exception and terminate the application.|false|
-|`task.partitions`|Number of Druid partitions to create.|1|
-|`task.replicants`|Number of instances of each Druid partition to create. This is the *total* number of instances, so 2 replicants means 2 tasks will be created.|1|
-|`task.warmingPeriod`|If nonzero, create Druid tasks early. This can be useful if tasks take a long time to start up in your environment.|PT0M|
-|`zookeeper.connect`|ZooKeeper connect string.|none; must be provided|
-|`zookeeper.timeout`|ZooKeeper session timeout. ISO8601 duration.|PT20S|
-|`tranquility.maxBatchSize`|Maximum number of messages to send at once.|2000|
-|`tranquility.maxPendingBatches`|Maximum number of batches that may be in flight before we block and wait for one to finish.|5|
-|`tranquility.lingerMillis`|Wait this long for batches to collect more messages (up to maxBatchSize) before sending them. Set to zero to disable waiting.|0|
-|`druidBeam.firehoseGracePeriod`|Druid indexing tasks will shut down this long after the windowPeriod has elapsed.|PT5M|
-|`druidBeam.firehoseQuietPeriod`|Wait this long for a task to appear before complaining that it cannot be found.|PT1M|
-|`druidBeam.firehoseRetryPeriod`|Retry for this long before complaining that events could not be pushed|PT1M|
-|`druidBeam.firehoseChunkSize`|Maximum number of events to send to Druid in one HTTP request.|1000|
-|`druidBeam.randomizeTaskId`|True if we should add a random suffix to Druid task IDs. This is useful for testing.|false|
-|`druidBeam.indexRetryPeriod`|If an indexing service overlord call fails for some apparently-transient reason, retry for this long before giving up.|PT1M|
-|`druidBeam.firehoseBufferSize`|Size of buffer used by firehose to store events.|100000|
 
+### Running
+
+If you've saved your configuration into `conf/tranquility-kafka.json`, run the application with:
+
+```bash
+bin/tranquility kafka -configFile conf/tranquility-kafka.json
+```
 
 ## Matching Topics to Data Sources
 

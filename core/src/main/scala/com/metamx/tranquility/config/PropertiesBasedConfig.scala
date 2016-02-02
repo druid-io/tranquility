@@ -25,17 +25,22 @@ import com.metamx.common.scala.untyped.Dict
 import com.metamx.tranquility.beam.ClusteredBeamTuning
 import com.metamx.tranquility.druid.DruidBeamConfig
 import com.metamx.tranquility.tranquilizer.Tranquilizer
-import io.druid.segment.realtime.FireDepartment
+import java.util.Properties
 import org.joda.time.Period
 import org.skife.config.Config
+import org.skife.config.ConfigurationObjectFactory
 
-abstract class TranquilityConfig(globalProperties: Set[String]) extends DiscoConfig
+abstract class PropertiesBasedConfig(
+  private[config] val globalPropertyNames: Set[String]
+) extends DiscoConfig
 {
+  private var props: Properties = null
+
   def this() {
     this(Set[String]())
   }
 
-  val GlobalProperties = Set[String]() ++ globalProperties
+  def properties: Properties = props
 
   @Config(Array("druid.selectors.indexing.serviceName"))
   def druidIndexingServiceName: String = "druid/overlord"
@@ -101,4 +106,20 @@ abstract class TranquilityConfig(globalProperties: Set[String]) extends DiscoCon
   override def discoAnnounce: Option[DiscoAnnounceConfig] = None
 }
 
-case class DataSourceConfig[T <: TranquilityConfig](config: T, dataSource: String, specMap: Dict)
+object PropertiesBasedConfig
+{
+  def fromDict[ConfigType <: PropertiesBasedConfig](
+    d: Dict,
+    clazz: Class[ConfigType]
+  ): ConfigType =
+  {
+    val properties = new Properties
+    for ((k, v) <- d if v != null) {
+      properties.setProperty(k, String.valueOf(v))
+    }
+    val configFactory = new ConfigurationObjectFactory(properties)
+    val config = configFactory.build(clazz)
+    config.props = properties
+    config
+  }
+}

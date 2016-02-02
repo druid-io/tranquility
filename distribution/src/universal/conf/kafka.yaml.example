@@ -1,6 +1,5 @@
 dataSources:
-  twitter:
-    spec:
+  - spec:
       dataSchema:
         dataSource: twitter
         parser:
@@ -35,10 +34,8 @@ dataSources:
     properties:
       topicPattern: twitter
       topicPattern.priority: 1
-      useTopicAsDataSource: false
 
-  wikipedia:
-    spec:
+  - spec:
       dataSchema:
         dataSource: wikipedia
         parser:
@@ -62,9 +59,6 @@ dataSources:
           segmentGranularity: hour
           queryGranularity: none
 
-      ioConfig:
-        type: realtime
-
       tuningConfig:
         type: realtime
         maxRowsInMemory: 100000
@@ -76,7 +70,6 @@ dataSources:
       task.replicants: 2
       topicPattern: wikipedia.*
       topicPattern.priority: 1
-      useTopicAsDataSource: true
 
 properties:
   zookeeper.connect: localhost:2181
@@ -87,8 +80,4 @@ properties:
   kafka.group.id: tranquility-kafka
   consumer.numThreads: 2
   commit.periodMillis: 15000
-  task.partitions: 1
-  task.replicants: 1
   reportDropsAsExceptions: false
-  #druid.extensions.coordinates: "[\"io.druid.extensions:druid-histogram:0.8.2\"]"
-  #druid.extensions.localRepository: /path/to/druid/extensions-repo

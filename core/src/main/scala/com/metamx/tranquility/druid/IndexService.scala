@@ -69,7 +69,11 @@ class IndexService(
         req.headerMap("Content-Length") = taskBytes.length.toString
         req.content = Buf.ByteArray.Shared(taskBytes)
     }
-    log.info("Creating druid indexing task (service = %s)", environment.indexService)
+    log.info(
+      "Creating druid indexing task (service = %s): %s",
+      environment.indexService,
+      Jackson.pretty(Jackson.parse[Dict](taskBytes))
+    )
     call(taskRequest) map {
       d =>
         str(d("task"))

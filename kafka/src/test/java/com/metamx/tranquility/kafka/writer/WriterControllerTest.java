@@ -24,7 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import com.metamx.tranquility.config.DataSourceConfig;
 import com.metamx.tranquility.kafka.KafkaConsumerTest;
 import com.metamx.tranquility.kafka.model.MessageCounters;
-import com.metamx.tranquility.kafka.model.TranquilityKafkaConfig;
+import com.metamx.tranquility.kafka.model.PropertiesBasedKafkaConfig;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.segment.indexing.DataSchema;
 import io.druid.segment.indexing.RealtimeIOConfig;
@@ -52,14 +52,14 @@ public class WriterControllerTest
 
     private Map<String, TranquilityEventWriter> mockWriters = new HashMap<>();
 
-    public TestableWriterController(Map<String, DataSourceConfig<TranquilityKafkaConfig>> dataSourceConfigs)
+    public TestableWriterController(Map<String, DataSourceConfig<PropertiesBasedKafkaConfig>> dataSourceConfigs)
     {
       super(dataSourceConfigs);
     }
 
     protected TranquilityEventWriter createWriter(
         String topic,
-        DataSourceConfig<TranquilityKafkaConfig> dataSourceConfig
+        DataSourceConfig<PropertiesBasedKafkaConfig> dataSourceConfig
     )
     {
       TranquilityEventWriter writer = EasyMock.mock(TranquilityEventWriter.class);
@@ -84,7 +84,7 @@ public class WriterControllerTest
     propsTest.setProperty("topicPattern", "test[0-9]");
     propsTest.setProperty("useTopicAsDataSource", "true");
 
-    FireDepartment fd = new FireDepartment(
+    FireDepartment fdTwitter = new FireDepartment(
         new DataSchema("twitter", null, new AggregatorFactory[]{}, null, new ObjectMapper()),
         new RealtimeIOConfig(
             new LocalFirehoseFactory(null, null, null), new PlumberSchool()
@@ -99,18 +99,33 @@ public class WriterControllerTest
         null
     );
 
-    Map<String, DataSourceConfig<TranquilityKafkaConfig>> datasourceConfigs = ImmutableMap.of(
+    FireDepartment fdTest = new FireDepartment(
+        new DataSchema("test[0-9]", null, new AggregatorFactory[]{}, null, new ObjectMapper()),
+        new RealtimeIOConfig(
+            new LocalFirehoseFactory(null, null, null), new PlumberSchool()
+        {
+          @Override
+          public Plumber findPlumber(DataSchema schema, RealtimeTuningConfig config, FireDepartmentMetrics metrics)
+          {
+            return null;
+          }
+        }, null
+        ),
+        null
+    );
+
+    Map<String, DataSourceConfig<PropertiesBasedKafkaConfig>> datasourceConfigs = ImmutableMap.of(
         "twitter",
         new DataSourceConfig<>(
-            new ConfigurationObjectFactory(propsTwitter).build(TranquilityKafkaConfig.class),
             "twitter",
-            KafkaConsumerTest.fireDepartmentToScalaMap(fd)
+            new ConfigurationObjectFactory(propsTwitter).build(PropertiesBasedKafkaConfig.class),
+            KafkaConsumerTest.fireDepartmentToScalaMap(fdTwitter)
         ),
         "test[0-9]",
         new DataSourceConfig<>(
-            new ConfigurationObjectFactory(propsTest).build(TranquilityKafkaConfig.class),
             "test[0-9]",
-            KafkaConsumerTest.fireDepartmentToScalaMap(fd)
+            new ConfigurationObjectFactory(propsTest).build(PropertiesBasedKafkaConfig.class),
+            KafkaConsumerTest.fireDepartmentToScalaMap(fdTest)
         )
     );
 
