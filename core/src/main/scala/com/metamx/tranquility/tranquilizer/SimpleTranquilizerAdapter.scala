@@ -102,6 +102,8 @@ class SimpleTranquilizerAdapter[MessageType] private(
     * pending messages are flushed.
     */
   def flush() {
+    tranquilizer.flush()
+
     // Wait for data to flush out.
     pending.synchronized {
       while (pending.get() > 0) {
