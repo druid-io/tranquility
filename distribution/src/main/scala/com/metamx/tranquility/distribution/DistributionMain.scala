@@ -19,6 +19,7 @@
 
 package com.metamx.tranquility.distribution
 
+import com.metamx.tranquility.console.ConsoleMain
 import com.metamx.tranquility.kafka.KafkaMain
 import com.metamx.tranquility.server.http.ServerMain
 
@@ -26,6 +27,9 @@ object DistributionMain
 {
   def main(args: Array[String]) {
     args.headOption match {
+      case Some("console") =>
+        ConsoleMain.main(args.drop(1))
+
       case Some("server") =>
         ServerMain.main(args.drop(1))
 
