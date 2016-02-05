@@ -167,6 +167,10 @@ lazy val commonSettings = Seq(
 
   javaOptions := Seq("-Xms512m", "-Xmx512m"),
 
+  // Target Java 7
+  scalacOptions += "-target:jvm-1.7",
+  javacOptions ++= Seq("-source", "1.7", "-target", "1.7"),
+
   // resolve-term-conflict:object since storm-core has a package and object with the same name
   scalacOptions := Seq("-feature", "-deprecation", "-Yresolve-term-conflict:object"),
 

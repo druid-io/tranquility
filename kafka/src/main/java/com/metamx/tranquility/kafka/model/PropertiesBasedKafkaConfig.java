@@ -19,11 +19,10 @@
 
 package com.metamx.tranquility.kafka.model;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.ImmutableSet;
 import com.metamx.tranquility.config.PropertiesBasedConfig;
 import org.skife.config.Config;
 import org.skife.config.Default;
-import scala.collection.JavaConversions;
 
 /**
  * Configuration object which extends Tranquility configuration with Kafka specific parameters.
@@ -33,14 +32,12 @@ public abstract class PropertiesBasedKafkaConfig extends PropertiesBasedConfig
   public PropertiesBasedKafkaConfig()
   {
     super(
-        JavaConversions.asScalaBuffer(
-            Lists.newArrayList(
-                "kafka.group.id",
-                "kafka.zookeeper.connect",
-                "consumer.numThreads",
-                "commit.periodMillis"
-            )
-        ).toSet()
+        ImmutableSet.of(
+            "kafka.group.id",
+            "kafka.zookeeper.connect",
+            "consumer.numThreads",
+            "commit.periodMillis"
+        )
     );
   }
 
