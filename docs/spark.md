@@ -6,16 +6,21 @@ The BeamRDD requires a BeamFactory to propagate events. You will be overriding t
 using the DruidBeams builder's "buildBeam()" to build the beam. See the [DruidBeams documentation](druidbeams.md)
 for details about creating beams.
 
-It is recommended that you implement makeBeam as a lazy val so the Beam can be reused.
+It is recommended that you implement makeBeam using a singleton so the Beam can be reused.
 
 For example:
 
 ```scala
 
-class SimpleEventBeamFactory extends BeamFactory[SimpleEvent] {
+class SimpleEventBeamFactory extends BeamFactory[SimpleEvent]
+{
+  // Return a singleton, so the same connection is shared across all tasks in the same JVM.
+  def makeBeam: Beam[SimpleEvent] = SimpleEventBeamFactory.BeamInstance
+}
 
-lazy val makeBeam : Beam[SimpleEvent] = {
-
+object SimpleEventBeamFactory
+{
+  val BeamInstance: Beam[SimpleEvent] = {
     // Tranquility uses ZooKeeper (through Curator framework) for coordination.
     val curator = CuratorFrameworkFactory.newClient(
       "localhost:2181",
@@ -46,10 +51,11 @@ lazy val makeBeam : Beam[SimpleEvent] = {
       )
       .buildBeam()
   }
+}
 
 // Add this import to your Spark job to be able to propagate events from any RDD to Druid
 import com.metamx.tranquility.spark.BeamRDD._
 
-//now given a spark dstream, you could propagate events
-val beamFactory = new SimpleEventBeamFactory(zkConnect)
-dstream.foreachRDD(rdd => rdd.propagate(beamFactory))
+// Now given a Spark DStream, you can send events to Druid.
+dstream.foreachRDD(rdd => rdd.propagate(new SimpleEventBeamFactory))
+```
