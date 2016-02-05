@@ -28,8 +28,7 @@ import com.metamx.tranquility.tranquilizer.Tranquilizer
 trait BeamFactory[EventType] extends Serializable
 {
   /**
-    * Create a Beam for a given EventType.
-    * It is recommended that this class should override the makeBeam method as a lazy val.
+    * Create a Beam for a given EventType. It is recommended that this should return a singleton.
     *
     * @return beam for an EventType
     */

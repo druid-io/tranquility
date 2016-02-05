@@ -26,6 +26,7 @@ import scala.reflect.ClassTag
 
 /**
   * This class provides any RDD the ability to propagate events to Druid.
+  *
   * @param rdd rdd that should be propagated to druid.
   */
 class BeamRDD[T: ClassTag](rdd: RDD[T]) extends Logging with Serializable

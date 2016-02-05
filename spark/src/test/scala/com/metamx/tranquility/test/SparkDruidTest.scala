@@ -74,12 +74,10 @@ class SparkDruidTest
         val now = new DateTime().hourOfDay().roundFloorCopy()
 
         val inputs = DirectDruidTest.generateEvents(now)
-        val t = sparkContext.parallelize(inputs)
         val lines = mutable.Queue[RDD[SimpleEvent]]()
+        lines += sparkContext.makeRDD(inputs, 2)
         val dstream = ssc.queueStream(lines)
-        lines += sparkContext.makeRDD(inputs)
-        val beamFactory = new SimpleEventBeamFactory(zkConnect)
-        dstream.foreachRDD(rdd => rdd.propagate(beamFactory))
+        dstream.foreachRDD(rdd => rdd.propagate(new SimpleEventBeamFactory(zkConnect)))
         ssc.start()
 
         runTestQueriesAndAssertions(
@@ -88,27 +86,39 @@ class SparkDruidTest
               timekeeper.now = now
           }
         )
+
+        ssc.stop(true, true)
+        ssc.awaitTermination()
     }
   }
 }
 
 class SimpleEventBeamFactory(zkConnect: String) extends BeamFactory[SimpleEvent]
 {
-  override lazy val makeBeam: Beam[SimpleEvent] = {
-    val aDifferentCurator = CuratorFrameworkFactory.newClient(
-      zkConnect,
-      new BoundedExponentialBackoffRetry(100, 1000, 5)
-    )
-    aDifferentCurator.start()
-    val builder = DirectDruidTest.newBuilder(
-      aDifferentCurator, new TestingTimekeeper withEffect {
-        timekeeper =>
-          timekeeper.now = DateTime.now
-      }
-    )
-    builder.buildBeam()
+  override def makeBeam: Beam[SimpleEvent] = {
+    SimpleEventBeamFactory.instance(zkConnect)
   }
-
 }
 
+object SimpleEventBeamFactory
+{
+  // zkConnect -> beams
+  private val beams = mutable.HashMap[String, Beam[SimpleEvent]]()
 
+  def instance(zkConnect: String) = {
+    beams.synchronized {
+      val aDifferentCurator = CuratorFrameworkFactory.newClient(
+        zkConnect,
+        new BoundedExponentialBackoffRetry(100, 1000, 5)
+      )
+      aDifferentCurator.start()
+      val builder = DirectDruidTest.newBuilder(
+        aDifferentCurator, new TestingTimekeeper withEffect {
+          timekeeper =>
+            timekeeper.now = DateTime.now
+        }
+      )
+      builder.buildBeam()
+    }
+  }
+}
