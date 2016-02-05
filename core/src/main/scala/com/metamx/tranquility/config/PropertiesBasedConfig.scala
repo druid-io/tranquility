@@ -29,6 +29,7 @@ import java.util.Properties
 import org.joda.time.Period
 import org.skife.config.Config
 import org.skife.config.ConfigurationObjectFactory
+import scala.collection.JavaConverters._
 
 abstract class PropertiesBasedConfig(
   private[config] val globalPropertyNames: Set[String]
@@ -36,7 +37,11 @@ abstract class PropertiesBasedConfig(
 {
   private var props: Properties = null
 
-  def this() {
+  def this(names: java.util.Set[String]) = {
+    this(names.asScala.toSet)
+  }
+
+  def this() = {
     this(Set[String]())
   }
 

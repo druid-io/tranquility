@@ -149,7 +149,7 @@ public class KafkaConsumerTest
     consumerProperties.setProperty("topicPattern", topic);
 
     TranquilityEventWriter mockEventWriter = EasyMock.mock(TranquilityEventWriter.class);
-    mockEventWriter.send(EasyMock.anyObject());
+    mockEventWriter.send((byte[]) EasyMock.anyObject());
     EasyMock.expectLastCall().andStubAnswer(
         new IAnswer<Void>()
         {
@@ -210,7 +210,7 @@ public class KafkaConsumerTest
     Assert.assertEquals("Unexpected consumer offset", -1, getConsumerOffset(topic));
 
     for (int i = numMessages; i > 0; i--) {
-      producer.send(new ProducerRecord<>(topic, MESSAGE)).get();
+      producer.send(new ProducerRecord<String, String>(topic, MESSAGE)).get();
     }
     latch.await();
 
@@ -234,7 +234,7 @@ public class KafkaConsumerTest
     consumerProperties.setProperty("topicPattern", topic);
 
     TranquilityEventWriter mockEventWriter = EasyMock.mock(TranquilityEventWriter.class);
-    mockEventWriter.send(EasyMock.anyObject());
+    mockEventWriter.send((byte[]) EasyMock.anyObject());
     EasyMock.expectLastCall().andStubAnswer(
         new IAnswer<Void>()
         {
@@ -295,7 +295,7 @@ public class KafkaConsumerTest
     Assert.assertEquals("Unexpected consumer offset", -1, getConsumerOffset(topic));
 
     for (int i = numMessages; i > 0; i--) {
-      producer.send(new ProducerRecord<>(topic, MESSAGE)).get();
+      producer.send(new ProducerRecord<String, String>(topic, MESSAGE)).get();
     }
     latch.await();
 
