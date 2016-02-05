@@ -19,18 +19,17 @@
 package com.metamx.tranquility.kafka;
 
 import com.google.common.base.Throwables;
+import com.google.common.collect.Maps;
 import com.metamx.common.logger.Logger;
-import com.metamx.tranquility.config.ConfigHelper;
 import com.metamx.tranquility.config.DataSourceConfig;
-import com.metamx.tranquility.kafka.model.TranquilityKafkaConfig;
+import com.metamx.tranquility.config.TranquilityConfig;
+import com.metamx.tranquility.kafka.model.PropertiesBasedKafkaConfig;
 import com.metamx.tranquility.kafka.writer.WriterController;
 import io.airlift.airline.Command;
 import io.airlift.airline.Help;
 import io.airlift.airline.HelpOption;
 import io.airlift.airline.Option;
 import io.airlift.airline.SingleCommand;
-import scala.Tuple3;
-import scala.collection.JavaConversions;
 
 import javax.inject.Inject;
 import java.io.FileInputStream;
@@ -82,27 +81,29 @@ public class KafkaMain
       return;
     }
 
-    Tuple3<TranquilityKafkaConfig, scala.collection.immutable.Map<String, DataSourceConfig<TranquilityKafkaConfig>>,
-        scala.collection.immutable.Map<String, Object>> configs = null;
-    try (InputStream is = new FileInputStream(propertiesFile)) {
-      configs = ConfigHelper.readConfigYaml(is, TranquilityKafkaConfig.class);
+    TranquilityConfig<PropertiesBasedKafkaConfig> config = null;
+    try (InputStream in = new FileInputStream(propertiesFile)) {
+      config = TranquilityConfig.read(in, PropertiesBasedKafkaConfig.class);
     }
     catch (IOException e) {
       log.error("Could not read config file: %s, aborting.", propertiesFile);
       Throwables.propagate(e);
     }
 
-    TranquilityKafkaConfig globalConfig = configs._1();
-    Map<String, DataSourceConfig<TranquilityKafkaConfig>> datasourceConfigs = JavaConversions.mapAsJavaMap(configs._2());
-    Map<String, Object> globalProperties = JavaConversions.mapAsJavaMap(configs._3());
+    PropertiesBasedKafkaConfig globalConfig = config.globalConfig();
+    Map<String, DataSourceConfig<PropertiesBasedKafkaConfig>> dataSourceConfigs = Maps.newHashMap();
+    for (String dataSource : config.getDataSources()) {
+      dataSourceConfigs.put(dataSource, config.getDataSource(dataSource));
+    }
 
     // find all properties that start with 'kafka.' and pass them on to Kafka
     final Properties kafkaProperties = new Properties();
-    for (Map.Entry<String, Object> entry : globalProperties.entrySet()) {
-      String key = entry.getKey();
-      log.info("%s = %s", key, globalProperties.get(key).toString());
-      if (key.startsWith("kafka.")) {
-        kafkaProperties.setProperty(key.replaceFirst("kafka.", ""), globalProperties.get(key).toString());
+    for (String propertyName : config.globalConfig().properties().stringPropertyNames()) {
+      if (propertyName.startsWith("kafka.")) {
+        kafkaProperties.setProperty(
+            propertyName.replaceFirst("kafka\\.", ""),
+            config.globalConfig().properties().getProperty(propertyName)
+        );
       }
     }
 
@@ -118,11 +119,11 @@ public class KafkaMain
       );
     }
 
-    final WriterController writerController = new WriterController(datasourceConfigs);
+    final WriterController writerController = new WriterController(dataSourceConfigs);
     final KafkaConsumer kafkaConsumer = new KafkaConsumer(
         globalConfig,
         kafkaProperties,
-        datasourceConfigs,
+        dataSourceConfigs,
         writerController
     );
 

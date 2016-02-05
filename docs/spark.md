@@ -3,8 +3,8 @@
 If you're using Spark to process your event stream, you can use Tranquility's BeamRDD adapter to send data to
 Druid. The BeamRDD class provides any RDD the ability to write to Druid using the propagate() function.
 The BeamRDD requires a BeamFactory to propagate events. You will be overriding the makeBeam() function and within that
-using the DruidBeams builder's "buildBeam()" to build the beam. See the [DruidBeams documentation](druidbeams.md)
-for details about creating beams.
+using the DruidBeams builder's "buildBeam()" to build the beam. See the [Configuration documentation](configuration.md)
+for details.
 
 It is recommended that you implement makeBeam using a singleton so the Beam can be reused.
 

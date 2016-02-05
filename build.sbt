@@ -15,6 +15,7 @@ val jacksonOneVersion = "1.9.13"
 val jacksonTwoVersion = "2.4.6"
 val jacksonTwoModuleScalaVersion = "2.4.5"
 val druidVersion = "0.8.2"
+val guiceVersion = "4.0"
 val flinkVersion = "0.10.1"
 val finagleVersion = "6.31.0"
 val twitterUtilVersion = "6.30.0"
@@ -63,9 +64,9 @@ val coreDependencies = Seq(
   "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonTwoModuleScalaVersion force()
 ) ++ Seq(
   dependOnDruid("druid-server"),
-  "com.google.inject" % "guice" % "4.0-beta" force(),
-  "com.google.inject.extensions" % "guice-servlet" % "4.0-beta" force(),
-  "com.google.inject.extensions" % "guice-multibindings" % "4.0-beta" force(),
+  "com.google.inject" % "guice" % guiceVersion force(),
+  "com.google.inject.extensions" % "guice-servlet" % guiceVersion force(),
+  "com.google.inject.extensions" % "guice-multibindings" % guiceVersion force(),
   "javax.validation" % "validation-api" % "1.1.0.Final" force()
 )
 

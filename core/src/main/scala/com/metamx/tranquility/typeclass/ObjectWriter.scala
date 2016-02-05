@@ -23,7 +23,7 @@ import scala.collection.JavaConverters._
 /**
  * Serializes objects for beaming out to other services (such as Druid).
  */
-trait ObjectWriter[A] extends Serializable
+trait ObjectWriter[-A] extends Serializable
 {
   /**
    * Serialize a single object. When serializing to JSON, this should result in a JSON object.

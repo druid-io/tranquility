@@ -105,7 +105,7 @@ class DruidBeamTest extends FunSuite with Matchers
         }
       ),
       null,
-      DruidGuicer.objectMapper
+      DruidGuicer.Default.objectMapper
     )(timestamper)
     val interval = new Interval("2000/PT1H", ISOChronology.getInstanceUTC)
     val taskBytes = druidBeamMaker.taskBytes(
@@ -115,7 +115,7 @@ class DruidBeamTest extends FunSuite with Matchers
       1,
       2
     )
-    val objectReader = DruidGuicer.objectMapper.reader(
+    val objectReader = DruidGuicer.Default.objectMapper.reader(
       new InjectableValues
       {
         override def findInjectableValue(
@@ -127,7 +127,7 @@ class DruidBeamTest extends FunSuite with Matchers
         {
           valueId match {
             case k: Key[_] if k.getTypeLiteral.getRawType == classOf[ChatHandlerProvider] => new NoopChatHandlerProvider
-            case k: Key[_] if k.getTypeLiteral.getRawType == classOf[ObjectMapper] => DruidGuicer.objectMapper
+            case k: Key[_] if k.getTypeLiteral.getRawType == classOf[ObjectMapper] => DruidGuicer.Default.objectMapper
           }
         }
       }

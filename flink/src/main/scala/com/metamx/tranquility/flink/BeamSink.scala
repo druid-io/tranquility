@@ -19,7 +19,9 @@
 package com.metamx.tranquility.flink
 
 import com.metamx.common.scala.Logging
-import com.metamx.tranquility.tranquilizer.SimpleTranquilizerAdapter
+import com.metamx.tranquility.tranquilizer.MessageDroppedException
+import com.metamx.tranquility.tranquilizer.Tranquilizer
+import java.util.concurrent.atomic.AtomicReference
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction
 
@@ -30,13 +32,31 @@ import org.apache.flink.streaming.api.functions.sink.RichSinkFunction
 class BeamSink[T](beamFactory: BeamFactory[T])
   extends RichSinkFunction[T] with Logging
 {
-  var sender: Option[SimpleTranquilizerAdapter[T]] = None
+  var sender: Option[Tranquilizer[T]] = None
+
+  private val exception = new AtomicReference[Throwable]()
 
   override def open(parameters: Configuration) = {
-    sender = Some(beamFactory.tranquilizer.simple(false))
+    sender = Some(beamFactory.tranquilizer)
   }
 
-  override def invoke(value: T) = sender.get.send(value)
+  override def invoke(value: T) = {
+    sender.get.send(value) handle {
+      case e: MessageDroppedException => // Suppress
+      case e => exception.compareAndSet(null, e)
+    }
 
-  override def close() = sender.get.flush()
+    maybeThrow()
+  }
+
+  override def close() = {
+    sender.get.flush()
+    maybeThrow()
+  }
+
+  private def maybeThrow() {
+    if (exception.get() != null) {
+      throw exception.get()
+    }
+  }
 }

@@ -19,17 +19,33 @@
 package com.metamx.tranquility.druid
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.google.inject.Binder
+import com.google.inject.Guice
+import com.google.inject.Key
+import com.google.inject.Module
 import com.google.inject.util.Modules
-import com.google.inject.{Binder, Guice, Key, Module}
-import io.druid.guice.annotations.{Json, Self, Smile}
-import io.druid.guice.{DruidSecondaryModule, ExtensionsConfig, FirehoseModule, GuiceInjectors, JsonConfigProvider, LifecycleModule, QueryableModule, ServerModule}
-import io.druid.initialization.{DruidModule, Initialization}
+import io.druid.guice.ConfigModule
+import io.druid.guice.DruidGuiceExtensions
+import io.druid.guice.DruidSecondaryModule
+import io.druid.guice.ExtensionsConfig
+import io.druid.guice.FirehoseModule
+import io.druid.guice.JsonConfigProvider
+import io.druid.guice.LifecycleModule
+import io.druid.guice.QueryableModule
+import io.druid.guice.ServerModule
+import io.druid.guice.annotations.Json
+import io.druid.guice.annotations.Self
+import io.druid.guice.annotations.Smile
+import io.druid.initialization.DruidModule
+import io.druid.initialization.Initialization
+import io.druid.jackson.JacksonModule
 import io.druid.server.DruidNode
+import java.util.Properties
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
-object DruidGuicer
+class DruidGuicer(props: Properties)
 {
   private[this] val injector = {
     // Adapted from private code in Druid's Initialization class, that we can't call.
@@ -38,7 +54,28 @@ object DruidGuicer
     // the Jetty-related modules seem to cause problems if someone else is doing something similar in the same JVM. We
     // get the scary message, "WARNING: Multiple Servlet injectors detected. This is a warning indicating that you have
     // more than one GuiceFilter running in your web application." So let's try to use as few modules as possible.
-    val startupInjector = GuiceInjectors.makeStartupInjector()
+    val extensionsConfigModule = new Module
+    {
+      override def configure(binder: Binder): Unit = {
+        binder.bind(classOf[DruidSecondaryModule])
+        JsonConfigProvider.bind(binder, "druid.extensions", classOf[ExtensionsConfig])
+      }
+    }
+    val startupInjector = Guice.createInjector(
+      new DruidGuiceExtensions,
+      new JacksonModule,
+      new Module
+      {
+        override def configure(binder: Binder): Unit = {
+          val theProps = new Properties
+          theProps.putAll(props)
+          theProps.putAll(System.getProperties)
+          binder.bind(classOf[Properties]).toInstance(theProps)
+        }
+      },
+      new ConfigModule,
+      extensionsConfigModule
+    )
     def registerWithJackson(m: DruidModule) {
       m.getJacksonModules.asScala foreach {
         jacksonModule =>
@@ -66,7 +103,8 @@ object DruidGuicer
       new LifecycleModule,
       new FirehoseModule,
       new ServerModule,
-      new QueryableModule
+      new QueryableModule,
+      extensionsConfigModule
     ) map toGuiceModule
     val moreModules = Seq(
       new DruidModule
@@ -87,10 +125,15 @@ object DruidGuicer
       extensionsConfig,
       classOf[DruidModule]
     ).asScala.toSeq map toGuiceModule
-    Guice.createInjector(Modules.`override`(baseModules : _*).`with`(moreModules ++ extensionModules : _*))
+    Guice.createInjector(Modules.`override`(baseModules: _*).`with`(moreModules ++ extensionModules: _*))
   }
 
   def get[A: ClassTag]: A = injector.getInstance(classTag[A].runtimeClass.asInstanceOf[Class[A]])
 
   def objectMapper = get[ObjectMapper]
+}
+
+object DruidGuicer
+{
+  val Default = new DruidGuicer(new Properties())
 }

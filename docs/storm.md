@@ -5,7 +5,7 @@ Druid. This Bolt expects to receive tuples in which the zeroth element is your e
 It does not emit any tuples of its own.
 
 It must be supplied with a BeamFactory. You can implement one of these using the DruidBeams builder's "buildBeam()"
-method. See the [DruidBeams documentation](druidbeams.md) for details about creating beams.
+method. See the [Configuration documentation](configuration.md) for details.
 
 For example:
 

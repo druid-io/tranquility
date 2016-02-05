@@ -19,11 +19,12 @@
 
 package com.metamx.tranquility.server
 
-import com.metamx.tranquility.config.TranquilityConfig
+import com.metamx.tranquility.config.PropertiesBasedConfig
 import org.joda.time.Period
 import org.skife.config.Config
 
-abstract class ServerConfig extends TranquilityConfig(Set("http.port", "http.threads", "http.idleTimeout"))
+abstract class PropertiesBasedServerConfig
+  extends PropertiesBasedConfig(Set("http.port", "http.threads", "http.idleTimeout"))
 {
   @Config(Array("http.port"))
   def httpPort: Int = 8200

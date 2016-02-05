@@ -1,6 +1,5 @@
 dataSources:
-  foo:
-    spec:
+  - spec:
       dataSchema:
         dataSource: foo
         parser:

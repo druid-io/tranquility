@@ -16,9 +16,8 @@ General:
 
 - [Overview](docs/overview.md) - Introduction to Tranquility concepts, including details about how it creates and
   manages Druid tasks.
-- [DruidBeams](docs/druidbeams.md) - The first step to using Tranquility is to configure it appropriately for your
-  Druid dataSource. For most modules (including core, storm, spark, and samza) this is generally done through the
-  DruidBeams builder object.
+- [Configuration](docs/configuration.md) - The first step to using Tranquility is to configure it appropriately for your
+  Druid dataSource. This is generally done through a configuration file, with optional refinements in code.
 - [Troubleshooting](docs/trouble.md) - Solutions to common problems.
 
 Modules:

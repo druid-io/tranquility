@@ -28,14 +28,13 @@ import com.metamx.common.scala.collection.mutable.ConcurrentMap
 import com.metamx.common.scala.lifecycle._
 import com.metamx.common.scala.net.curator.Curator
 import com.metamx.common.scala.net.curator.Disco
-import com.metamx.tranquility.config.ConfigHelper
-import com.metamx.tranquility.config.DataSourceConfig
 import com.metamx.tranquility.config.TranquilityConfig
+import com.metamx.tranquility.druid.DruidBeams
 import com.metamx.tranquility.finagle.FinagleRegistry
 import com.metamx.tranquility.finagle.FinagleRegistryConfig
+import com.metamx.tranquility.server.PropertiesBasedServerConfig
 import com.twitter.app.App
 import com.twitter.app.Flag
-import com.metamx.tranquility.server.ServerConfig
 import java.io.FileInputStream
 import org.apache.curator.framework.CuratorFramework
 import org.eclipse.jetty.server.Server
@@ -69,13 +68,12 @@ object ServerMain extends App with Logging
     }
 
     val lifecycle = new Lifecycle
-    val (globalConfig, dataSourceConfigs, globalProperties) = ConfigHelper
-      .readConfigYaml(configInputStream, classOf[ServerConfig])
+    val config = TranquilityConfig.read(configInputStream, classOf[PropertiesBasedServerConfig])
 
-    log.info(s"Read configuration for dataSources[${dataSourceConfigs.keys.mkString(", ")}].")
+    log.info(s"Read configuration for dataSources[${config.dataSourceConfigs.keys.mkString(", ")}].")
 
-    val servlet = createServlet(lifecycle, dataSourceConfigs)
-    val server = createJettyServer(lifecycle, globalConfig, servlet)
+    val servlet = createServlet(lifecycle, config)
+    val server = createJettyServer(lifecycle, config, servlet)
 
     try {
       lifecycle.start()
@@ -88,35 +86,37 @@ object ServerMain extends App with Logging
     lifecycle.join()
   }
 
-  def createServlet[T <: TranquilityConfig](
+  def createServlet(
     lifecycle: Lifecycle,
-    dataSourceConfigs: Map[String, DataSourceConfig[T]]
+    config: TranquilityConfig[PropertiesBasedServerConfig]
   ): TranquilityServlet =
   {
     val curators = ConcurrentMap[String, CuratorFramework]()
     val finagleRegistries = ConcurrentMap[(String, String), FinagleRegistry]()
-    val tranquilizers = dataSourceConfigs strictMapValues { dataSourceConfig =>
-
+    val tranquilizers = config.dataSourceConfigs strictMapValues { dataSourceConfig =>
       // Corral Zookeeper stuff
-      val zookeeperConnect = dataSourceConfig.config.zookeeperConnect
-      val discoPath = dataSourceConfig.config.discoPath
+      val zookeeperConnect = dataSourceConfig.propertiesBasedConfig.zookeeperConnect
+      val discoPath = dataSourceConfig.propertiesBasedConfig.discoPath
       val curator = curators.getOrElseUpdate(
         zookeeperConnect,
-        Curator.create(zookeeperConnect, dataSourceConfig.config.zookeeperTimeout.standardDuration, lifecycle)
+        Curator.create(
+          zookeeperConnect,
+          dataSourceConfig.propertiesBasedConfig.zookeeperTimeout.standardDuration,
+          lifecycle
+        )
       )
       val finagleRegistry = finagleRegistries.getOrElseUpdate(
         (zookeeperConnect, discoPath), {
-          val disco = lifecycle.addManagedInstance(new Disco(curator, dataSourceConfig.config))
+          val disco = lifecycle.addManagedInstance(new Disco(curator, dataSourceConfig.propertiesBasedConfig))
           new FinagleRegistry(FinagleRegistryConfig(), disco)
         }
       )
 
       lifecycle.addManagedInstance(
-        ConfigHelper.createTranquilizerScala(
-          dataSourceConfig,
-          finagleRegistry,
-          curator
-        )
+        DruidBeams.fromConfig(dataSourceConfig)
+          .curator(curator)
+          .finagleRegistry(finagleRegistry)
+          .buildTranquilizer(dataSourceConfig.tranquilizerBuilder())
       )
     }
 
@@ -125,15 +125,15 @@ object ServerMain extends App with Logging
 
   def createJettyServer(
     lifecycle: Lifecycle,
-    globalConfig: ServerConfig,
+    config: TranquilityConfig[PropertiesBasedServerConfig],
     servlet: TranquilityServlet
   ): Server =
   {
-    new Server(new QueuedThreadPool(globalConfig.httpThreads)) withEffect { server =>
+    new Server(new QueuedThreadPool(config.globalConfig.httpThreads)) withEffect { server =>
       val connector = new ServerConnector(server)
       server.setConnectors(Array(connector))
-      connector.setPort(globalConfig.httpPort)
-      globalConfig.httpIdleTimeout.standardDuration.millis match {
+      connector.setPort(config.globalConfig.httpPort)
+      config.globalConfig.httpIdleTimeout.standardDuration.millis match {
         case timeout if timeout > 0 =>
           connector.setIdleTimeout(timeout)
         case _ =>

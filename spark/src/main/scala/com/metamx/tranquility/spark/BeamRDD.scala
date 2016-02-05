@@ -20,6 +20,11 @@
 package com.metamx.tranquility.spark
 
 import com.metamx.common.scala.Logging
+import com.metamx.tranquility.tranquilizer.MessageDroppedException
+import com.twitter.util.Return
+import com.twitter.util.Throw
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import org.apache.spark.rdd.RDD
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -34,12 +39,20 @@ class BeamRDD[T: ClassTag](rdd: RDD[T]) extends Logging with Serializable
   def propagate(beamFactory: BeamFactory[T]) = {
     rdd.foreachPartition {
       partitionOfRecords => {
-        val sender = beamFactory.tranquilizer.simple(false)
+        val sender = beamFactory.tranquilizer
+        val received = new AtomicLong
+        val sent = new AtomicLong
+        val exception = new AtomicReference[Throwable]
+
         for (record <- partitionOfRecords) {
-          sender.send(record)
+          sender.send(record) respond {
+            case Return(_) => sent.incrementAndGet()
+            case Throw(e: MessageDroppedException) => // Suppress
+            case Throw(e) => exception.compareAndSet(null, e)
+          }
         }
         sender.flush()
-        log.debug(s"Sent ${sender.sentCount} out of ${sender.receivedCount} events to Druid.")
+        log.debug(s"Sent ${sent.get()} out of ${received.get()} events to Druid.")
       }
     }
   }
