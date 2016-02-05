@@ -30,21 +30,37 @@ import com.twitter.finagle.Service
 import com.twitter.finagle.http
 import com.twitter.finagle.util.DefaultTimer
 import com.twitter.io.Buf
-import com.twitter.util.Await
+import com.twitter.util.Closable
 import com.twitter.util.Future
+import com.twitter.util.Time
 import com.twitter.util.Timer
-import java.io.Closeable
 import org.scala_tools.time.Imports._
 
 class IndexService(
   environment: DruidEnvironment,
   config: IndexServiceConfig,
   finagleRegistry: FinagleRegistry
-) extends Closeable
+) extends Closable
 {
   private implicit val timer: Timer = DefaultTimer.twitter
 
-  private lazy val client: Service[http.Request, http.Response] = finagleRegistry.checkout(environment.indexService)
+  @volatile private var closed: Boolean = false
+
+  @volatile private var _client: Service[http.Request, http.Response] = null
+
+  def client: Service[http.Request, http.Response] = {
+    this.synchronized {
+      if (closed) {
+        throw new IllegalStateException("Service is closed")
+      }
+
+      if (_client == null) {
+        _client = finagleRegistry.checkout(environment.indexService)
+      }
+
+      _client
+    }
+  }
 
   def submit(taskBytes: Array[Byte]): Future[TaskId] = {
     val taskRequest = HttpPost("/druid/indexer/v1/task") withEffect {
@@ -71,8 +87,16 @@ class IndexService(
     }
   }
 
-  override def close(): Unit = {
-    Await.result(client.close())
+  override def close(deadline: Time): Future[Unit] = {
+    this.synchronized {
+      closed = true
+
+      if (_client != null) {
+        _client.close(deadline)
+      } else {
+        Future.Done
+      }
+    }
   }
 
   private def call(req: http.Request): Future[Dict] = {
