@@ -23,7 +23,7 @@ import org.scala_tools.time.Imports._
 case class FinagleRegistryConfig(
   finagleHttpTimeout: Period = 90.seconds,
   finagleHttpConnectionsPerHost: Int = 2,
-  finagleEnableFailFast: Boolean = true
+  finagleEnableFailFast: Boolean = false
 )
 
 object FinagleRegistryConfig
