@@ -26,7 +26,6 @@ import com.metamx.common.scala.untyped._
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.beam.BeamMaker
 import com.metamx.tranquility.beam.ClusteredBeamTuning
-import com.metamx.tranquility.finagle.FinagleRegistry
 import com.metamx.tranquility.typeclass.ObjectWriter
 import com.twitter.util.Await
 import com.twitter.util.Future
@@ -45,7 +44,7 @@ class DruidBeamMaker[A](
   druidTuningMap: Dict,
   rollup: DruidRollup,
   timestampSpec: TimestampSpec,
-  finagleRegistry: FinagleRegistry,
+  taskLocator: TaskLocator,
   indexService: IndexService,
   emitter: ServiceEmitter,
   objectWriter: ObjectWriter[A],
@@ -172,7 +171,7 @@ class DruidBeamMaker[A](
       tasks,
       location,
       config,
-      finagleRegistry,
+      taskLocator,
       indexService,
       emitter,
       objectWriter
@@ -216,7 +215,7 @@ class DruidBeamMaker[A](
       tasks,
       location,
       config,
-      finagleRegistry,
+      taskLocator,
       indexService,
       emitter,
       objectWriter

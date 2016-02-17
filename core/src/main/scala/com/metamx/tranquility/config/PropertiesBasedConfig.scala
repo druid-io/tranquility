@@ -98,6 +98,15 @@ abstract class PropertiesBasedConfig(
   @Config(Array("druidBeam.firehoseBufferSize"))
   def firehoseBufferSize: Int = DruidBeamConfig().firehoseBufferSize
 
+  @Config(Array("druidBeam.overlordLocator"))
+  def overlordLocator = DruidBeamConfig().overlordLocator
+
+  @Config(Array("druidBeam.taskLocator"))
+  def taskLocator = DruidBeamConfig().taskLocator
+
+  @Config(Array("druidBeam.overlordPollPeriod"))
+  def overlordPollPeriod = DruidBeamConfig().overlordPollPeriod
+
   def druidBeamConfig: DruidBeamConfig = DruidBeamConfig.builder()
     .firehoseGracePeriod(firehoseGracePeriod)
     .firehoseQuietPeriod(firehoseQuietPeriod)
@@ -106,6 +115,9 @@ abstract class PropertiesBasedConfig(
     .randomizeTaskId(randomizeTaskId)
     .indexRetryPeriod(indexRetryPeriod)
     .firehoseBufferSize(firehoseBufferSize)
+    .overlordLocator(overlordLocator)
+    .taskLocator(taskLocator)
+    .overlordPollPeriod(overlordPollPeriod)
     .build()
 
   override def discoAnnounce: Option[DiscoAnnounceConfig] = None

@@ -24,6 +24,7 @@ import com.google.common.io.ByteStreams
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
+import com.metamx.common.scala.net.curator.Disco
 import com.metamx.common.scala.untyped._
 import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.BeamPacketizer
@@ -38,9 +39,12 @@ import com.metamx.tranquility.finagle.FinagleRegistryConfig
 import com.metamx.tranquility.test.common.CuratorRequiringSuite
 import com.metamx.tranquility.tranquilizer.MessageDroppedException
 import com.metamx.tranquility.tranquilizer.Tranquilizer
+import com.twitter.finagle.Resolver
 import com.twitter.finagle.Service
 import com.twitter.finagle.http
 import com.twitter.finagle.http.Method
+import com.twitter.finagle.http.Request
+import com.twitter.finagle.http.Response
 import com.twitter.io.Buf
 import com.twitter.util.Future
 import com.twitter.util.NonFatal
@@ -51,6 +55,7 @@ import java.util.concurrent.atomic.AtomicLong
 import org.joda.time.DateTime
 import org.scala_tools.time.Imports._
 import scala.collection.JavaConverters._
+import scala.collection.Set
 
 object BenchmarkMain extends Logging with CuratorRequiringSuite
 {
@@ -104,12 +109,19 @@ object BenchmarkMain extends Logging with CuratorRequiringSuite
   def main(args: Array[String]) {
     val finagleRegistry = new FinagleRegistry(
       FinagleRegistryConfig(),
-      null
+      Nil
     ) with Logging
     {
-      override def checkout(service: String): Service[http.Request, http.Response] = {
-        log.info(s"Checkout[$service]")
-        service match {
+      override def addResolver(resolver: Resolver): Unit = {
+        // do nothing
+      }
+
+      override def schemes: Set[String] = Set("disco")
+
+      override def connect(scheme: String, name: String): Service[Request, Response] = {
+        require(scheme == "disco", "expected scheme 'disco'")
+        log.info(s"Checkout[$name]")
+        name match {
           case "druid:overlord" => new OverlordService
           case x if x.startsWith("firehose:") => new TaskService
         }

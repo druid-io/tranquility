@@ -24,7 +24,8 @@ class DruidEnvironment(
 ) extends Equals
 {
   // Replace / with : just like Druid does.
-  val indexService = indexServiceMaybeWithSlashes.replace('/', ':')
+  // See Druid code at https://github.com/druid-io/druid/blob/62ba9ade37f2ab96d3894a0eb622ed5e4f290a03/server/src/main/java/io/druid/curator/discovery/CuratorServiceUtils.java
+  val indexServiceKey: String = indexServiceMaybeWithSlashes.replace('/', ':')
 
   // Sanity check on firehoseServicePattern.
   require(firehoseServicePattern.contains("%s"), "firehoseServicePattern must contain '%s' somewhere")
@@ -34,11 +35,11 @@ class DruidEnvironment(
 
   override def equals(other: Any) = other match {
     case that: DruidEnvironment =>
-      (indexService, firehoseServicePattern) ==(that.indexService, that.firehoseServicePattern)
+      (indexServiceKey, firehoseServicePattern) ==(that.indexServiceKey, that.firehoseServicePattern)
     case _ => false
   }
 
-  override def hashCode = (indexService, firehoseServicePattern).hashCode()
+  override def hashCode = (indexServiceKey, firehoseServicePattern).hashCode()
 }
 
 object DruidEnvironment

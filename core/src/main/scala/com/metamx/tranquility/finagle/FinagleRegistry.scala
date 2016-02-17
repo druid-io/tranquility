@@ -20,9 +20,10 @@ package com.metamx.tranquility.finagle
 
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
-import com.metamx.common.scala.net.curator._
+import com.metamx.common.scala.net.curator.Disco
 import com.metamx.common.scala.net.finagle.DiscoResolver
 import com.twitter.finagle.Name
+import com.twitter.finagle.Resolver
 import com.twitter.finagle.Service
 import com.twitter.finagle.ServiceProxy
 import com.twitter.finagle.builder.ClientBuilder
@@ -31,23 +32,60 @@ import com.twitter.util.Future
 import com.twitter.util.Time
 import java.util.concurrent.atomic.AtomicBoolean
 import org.scala_tools.time.Implicits._
+import scala.collection.Set
 import scala.collection.mutable
 
 /**
-  * Registry of shared Finagle HTTP Curator-discovered services. The services can be returned by closing them. When
-  * the last reference to a service has been returned, the service is closed.
+  * Registry of shared Finagle services.
   */
-class FinagleRegistry(config: FinagleRegistryConfig, disco: Disco) extends Logging
+class FinagleRegistry(
+  config: FinagleRegistryConfig,
+  resolvers: Seq[Resolver]
+) extends Logging
 {
-  private[this] val lock     = new AnyRef
-  private[this] val resolver = new DiscoResolver(disco)
-  private[this] val clients  = mutable.HashMap[String, SharedService[http.Request, http.Response]]()
+  // Backwards compatible constructor.
+  def this(config: FinagleRegistryConfig, disco: Disco) = {
+    this(config, Seq(new DiscoResolver(disco)))
+  }
 
-  private[this] def mkclient(service: String) = {
+  private val lock        = new AnyRef
+  private val clients     = mutable.HashMap[String, SharedService[http.Request, http.Response]]()
+  private val resolverMap = mutable.HashMap[String, Resolver]()
+
+  // Add all resolvers from the constructor.
+  resolvers foreach addResolver
+
+  def addResolver(resolver: Resolver): Unit = {
+    lock.synchronized {
+      if (resolverMap.contains(resolver.scheme)) {
+        throw new IllegalArgumentException(s"Already have resolver for scheme[${resolver.scheme}]")
+      }
+
+      log.info(s"Adding resolver for scheme[${resolver.scheme}].")
+      resolverMap.put(resolver.scheme, resolver)
+    }
+  }
+
+  def schemes: Set[String] = lock.synchronized {
+    resolverMap.keySet
+  }
+
+  private def mkid(scheme: String, name: String): String = s"$scheme!$name"
+
+  private def mkclient(scheme: String, name: String): SharedService[http.Request, http.Response] =
+  {
+    val id = mkid(scheme, name)
+    val resolver = synchronized {
+      resolverMap.getOrElse(
+        scheme, {
+          throw new IllegalStateException(s"No resolver for scheme[$scheme], cannot resolve service[$id]")
+        }
+      )
+    }
     val client = ClientBuilder()
-      .name(service)
+      .name(id)
       .codec(http.Http())
-      .dest(Name.Bound(resolver.bind(service), "%s!%s" format(resolver.scheme, service)))
+      .dest(Name.Bound(resolver.bind(name), id))
       .hostConnectionLimit(config.finagleHttpConnectionsPerHost)
       .timeout(config.finagleHttpTimeout.standardDuration)
       .logger(FinagleLogger)
@@ -60,35 +98,36 @@ class FinagleRegistry(config: FinagleRegistryConfig, disco: Disco) extends Loggi
         override def close(deadline: Time) = {
           // Called when the SharedService decides it is done
           lock.synchronized {
-            log.info("Closing client for service: %s", service)
-            clients.remove(service)
+            log.info("Closing client for service: %s", id)
+            clients.remove(id)
           }
           try {
             super.close(deadline)
           }
           catch {
             case e: Exception =>
-              log.warn(e, "Failed to close client for service: %s", service)
+              log.warn(e, "Failed to close client for service: %s", id)
               Future.Done
           }
         }
       }
     ) withEffect {
       _ =>
-        log.info("Created client for service: %s", service)
+        log.info("Created client for service: %s", id)
     }
   }
 
-  def checkout(service: String): Service[http.Request, http.Response] = {
+  def connect(scheme: String, name: String): Service[http.Request, http.Response] = {
+    val id = mkid(scheme, name)
     val client = lock.synchronized {
-      clients.get(service) match {
+      clients.get(id) match {
         case Some(c) =>
           c.incrementRefcount()
           c
 
         case None =>
-          val c = mkclient(service)
-          clients.put(service, c)
+          val c = mkclient(scheme, name)
+          clients.put(id, c)
           c
       }
     }
@@ -100,7 +139,7 @@ class FinagleRegistry(config: FinagleRegistryConfig, disco: Disco) extends Loggi
         if (closed.compareAndSet(false, true)) {
           client.close(deadline)
         } else {
-          log.warn("WTF?! Service closed more than once by the same checkout: %s", service)
+          log.warn(s"WTF?! Service[$id] closed more than once by the same checkout.")
           Future.Done
         }
       }
