@@ -342,7 +342,7 @@ object Tranquilizer
 {
   val DefaultMaxBatchSize      = 2000
   val DefaultMaxPendingBatches = 5
-  val DefaultLingerMillis      = 0
+  val DefaultLingerMillis      = 0L
 
   def apply[MessageType](
     beam: Beam[MessageType],

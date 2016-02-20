@@ -19,6 +19,7 @@
 package com.metamx.tranquility.samza
 
 import com.metamx.common.scala.Logging
+import com.metamx.tranquility.tranquilizer.Tranquilizer
 import org.apache.samza.config.Config
 import org.apache.samza.metrics.MetricsRegistry
 import org.apache.samza.system.SystemFactory
@@ -32,20 +33,29 @@ class BeamSystemFactory extends SystemFactory with Logging
 
   override def getProducer(systemName: String, config: Config, registry: MetricsRegistry) = {
     val beamFactoryClass = config.getClass("systems.%s.beam.factory" format systemName)
-    val batchSize = config.getInt("systems.%s.beam.batchSize" format systemName, 2000)
-    val maxPendingBatches = config.getInt("systems.%s.beam.maxPendingBatches" format systemName, 5)
+    val batchSize = config.getInt("systems.%s.beam.batchSize" format systemName, Tranquilizer.DefaultMaxBatchSize)
+    val maxPendingBatches = config.getInt(
+      "systems.%s.beam.maxPendingBatches" format systemName,
+      Tranquilizer.DefaultMaxPendingBatches
+    )
+    val lingerMillis = config.getLong(
+      "systems.%s.beam.lingerMillis" format systemName,
+      Tranquilizer.DefaultLingerMillis
+    )
     val throwOnError = config.getBoolean("systems.%s.beam.throwOnError" format systemName, true)
 
     log.info(
-      "Creating BeamProducer for system[%s] with beamFactory[%s], batchSize[%,d], maxPendingBatches[%,d].",
+      "Creating BeamProducer for system[%s] with beamFactory[%s], batchSize[%,d], " +
+        "maxPendingBatches[%,d], lingerMillis[%,d].",
       systemName,
       beamFactoryClass,
       batchSize,
-      maxPendingBatches
+      maxPendingBatches,
+      lingerMillis
     )
 
     val beamFactory: BeamFactory = beamFactoryClass.newInstance()
-    new BeamProducer(beamFactory, systemName, config, batchSize, maxPendingBatches, throwOnError)
+    new BeamProducer(beamFactory, systemName, config, batchSize, maxPendingBatches, lingerMillis, throwOnError)
   }
 
   override def getAdmin(systemName: String, config: Config) = {
