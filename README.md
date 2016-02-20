@@ -33,9 +33,9 @@ Modules:
 
 ### Getting Tranquility with Maven
 
-Tranquility [Core](docs/core.md), [Samza](docs/samza.md), [Spark](docs/spark.md), and [Storm](docs/storm.md) are
-meant to be included in an application that you write. Those modules are hosted on Maven Central to make them
-easy to include. The current stable versions are:
+Tranquility [Core](docs/core.md), [Samza](docs/samza.md), [Spark](docs/spark.md), [Storm](docs/storm.md) and 
+[Flink](docs/flink.md) are meant to be included in an application that you write. Those modules are hosted on Maven 
+Central to make them easy to include. The current stable versions are:
 
 ```xml
 <dependency>
@@ -56,6 +56,11 @@ easy to include. The current stable versions are:
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-storm_2.11</artifactId>
+  <version>0.7.3</version>
+</dependency>
+<dependency>
+  <groupId>io.druid</groupId>
+  <artifactId>tranquility-flink_2.11</artifactId>
   <version>0.7.3</version>
 </dependency>
 ```

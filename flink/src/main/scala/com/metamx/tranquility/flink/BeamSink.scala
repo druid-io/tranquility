@@ -21,12 +21,16 @@ package com.metamx.tranquility.flink
 import com.metamx.common.scala.Logging
 import com.metamx.tranquility.tranquilizer.MessageDroppedException
 import com.metamx.tranquility.tranquilizer.Tranquilizer
+import com.twitter.util.Return
+import com.twitter.util.Throw
 import java.util.concurrent.atomic.AtomicReference
+import org.apache.flink.api.common.accumulators.LongCounter
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction
 
 /**
   * This class provides a sink that can propagate any event type to Druid.
+  *
   * @param beamFactory your implementation of [[BeamFactory]].
   */
 class BeamSink[T](beamFactory: BeamFactory[T])
@@ -34,16 +38,24 @@ class BeamSink[T](beamFactory: BeamFactory[T])
 {
   var sender: Option[Tranquilizer[T]] = None
 
-  private val exception = new AtomicReference[Throwable]()
+  private val exception       = new AtomicReference[Throwable]()
+  private val receivedCounter = new LongCounter()
+  private val sentCounter     = new LongCounter()
+  private val droppedCounter  = new LongCounter()
 
   override def open(parameters: Configuration) = {
     sender = Some(beamFactory.tranquilizer)
+    getRuntimeContext.addAccumulator("Druid: Messages received", receivedCounter)
+    getRuntimeContext.addAccumulator("Druid: Messages sent", sentCounter)
+    getRuntimeContext.addAccumulator("Druid: Messages dropped", droppedCounter)
   }
 
   override def invoke(value: T) = {
-    sender.get.send(value) handle {
-      case e: MessageDroppedException => // Suppress
-      case e => exception.compareAndSet(null, e)
+    receivedCounter.add(1)
+    sender.get.send(value) respond {
+      case Return(()) => sentCounter.add(1)
+      case Throw(e: MessageDroppedException) => droppedCounter.add(1)
+      case Throw(e) => exception.compareAndSet(null, e)
     }
 
     maybeThrow()
