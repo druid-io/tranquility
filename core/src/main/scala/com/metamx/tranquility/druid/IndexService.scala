@@ -104,6 +104,7 @@ class IndexService(
 
             case code =>
               // All other responses should not be retried (including non-404 client errors)
+              log.error("Non-retryable response for uri[%s] with content: %s" format (req.uri, response.contentString))
               throw new IndexServicePermanentException(
                 "Service[%s] call failed with status: %s %s" format
                   (environment.indexService, code, response.status.reason)
