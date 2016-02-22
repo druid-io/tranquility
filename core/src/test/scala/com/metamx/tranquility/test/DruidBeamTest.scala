@@ -70,7 +70,6 @@ class DruidBeamTest extends FunSuite with Matchers
   }
 
   test("Task JSON") {
-    val timestamper = null
     val druidBeamMaker = new DruidBeamMaker[Dict](
       DruidBeamConfig(),
       DruidLocation.create("druid/overlord", "mydatasource"),
@@ -106,7 +105,7 @@ class DruidBeamTest extends FunSuite with Matchers
       ),
       null,
       DruidGuicer.Default.objectMapper
-    )(timestamper)
+    )
     val interval = new Interval("2000/PT1H", ISOChronology.getInstanceUTC)
     val taskBytes = druidBeamMaker.taskBytes(
       interval,

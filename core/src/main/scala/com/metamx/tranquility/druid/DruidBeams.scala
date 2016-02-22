@@ -33,6 +33,8 @@ import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.ClusteredBeam
 import com.metamx.tranquility.beam.ClusteredBeamTuning
 import com.metamx.tranquility.beam.MergingPartitioningBeam
+import com.metamx.tranquility.beam.MessageHolder
+import com.metamx.tranquility.beam.TransformingBeam
 import com.metamx.tranquility.config.DataSourceConfig
 import com.metamx.tranquility.config.PropertiesBasedConfig
 import com.metamx.tranquility.finagle.BeamService
@@ -53,8 +55,6 @@ import java.{util => ju}
 import org.apache.curator.framework.CuratorFramework
 import org.apache.curator.framework.CuratorFrameworkFactory
 import org.apache.curator.retry.ExponentialBackoffRetry
-import org.joda.time.DateTime
-import org.joda.time.Interval
 import org.scala_tools.time.Imports._
 import scala.collection.JavaConverters._
 import scala.language.reflectiveCalls
@@ -99,13 +99,23 @@ object DruidBeams
     */
   def fromConfig(
     config: DataSourceConfig[_ <: PropertiesBasedConfig]
-  ): Builder[java.util.Map[String, AnyRef]] =
+  ): Builder[ju.Map[String, AnyRef], MessageHolder[ju.Map[String, AnyRef]]] =
   {
     val epoch = new DateTime(0)
+    val inputFnFn: TimestampSpec => ju.Map[String, AnyRef] => MessageHolder[ju.Map[String, AnyRef]] = {
+      (timestampSpec: TimestampSpec) => {
+        val timestamper = new Timestamper[ju.Map[String, AnyRef]] {
+          override def timestamp(d: ju.Map[String, AnyRef]): DateTime = {
+            Option(timestampSpec.extractTimestamp(d)).getOrElse(epoch)
+          }
+        }
+        (d: ju.Map[String, AnyRef]) => MessageHolder[ju.Map[String, AnyRef]](d, timestamper)
+      }
+    }
+    val timestamperFn = (timestampSpec: TimestampSpec) => MessageHolder.timestamper
     fromConfigInternal(
-      (timestampSpec: TimestampSpec) => (d: java.util.Map[String, AnyRef]) => {
-        Option(timestampSpec.extractTimestamp(d)).getOrElse(epoch)
-      },
+      inputFnFn,
+      timestamperFn,
       config
     )
   }
@@ -125,10 +135,13 @@ object DruidBeams
     config: DataSourceConfig[_ <: PropertiesBasedConfig],
     timestamper: Timestamper[MessageType],
     objectWriter: ObjectWriter[MessageType]
-  ): Builder[MessageType] =
+  ): Builder[MessageType, MessageType] =
   {
-    fromConfigInternal((timestampSpec: TimestampSpec) => timestamper.timestamp, config)
-      .objectWriter(objectWriter)
+    fromConfigInternal[MessageType, MessageType](
+      (timestampSpec: TimestampSpec) => identity,
+      (timestampSpec: TimestampSpec) => timestamper,
+      config
+    ).objectWriter(objectWriter)
   }
 
   /**
@@ -146,18 +159,20 @@ object DruidBeams
     config: DataSourceConfig[_ <: PropertiesBasedConfig],
     timestamper: Timestamper[MessageType],
     objectWriter: JavaObjectWriter[MessageType]
-  ): Builder[MessageType] =
+  ): Builder[MessageType, MessageType] =
   {
-    fromConfigInternal(
-      (timestampSpec: TimestampSpec) => timestamper.timestamp,
+    fromConfigInternal[MessageType, MessageType](
+      (timestampSpec: TimestampSpec) => identity,
+      (timestampSpec: TimestampSpec) => timestamper,
       config
     ).objectWriter(objectWriter)
   }
 
-  private def fromConfigInternal[MessageType](
-    timeFnFn: TimestampSpec => MessageType => DateTime,
+  private def fromConfigInternal[InputType, MessageType](
+    inputFnFn: TimestampSpec => (InputType => MessageType),
+    timestamperFn: TimestampSpec => Timestamper[MessageType],
     config: DataSourceConfig[_ <: PropertiesBasedConfig]
-  ): Builder[MessageType] =
+  ): Builder[InputType, MessageType] =
   {
     def j2s[A](xs: ju.List[A]): IndexedSeq[A] = xs match {
       case null => Vector.empty
@@ -176,14 +191,15 @@ object DruidBeams
     require(fireDepartment.getIOConfig.getPlumberSchool == null, "Expected null 'plumber'")
     val parseSpec = fireDepartment.getDataSchema.getParser.getParseSpec
     val timestampSpec = parseSpec.getTimestampSpec
-    val spatialDimensions = j2s(parseSpec.getDimensionsSpec.getSpatialDimensions) map { spatial =>
-      spatial.getDims match {
-        case null => SingleFieldDruidSpatialDimension(spatial.getDimName)
-        case xs if xs.isEmpty => SingleFieldDruidSpatialDimension(spatial.getDimName)
-        case xs => MultipleFieldDruidSpatialDimension(spatial.getDimName, xs.asScala)
-      }
+    val spatialDimensions = j2s(parseSpec.getDimensionsSpec.getSpatialDimensions) map {
+      spatial =>
+        spatial.getDims match {
+          case null => SingleFieldDruidSpatialDimension(spatial.getDimName)
+          case xs if xs.isEmpty => SingleFieldDruidSpatialDimension(spatial.getDimName)
+          case xs => MultipleFieldDruidSpatialDimension(spatial.getDimName, xs.asScala)
+        }
     }
-    builder(timeFnFn(timestampSpec))
+    builder(inputFnFn(timestampSpec), timestamperFn(timestampSpec))
       .curatorFactory(
         CuratorFrameworkFactory.builder()
           .connectString(config.propertiesBasedConfig.zookeeperConnect)
@@ -230,20 +246,39 @@ object DruidBeams
   /**
     * Start a builder for a particular event type.
     *
+    * @param timestamper timestamper for this event type
+    * @tparam EventType the event type
+    * @return a new builder
+    */
+  private[tranquility] def builder[InputType, EventType](
+    inputFn: InputType => EventType,
+    timestamper: Timestamper[EventType]
+  ): Builder[InputType, EventType] =
+  {
+    new Builder[InputType, EventType](
+      new BuilderConfig[InputType, EventType](
+        _beamManipulateFn = Some(
+          (beam: Beam[EventType]) => new TransformingBeam[InputType, EventType](beam, inputFn)
+        ),
+        _timestamper = Some(timestamper)
+      )
+    )
+  }
+
+  /**
+    * Start a builder for a particular event type.
+    *
     * @param timeFn time extraction function for this event type
     * @tparam EventType the event type
     * @return a new builder
     */
-  def builder[EventType](timeFn: EventType => DateTime): Builder[EventType] = {
-    new Builder[EventType](
-      new BuilderConfig(
-        _timestamper = Some(
-          new Timestamper[EventType]
-          {
-            override def timestamp(a: EventType) = timeFn(a)
-          }
-        )
-      )
+  def builder[EventType](timeFn: EventType => DateTime): Builder[EventType, EventType] = {
+    builder(
+      identity,
+      new Timestamper[EventType]
+      {
+        override def timestamp(a: EventType): DateTime = timeFn(a)
+      }
     )
   }
 
@@ -254,11 +289,13 @@ object DruidBeams
     * @tparam EventType the event type
     * @return a new builder
     */
-  def builder[EventType]()(implicit timestamper: Timestamper[EventType]) = {
-    new Builder[EventType](new BuilderConfig(_timestamper = Some(timestamper)))
+  def builder[EventType]()(implicit timestamper: Timestamper[EventType]): Builder[EventType, EventType] = {
+    new Builder[EventType, EventType](new BuilderConfig(_timestamper = Some(timestamper)))
   }
 
-  class Builder[EventType] private[druid](private[tranquility] val config: BuilderConfig[EventType])
+  class Builder[InputType, EventType] private[tranquility](
+    private[tranquility] val config: BuilderConfig[InputType, EventType]
+  )
   {
     /**
       * Provide a CuratorFramework instance that will be used for Tranquility's internal coordination. Either this
@@ -272,8 +309,8 @@ object DruidBeams
       * @param curator curator
       * @return new builder
       */
-    def curator(curator: CuratorFramework): Builder[EventType] = {
-      new Builder[EventType](config.copy(_curator = Some(curator), _curatorFactory = None))
+    def curator(curator: CuratorFramework): Builder[InputType, EventType] = {
+      new Builder[InputType, EventType](config.copy(_curator = Some(curator), _curatorFactory = None))
     }
 
     /**
@@ -289,8 +326,8 @@ object DruidBeams
       * @param curatorFactory curator factory
       * @return new builder
       */
-    def curatorFactory(curatorFactory: CuratorFrameworkFactory.Builder): Builder[EventType] = {
-      new Builder[EventType](config.copy(_curator = None, _curatorFactory = Some(curatorFactory)))
+    def curatorFactory(curatorFactory: CuratorFrameworkFactory.Builder): Builder[InputType, EventType] = {
+      new Builder[InputType, EventType](config.copy(_curator = None, _curatorFactory = Some(curatorFactory)))
     }
 
     /**
@@ -302,7 +339,7 @@ object DruidBeams
       * @param path discovery znode
       * @return new builder
       */
-    def discoveryPath(path: String) = new Builder[EventType](config.copy(_discoveryPath = Some(path)))
+    def discoveryPath(path: String) = new Builder[InputType, EventType](config.copy(_discoveryPath = Some(path)))
 
     /**
       * Provide tunings for coordination of Druid task creation. Optional, see
@@ -313,7 +350,7 @@ object DruidBeams
       * @param tuning tuning object
       * @return new builder
       */
-    def tuning(tuning: ClusteredBeamTuning) = new Builder[EventType](config.copy(_tuning = Some(tuning)))
+    def tuning(tuning: ClusteredBeamTuning) = new Builder[InputType, EventType](config.copy(_tuning = Some(tuning)))
 
     /**
       * Set the number of Druid partitions. This is just a helper method that modifies the [[Builder.tuning]] object.
@@ -323,7 +360,7 @@ object DruidBeams
       */
     def partitions(n: Int) = {
       val newTuning = config._tuning.getOrElse(ClusteredBeamTuning()).copy(partitions = n)
-      new Builder[EventType](config.copy(_tuning = Some(newTuning)))
+      new Builder[InputType, EventType](config.copy(_tuning = Some(newTuning)))
     }
 
     /**
@@ -334,7 +371,7 @@ object DruidBeams
       */
     def replicants(n: Int) = {
       val newTuning = config._tuning.getOrElse(ClusteredBeamTuning()).copy(replicants = n)
-      new Builder[EventType](config.copy(_tuning = Some(newTuning)))
+      new Builder[InputType, EventType](config.copy(_tuning = Some(newTuning)))
     }
 
     /**
@@ -346,7 +383,7 @@ object DruidBeams
       * @return new builder
       */
     def druidTuning(druidTuning: DruidTuning) = {
-      new Builder[EventType](config.copy(_druidTuningMap = Some(druidTuning.toMap)))
+      new Builder[InputType, EventType](config.copy(_druidTuningMap = Some(druidTuning.toMap)))
     }
 
     /**
@@ -358,7 +395,7 @@ object DruidBeams
       * @return new builder
       */
     def druidTuningMap(druidTuningMap: Dict) = {
-      new Builder[EventType](config.copy(_druidTuningMap = Some(DruidTuning().toMap ++ druidTuningMap)))
+      new Builder[InputType, EventType](config.copy(_druidTuningMap = Some(DruidTuning().toMap ++ druidTuningMap)))
     }
 
     /**
@@ -370,7 +407,7 @@ object DruidBeams
       * @param location location object
       * @return new builder
       */
-    def location(location: DruidLocation) = new Builder[EventType](config.copy(_location = Some(location)))
+    def location(location: DruidLocation) = new Builder[InputType, EventType](config.copy(_location = Some(location)))
 
     /**
       * Provide rollup (dimensions, aggregators, query granularity). Required.
@@ -378,7 +415,7 @@ object DruidBeams
       * @param rollup rollup object
       * @return new builder
       */
-    def rollup(rollup: DruidRollup) = new Builder[EventType](config.copy(_rollup = Some(rollup)))
+    def rollup(rollup: DruidRollup) = new Builder[InputType, EventType](config.copy(_rollup = Some(rollup)))
 
     /**
       * Provide a Druid timestampSpec. Optional, defaults to timestampColumn "timestamp" and timestampFormat "iso".
@@ -389,7 +426,7 @@ object DruidBeams
       * @return new builder
       */
     def timestampSpec(timestampSpec: TimestampSpec) = {
-      new Builder[EventType](config.copy(_timestampSpec = Some(timestampSpec)))
+      new Builder[InputType, EventType](config.copy(_timestampSpec = Some(timestampSpec)))
     }
 
     /**
@@ -400,7 +437,7 @@ object DruidBeams
       * @return new builder
       */
     def clusteredBeamZkBasePath(path: String) = {
-      new Builder[EventType](config.copy(_clusteredBeamZkBasePath = Some(path)))
+      new Builder[InputType, EventType](config.copy(_clusteredBeamZkBasePath = Some(path)))
     }
 
     /**
@@ -412,7 +449,10 @@ object DruidBeams
       * @param ident ident string
       * @return new builder
       */
-    def clusteredBeamIdent(ident: String) = new Builder[EventType](config.copy(_clusteredBeamIdent = Some(ident)))
+    def clusteredBeamIdent(ident: String) = new Builder[InputType, EventType](
+      config
+        .copy(_clusteredBeamIdent = Some(ident))
+    )
 
     /**
       * Provide tunings for communication with Druid tasks. Optional, see [[DruidBeamConfig]] for defaults.
@@ -421,7 +461,7 @@ object DruidBeams
       * @return new builder
       */
     def druidBeamConfig(beamConfig: DruidBeamConfig) = {
-      new Builder[EventType](config.copy(_druidBeamConfig = Some(beamConfig)))
+      new Builder[InputType, EventType](config.copy(_druidBeamConfig = Some(beamConfig)))
     }
 
     /**
@@ -430,7 +470,7 @@ object DruidBeams
       * @param emitter an emitter
       * @return new builder
       */
-    def emitter(emitter: ServiceEmitter) = new Builder[EventType](config.copy(_emitter = Some(emitter)))
+    def emitter(emitter: ServiceEmitter) = new Builder[InputType, EventType](config.copy(_emitter = Some(emitter)))
 
     /**
       * Provide a FinagleRegistry that will be used to generate clients for your Overlord and Druid tasks. Optional,
@@ -440,7 +480,7 @@ object DruidBeams
       * @return new builder
       */
     def finagleRegistry(registry: FinagleRegistry) = {
-      new Builder[EventType](config.copy(_finagleRegistry = Some(registry)))
+      new Builder[InputType, EventType](config.copy(_finagleRegistry = Some(registry)))
     }
 
     /**
@@ -451,7 +491,10 @@ object DruidBeams
       * @param timekeeper a timekeeper
       * @return new builder
       */
-    def timekeeper(timekeeper: Timekeeper) = new Builder[EventType](config.copy(_timekeeper = Some(timekeeper)))
+    def timekeeper(timekeeper: Timekeeper) = new Builder[InputType, EventType](
+      config
+        .copy(_timekeeper = Some(timekeeper))
+    )
 
     /**
       * Provide a function that decorates each per-partition, per-interval beam. Optional, by default there is no
@@ -476,7 +519,7 @@ object DruidBeams
       if (config._partitioner.nonEmpty) {
         throw new IllegalStateException("Cannot set both 'beamMergeFn' and 'partitioner'")
       }
-      new Builder[EventType](config.copy(_beamMergeFn = Some(f)))
+      new Builder[InputType, EventType](config.copy(_beamMergeFn = Some(f)))
     }
 
     /**
@@ -492,7 +535,7 @@ object DruidBeams
       if (config._beamMergeFn.nonEmpty) {
         throw new IllegalStateException("Cannot set both 'beamMergeFn' and 'partitioner'")
       }
-      new Builder[EventType](config.copy(_partitioner = Some(partitioner)))
+      new Builder[InputType, EventType](config.copy(_partitioner = Some(partitioner)))
     }
 
     /**
@@ -501,11 +544,11 @@ object DruidBeams
       * @param d extra information
       * @return new builder
       */
-    def alertMap(d: Dict) = new Builder[EventType](config.copy(_alertMap = Some(d)))
+    def alertMap(d: Dict) = new Builder[InputType, EventType](config.copy(_alertMap = Some(d)))
 
     @deprecated("use .objectWriter(...)", "0.2.21")
     def eventWriter(writer: ObjectWriter[EventType]) = {
-      new Builder[EventType](config.copy(_objectWriter = Some(writer)))
+      new Builder[InputType, EventType](config.copy(_objectWriter = Some(writer)))
     }
 
     /**
@@ -517,7 +560,7 @@ object DruidBeams
       * @return new builder
       */
     def objectWriter(writer: ObjectWriter[EventType]) = {
-      new Builder[EventType](config.copy(_objectWriter = Some(writer)))
+      new Builder[InputType, EventType](config.copy(_objectWriter = Some(writer)))
     }
 
     /**
@@ -527,11 +570,11 @@ object DruidBeams
       * @return new builder
       */
     def objectWriter(writer: JavaObjectWriter[EventType]) = {
-      new Builder[EventType](config.copy(_objectWriter = Some(ObjectWriter.wrap(writer))))
+      new Builder[InputType, EventType](config.copy(_objectWriter = Some(ObjectWriter.wrap(writer))))
     }
 
     def eventTimestamped(timeFn: EventType => DateTime) = {
-      new Builder[EventType](
+      new Builder[InputType, EventType](
         config.copy(
           _timestamper = Some(
             new Timestamper[EventType]
@@ -548,7 +591,7 @@ object DruidBeams
       *
       * @return a beam
       */
-    def buildBeam(): Beam[EventType] = {
+    def buildBeam(): Beam[InputType] = {
       val things = config.buildAll()
       implicit val eventTimestamped = things.timestamper
       val indexService = new IndexService(
@@ -585,20 +628,22 @@ object DruidBeams
       if (things.curatorOwned) {
         things.curator.start()
       }
-      new Beam[EventType]
-      {
-        override def sendBatch(events: Seq[EventType]) = clusteredBeam.sendBatch(events)
+      things.beamManipulateFn(
+        new Beam[EventType]
+        {
+          override def sendBatch(events: Seq[EventType]) = clusteredBeam.sendBatch(events)
 
-        override def close() = clusteredBeam.close()
-          .flatMap(_ => indexService.close())
-          .map {
-            _ => if (things.curatorOwned) {
-              things.curator.close()
+          override def close() = clusteredBeam.close()
+            .flatMap(_ => indexService.close())
+            .map {
+              _ => if (things.curatorOwned) {
+                things.curator.close()
+              }
             }
-          }
 
-        override def toString = clusteredBeam.toString
-      }
+          override def toString = clusteredBeam.toString
+        }
+      )
     }
 
     /**
@@ -607,7 +652,7 @@ object DruidBeams
       * @return a service
       */
     @deprecated("use buildTranquilizer", "0.7.0")
-    def buildService(): Service[Seq[EventType], Int] = {
+    def buildService(): Service[Seq[InputType], Int] = {
       new BeamService(buildBeam())
     }
 
@@ -617,9 +662,9 @@ object DruidBeams
       * @return a service
       */
     @deprecated("use buildTranquilizer", "0.7.0")
-    def buildJavaService(): Service[ju.List[EventType], jl.Integer] = {
+    def buildJavaService(): Service[ju.List[InputType], jl.Integer] = {
       val delegate = buildService()
-      Service.mk((xs: ju.List[EventType]) => delegate(xs.asScala).map(Int.box))
+      Service.mk((xs: ju.List[InputType]) => delegate(xs.asScala).map(Int.box))
     }
 
     /**
@@ -629,7 +674,7 @@ object DruidBeams
       *
       * @return a service
       */
-    def buildTranquilizer(): Tranquilizer[EventType] = {
+    def buildTranquilizer(): Tranquilizer[InputType] = {
       Tranquilizer.builder().build(buildBeam())
     }
 
@@ -641,12 +686,13 @@ object DruidBeams
       * @param builder a Tranquilizer builder with the desired configuration
       * @return a service
       */
-    def buildTranquilizer(builder: Tranquilizer.Builder): Tranquilizer[EventType] = {
+    def buildTranquilizer(builder: Tranquilizer.Builder): Tranquilizer[InputType] = {
       builder.build(buildBeam())
     }
   }
 
-  private[tranquility] case class BuilderConfig[EventType](
+  private[tranquility] case class BuilderConfig[InputType, EventType](
+    _beamManipulateFn: Option[Beam[EventType] => Beam[InputType]] = None,
     _curator: Option[CuratorFramework] = None,
     _curatorFactory: Option[CuratorFrameworkFactory.Builder] = None,
     _discoveryPath: Option[String] = None,
@@ -670,6 +716,9 @@ object DruidBeams
   )
   {
     def buildAll() = new {
+      val beamManipulateFn        = _beamManipulateFn getOrElse {
+        (beam: Beam[EventType]) => beam.asInstanceOf[Beam[InputType]]
+      }
       val scalaObjectMapper       = DefaultScalaObjectMapper
       val druidObjectMapper       = DruidGuicer.Default.objectMapper
       val curator                 = _curator getOrElse {

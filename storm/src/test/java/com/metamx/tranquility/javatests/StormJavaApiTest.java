@@ -82,7 +82,7 @@ public class StormJavaApiTest
 
         final String dataSource = "hey";
 
-        final DruidBeams.Builder<Map<String, Object>> builder = DruidBeams
+        final DruidBeams.Builder<Map<String, Object>, Map<String, Object>> builder = DruidBeams
             .builder(
                 new Timestamper<Map<String, Object>>()
                 {
