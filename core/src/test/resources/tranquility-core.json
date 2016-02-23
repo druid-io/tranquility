@@ -44,8 +44,8 @@
         "tuningConfig" : {
           "type" : "realtime",
           "intermediatePersistPeriod" : "PT45S",
-          "maxRowsInMemory" : "100000",
-          "buildV9Directly" : "true",
+          "maxRowsInMemory" : 100000,
+          "buildV9Directly" : true,
           "windowPeriod" : "PT30S"
         }
       }

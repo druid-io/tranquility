@@ -23,9 +23,9 @@ dataSources:
 
       tuningConfig:
         type: realtime
-        maxRowsInMemory: 100000
-        intermediatePersistPeriod: PT10M
         windowPeriod: PT10M
+        intermediatePersistPeriod: PT10M
+        maxRowsInMemory: 75000
 
     properties:
       task.partitions: 1

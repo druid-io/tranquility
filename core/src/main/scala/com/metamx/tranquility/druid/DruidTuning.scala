@@ -29,6 +29,15 @@ case class DruidTuning(
   maxPendingPersists: Int = 0,
   buildV9Directly: Boolean = false
 )
+{
+  def toMap: Dict = Dict(
+    "type" -> "realtime",
+    "maxRowsInMemory" -> maxRowsInMemory,
+    "intermediatePersistPeriod" -> intermediatePersistPeriod.toString(),
+    "maxPendingPersists" -> maxPendingPersists,
+    "buildV9Directly" -> buildV9Directly
+  )
+}
 
 object DruidTuning
 {
@@ -36,9 +45,9 @@ object DruidTuning
     * Real-time Druid tuning parameters. These are passed directly to the Druid indexing service. See the Druid
     * documentation for their meanings.
     *
-    * @param maxRowsInMemory number of rows to aggregate before persisting
+    * @param maxRowsInMemory           number of rows to aggregate before persisting
     * @param intermediatePersistPeriod period that determines the rate at which intermediate persists occur
-    * @param maxPendingPersists number of persists that can be pending, but not started
+    * @param maxPendingPersists        number of persists that can be pending, but not started
     */
   @deprecated("use 'apply' or 'builder'", "0.7.3")
   def create(

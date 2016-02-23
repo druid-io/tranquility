@@ -39,10 +39,10 @@
                }
             },
             "tuningConfig" : {
-               "windowPeriod" : "PT10M",
                "type" : "realtime",
+               "windowPeriod" : "PT10M",
                "intermediatePersistPeriod" : "PT10M",
-               "maxRowsInMemory" : "100000"
+               "maxRowsInMemory" : 75000
             }
          },
          "properties" : {

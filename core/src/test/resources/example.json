@@ -63,7 +63,7 @@
           "type": "realtime",
           "maxRowsInMemory": 100000,
           "intermediatePersistPeriod": "PT10m",
-          "windowPeriod": "PT10m"
+          "windowPeriod": "PT10M"
         }
       }
     }
