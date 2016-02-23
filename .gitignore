@@ -9,3 +9,7 @@ dist/
 .DS_Store
 /conf
 /log
+/derby.log
+*/conf
+*/log
+*/derby.log
