@@ -355,7 +355,6 @@ object Tranquilizer
   val DefaultMaxBatchSize      = 2000
   val DefaultMaxPendingBatches = 5
   val DefaultLingerMillis      = 0L
-  val DefaultLingerMillis      = 0
   val DefaultBlockOnFull       = true
 
   def apply[MessageType](

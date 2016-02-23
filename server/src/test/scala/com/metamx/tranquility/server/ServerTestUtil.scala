@@ -50,6 +50,7 @@ object ServerTestUtil
     }
     finally {
       tester.stop()
+      tranquilizers.values.foreach(_.flush())
       tranquilizers.values.foreach(_.stop())
     }
   }
