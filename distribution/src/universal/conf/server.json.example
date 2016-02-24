@@ -54,6 +54,6 @@
    "properties" : {
       "zookeeper.connect" : "localhost",
       "http.port" : "8200",
-      "http.threads" : "8"
+      "http.threads" : "40"
    }
 }

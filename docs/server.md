@@ -50,7 +50,7 @@ These Server-specific properties, if used, must be specified at the global level
 |Property|Description|Default|
 |--------|-----------|-------|
 |`http.port`|Port to listen on.|8200|
-|`http.threads`|Number of threads for HTTP requests.|8|
+|`http.threads`|Number of threads for serving HTTP requests.|40|
 |`http.idleTimeout`|Abort connections that have had no activity for longer than this timeout. Set to zero to disable. ISO8601 duration.|PT5M|
 
 ### Running
