@@ -105,7 +105,7 @@ class TaskClient(
                   log, emitter, WARN, "Loss of Druid redundancy: %s" format dataSource, Dict(
                     "dataSource" -> dataSource,
                     "task" -> task.id,
-                    "status" -> client.status.toString
+                    "status" -> newStatus.toString
                   )
                 )
                 None
