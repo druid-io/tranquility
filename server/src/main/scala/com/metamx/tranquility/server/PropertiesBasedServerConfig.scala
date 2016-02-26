@@ -30,7 +30,7 @@ abstract class PropertiesBasedServerConfig
   def httpPort: Int = 8200
 
   @Config(Array("http.threads"))
-  def httpThreads: Int = 8
+  def httpThreads: Int = 40
 
   @Config(Array("http.idleTimeout"))
   def httpIdleTimeout: Period = new Period("PT5M")
