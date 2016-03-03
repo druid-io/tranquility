@@ -72,7 +72,7 @@ abstract class PropertiesBasedConfig(
   def tranquilityMaxPendingBatches: Int = Tranquilizer.DefaultMaxPendingBatches
 
   @Config(Array("tranquility.lingerMillis"))
-  def tranquilityLingerMillis: Int = Tranquilizer.DefaultLingerMillis
+  def tranquilityLingerMillis: Long = Tranquilizer.DefaultLingerMillis
 
   @Config(Array("druid.discovery.curator.path"))
   def discoPath: String = "/druid/discovery"
