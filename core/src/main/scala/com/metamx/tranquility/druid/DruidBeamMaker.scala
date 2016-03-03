@@ -28,7 +28,6 @@ import com.metamx.tranquility.beam.BeamMaker
 import com.metamx.tranquility.beam.ClusteredBeamTuning
 import com.metamx.tranquility.finagle.FinagleRegistry
 import com.metamx.tranquility.typeclass.ObjectWriter
-import com.metamx.tranquility.typeclass.Timestamper
 import com.twitter.util.Await
 import com.twitter.util.Future
 import io.druid.data.input.impl.TimestampSpec
@@ -39,7 +38,7 @@ import org.joda.time.chrono.ISOChronology
 import org.scala_tools.time.Implicits._
 import scala.util.Random
 
-class DruidBeamMaker[A: Timestamper](
+class DruidBeamMaker[A](
   config: DruidBeamConfig,
   location: DruidLocation,
   beamTuning: ClusteredBeamTuning,

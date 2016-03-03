@@ -152,7 +152,7 @@ class TranquilityConfigTest extends FunSuite with ShouldMatchers
 
   private def makeBuilders(
     specMap: Dict
-  ): Seq[DruidBeams.Builder[_]] =
+  ): Seq[DruidBeams.Builder[_, _]] =
   {
     val config = DataSourceConfig(
       DataSource,
