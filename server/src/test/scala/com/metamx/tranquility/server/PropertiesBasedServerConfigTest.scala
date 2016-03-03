@@ -47,9 +47,14 @@ class PropertiesBasedServerConfigTest extends FunSuite with ShouldMatchers
     val builder = DruidBeams.fromConfig(fooConfig)
     builder.config._location.get.dataSource should be("foo")
     builder.config._rollup.get.aggregators.map(_.getName) should be(Seq("count", "x"))
-    builder.config._druidTuning.get.maxRowsInMemory should be(100000)
-    builder.config._druidTuning.get.intermediatePersistPeriod should be(new Period("PT45S"))
-    builder.config._druidTuning.get.buildV9Directly should be(true)
+    builder.config._druidTuningMap.get should be(Map(
+      "type" -> "realtime",
+      "maxRowsInMemory" -> 100000,
+      "buildV9Directly" -> true,
+      "intermediatePersistPeriod" -> "PT45S",
+      "windowPeriod" -> "PT30S",
+      "maxPendingPersists" -> 0
+    ))
     builder.config._tuning.get.windowPeriod should be(new Period("PT30S"))
   }
 }

@@ -20,6 +20,7 @@ package com.metamx.tranquility.druid
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.metamx.common.Granularity
+import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.untyped._
 import com.metamx.emitter.service.ServiceEmitter
@@ -36,14 +37,13 @@ import org.joda.time.DateTime
 import org.joda.time.Interval
 import org.joda.time.chrono.ISOChronology
 import org.scala_tools.time.Implicits._
-import scala.collection.JavaConverters._
 import scala.util.Random
 
 class DruidBeamMaker[A: Timestamper](
   config: DruidBeamConfig,
   location: DruidLocation,
   beamTuning: ClusteredBeamTuning,
-  druidTuning: DruidTuning,
+  druidTuningMap: Dict,
   rollup: DruidRollup,
   timestampSpec: TimestampSpec,
   finagleRegistry: FinagleRegistry,
@@ -72,10 +72,6 @@ class DruidBeamMaker[A: Timestamper](
     }
     val taskId = "index_realtime_%s_%s_%s_%s%s" format(dataSource, interval.start, partition, replicant, suffix)
     val shutoffTime = interval.end + beamTuning.windowPeriod + config.firehoseGracePeriod
-    val shardSpecMap = Map(
-      "type" -> "linear",
-      "partitionNum" -> partition
-    ).asJava
     val queryGranularityMap = druidObjectMapper.convertValue(
       rollup.indexGranularity,
       classOf[ju.Map[String, AnyRef]]
@@ -88,15 +84,15 @@ class DruidBeamMaker[A: Timestamper](
           "format" -> "json",
           "timestampSpec" -> timestampSpec,
           "dimensionsSpec" -> rollup.dimensions.specMap
-        ).asJava
-      ).asJava,
-      "metricsSpec" -> rollup.aggregators.toArray,
+        )
+      ),
+      "metricsSpec" -> Jackson.parse[Seq[Dict]](druidObjectMapper.writeValueAsBytes(rollup.aggregators.toArray)),
       "granularitySpec" -> Map(
         "type" -> "uniform",
         "segmentGranularity" -> beamTuning.segmentGranularity,
         "queryGranularity" -> queryGranularityMap
-      ).asJava
-    ).asJava
+      )
+    )
     val ioConfigMap = Map(
       "type" -> "realtime",
       "plumber" -> null,
@@ -110,42 +106,46 @@ class DruidBeamMaker[A: Timestamper](
             "type" -> "receiver",
             "serviceName" -> location.environment.firehoseServicePattern.format(firehoseId),
             "bufferSize" -> config.firehoseBufferSize
-          ).asJava
-        ).asJava
-      ).asJava
-    ).asJava
-    val tuningConfigMap = Map(
-      "type" -> "realtime",
-      "maxRowsInMemory" -> druidTuning.maxRowsInMemory,
-      "intermediatePersistPeriod" -> druidTuning.intermediatePersistPeriod,
-      "windowPeriod" -> beamTuning.windowPeriod,
-      "maxPendingPersists" -> druidTuning.maxPendingPersists,
-      "shardSpec" -> shardSpecMap,
+          )
+        )
+      )
+    )
+    val druidTuningMapWithOverrides = druidTuningMap ++ Map(
+      "windowPeriod" -> beamTuning.windowPeriod.toString(),
+      "shardSpec" -> Map(
+        "type" -> "linear",
+        "partitionNum" -> partition
+      ),
       "rejectionPolicy" -> (if (beamTuning.maxSegmentsPerBeam > 1) {
         // Experimental setting, can cause tasks to cover many hours. We still want handoff to occur mid-task,
         // so we need a non-noop rejection policy. Druid won't tell us when it rejects events due to its
         // rejection policy, so this breaks the contract of Beam.propagate telling the user when events are and
         // are not dropped. This is bad, so, only use this rejection policy when we absolutely need to.
-        Map("type" -> "serverTime").asJava
+        Map("type" -> "serverTime")
       } else {
-        Map("type" -> "none").asJava
-      }),
-      "buildV9Directly" -> druidTuning.buildV9Directly
-    ).asJava
+        Map("type" -> "none")
+      })
+    )
+    // Warn if anything from the tuningMap is getting overridden.
+    for ((k, v) <- druidTuningMap) {
+      if (druidTuningMapWithOverrides(k) != v) {
+        log.warn(s"DruidTuning key[$k] for task[$taskId] overridden from[$v] to[${druidTuningMapWithOverrides(k)}].")
+      }
+    }
     val taskMap = Map(
       "type" -> "index_realtime",
       "id" -> taskId,
       "resource" -> Map(
         "availabilityGroup" -> availabilityGroup,
         "requiredCapacity" -> 1
-      ).asJava,
+      ),
       "spec" -> Map(
         "dataSchema" -> dataSchemaMap,
         "ioConfig" -> ioConfigMap,
-        "tuningConfig" -> tuningConfigMap
-      ).asJava
-    ).asJava
-    druidObjectMapper.writeValueAsBytes(taskMap)
+        "tuningConfig" -> druidTuningMapWithOverrides
+      )
+    )
+    druidObjectMapper.writeValueAsBytes(normalizeJava(taskMap))
   }
 
   override def newBeam(interval: Interval, partition: Int) = {

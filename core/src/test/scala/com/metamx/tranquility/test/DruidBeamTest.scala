@@ -83,7 +83,7 @@ class DruidBeamTest extends FunSuite with Matchers
         maxRowsInMemory = 100,
         intermediatePersistPeriod = 3.minutes,
         maxPendingPersists = 3
-      ),
+      ).toMap,
       DruidRollup(
         dimensions = SpecificDruidDimensions(Seq("dim1", "dim2"), Seq(DruidSpatialDimension.singleField("spatial1"))),
         aggregators = Seq(new LongSumAggregatorFactory("met1", "met1")),
