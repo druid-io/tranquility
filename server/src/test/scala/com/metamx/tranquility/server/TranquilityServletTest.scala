@@ -214,6 +214,90 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
       )
     )
   }
+
+  test("/v1/post-async, json array") {
+    val events = withBeams { beams =>
+      withTester(beams) { tester =>
+        val body = Jackson.bytes(
+          Seq(
+            Dict("dataSource" -> "foo", "n" -> 1),
+            Dict("dataSource" -> "foo", "n" -> 2),
+            Dict("feed" -> "bar", "n" -> 3),
+            Dict("dataSource" -> "bar", "n" -> 4, ActionKey -> "__drop__"),
+            Dict("dataSource" -> "bar", "n" -> 5)
+          )
+        )
+
+        tester.post("/v1/post-async", body, MyHeaders) {
+          tester.status should be(200)
+          tester.header("Content-Type") should startWith("application/json;")
+          val response = Jackson.parse[Dict](tester.bodyBytes)
+          response should be(
+            Dict(
+              "result" -> Dict(
+                "received" -> 5,
+                "sent" -> 0
+              )
+            )
+          )
+        }
+      }
+    }
+
+    events should be(
+      Map(
+        "foo" -> Seq(
+          Dict("dataSource" -> "foo", "n" -> 1),
+          Dict("dataSource" -> "foo", "n" -> 2)
+        ),
+        "bar" -> Seq(
+          Dict("feed" -> "bar", "n" -> 3),
+          Dict("dataSource" -> "bar", "n" -> 5)
+        )
+      )
+    )
+  }
+
+  test("/v1/post-async/dataSource, json array") {
+    val events = withBeams { beams =>
+      withTester(beams) { tester =>
+        val body = Jackson.bytes(
+          Seq(
+            Dict("dataSource" -> "foo", "n" -> 1),
+            Dict("dataSource" -> "foo", "n" -> 2),
+            Dict("feed" -> "bar", "n" -> 3),
+            Dict("dataSource" -> "bar", "n" -> 4, ActionKey -> "__drop__"),
+            Dict("dataSource" -> "bar", "n" -> 5)
+          )
+        )
+
+        tester.post("/v1/post-async/foo", body, MyHeaders) {
+          tester.status should be(200)
+          tester.header("Content-Type") should startWith("application/json;")
+          val response = Jackson.parse[Dict](tester.bodyBytes)
+          response should be(
+            Dict(
+              "result" -> Dict(
+                "received" -> 5,
+                "sent" -> 0
+              )
+            )
+          )
+        }
+      }
+    }
+
+    events should be(
+      Map(
+        "foo" -> Seq(
+          Dict("dataSource" -> "foo", "n" -> 1),
+          Dict("dataSource" -> "foo", "n" -> 2),
+          Dict("feed" -> "bar", "n" -> 3),
+          Dict("dataSource" -> "bar", "n" -> 5)
+        )
+      )
+    )
+  }
 }
 
 object TranquilityServletTest

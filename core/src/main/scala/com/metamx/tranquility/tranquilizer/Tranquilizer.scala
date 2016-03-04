@@ -51,7 +51,8 @@ class Tranquilizer[MessageType] private(
   beam: Beam[MessageType],
   maxBatchSize: Int,
   maxPendingBatches: Int,
-  lingerMillis: Long
+  lingerMillis: Long,
+  blockOnFull: Boolean
 ) extends Service[MessageType, Unit] with Logging
 {
   require(maxBatchSize >= 1, "batchSize >= 1")
@@ -136,6 +137,7 @@ class Tranquilizer[MessageType] private(
 
   /**
     * Same as [[Tranquilizer.send]].
+    *
     * @param message the message to send
     * @return a future that resolves when the message is sent
     */
@@ -153,6 +155,7 @@ class Tranquilizer[MessageType] private(
     *
     * @param message message to send
     * @return future that resolves when the message is sent, or fails to send
+    * @throws BufferFullException if outgoing queue is full and blockOnFull is false.
     */
   def send(message: MessageType): Future[Unit] = {
     requireStarted()
@@ -163,13 +166,17 @@ class Tranquilizer[MessageType] private(
 
     val (exIndexBufferPair, future) = lock.synchronized {
       while (buffer.size >= maxBatchSize - 1 && pendingBatches.size >= maxPendingBatches) {
-        if (log.isDebugEnabled) {
-          log.debug(
-            s"Buffer size[${buffer.size}] >= maxBatchSize[$maxBatchSize] - 1 and " +
-              s"pendingBatches[${pendingBatches.size}] >= maxPendingBatches[$maxPendingBatches], waiting..."
-          )
+        if (blockOnFull) {
+          if (log.isDebugEnabled) {
+            log.debug(
+              s"Buffer size[${buffer.size}] >= maxBatchSize[$maxBatchSize] - 1 and " +
+                s"pendingBatches[${pendingBatches.size}] >= maxPendingBatches[$maxPendingBatches], waiting..."
+            )
+          }
+          lock.wait()
+        } else {
+          throw new BufferFullException
         }
-        lock.wait()
       }
 
       if (buffer.isEmpty) {
@@ -331,27 +338,34 @@ class Tranquilizer[MessageType] private(
   * Exception indicating that a message was dropped "on purpose" by the beam. This is not a recoverable exception
   * and so the message must be discarded.
   */
-class MessageDroppedException private() extends Exception with com.twitter.finagle.NoStacktrace
+class MessageDroppedException private() extends Exception("Message dropped") with com.twitter.finagle.NoStacktrace
 
 object MessageDroppedException
 {
   val instance = new MessageDroppedException
 }
 
+/**
+  * Exception indicating that the outgoing buffer was full. Will only be thrown if "blockOnFull" is false.
+  */
+class BufferFullException extends Exception("Buffer full")
+
 object Tranquilizer
 {
   val DefaultMaxBatchSize      = 2000
   val DefaultMaxPendingBatches = 5
   val DefaultLingerMillis      = 0L
+  val DefaultBlockOnFull       = true
 
   def apply[MessageType](
     beam: Beam[MessageType],
     maxBatchSize: Int = DefaultMaxBatchSize,
     maxPendingBatches: Int = DefaultMaxPendingBatches,
-    lingerMillis: Long = DefaultLingerMillis
+    lingerMillis: Long = DefaultLingerMillis,
+    blockOnFull: Boolean = DefaultBlockOnFull
   ): Tranquilizer[MessageType] =
   {
-    new Tranquilizer[MessageType](beam, maxBatchSize, maxPendingBatches, lingerMillis)
+    new Tranquilizer[MessageType](beam, maxBatchSize, maxPendingBatches, lingerMillis, blockOnFull)
   }
 
   /**
@@ -367,18 +381,21 @@ object Tranquilizer
       beam,
       DefaultMaxBatchSize,
       DefaultMaxPendingBatches,
-      DefaultLingerMillis
+      DefaultLingerMillis,
+      DefaultBlockOnFull
     )
   }
 
   /**
     * Wraps a Beam and exposes a single-message-future API. Thread-safe.
     *
-    * @param beam The wrapped Beam.
-    * @param maxBatchSize Maximum number of messages to send at once.
+    * Does not support all options; for the full set of options, use a "builder".
+    *
+    * @param beam              The wrapped Beam.
+    * @param maxBatchSize      Maximum number of messages to send at once.
     * @param maxPendingBatches Maximum number of batches that may be in flight before we block and wait for one to finish.
-    * @param lingerMillis Wait this long for batches to collect more messages (up to maxBatchSize) before sending them.
-    *                     Set to zero to disable waiting.
+    * @param lingerMillis      Wait this long for batches to collect more messages (up to maxBatchSize) before sending them.
+    *                          Set to zero to disable waiting.
     */
   def create[MessageType](
     beam: Beam[MessageType],
@@ -387,7 +404,7 @@ object Tranquilizer
     lingerMillis: Long
   ): Tranquilizer[MessageType] =
   {
-    new Tranquilizer[MessageType](beam, maxBatchSize, maxPendingBatches, lingerMillis)
+    new Tranquilizer[MessageType](beam, maxBatchSize, maxPendingBatches, lingerMillis, DefaultBlockOnFull)
   }
 
   /**
@@ -400,13 +417,15 @@ object Tranquilizer
   private case class Config(
     maxBatchSize: Int = DefaultMaxBatchSize,
     maxPendingBatches: Int = DefaultMaxPendingBatches,
-    lingerMillis: Long = DefaultLingerMillis
+    lingerMillis: Long = DefaultLingerMillis,
+    blockOnFull: Boolean = DefaultBlockOnFull
   )
 
   class Builder private[tranquilizer](config: Config)
   {
     /**
       * Maximum number of messages to send at once. Optional, default is 5000.
+      *
       * @param n max batch size
       * @return new builder
       */
@@ -417,6 +436,7 @@ object Tranquilizer
     /**
       * Maximum number of batches that may be in flight before we block and wait for one to finish. Optional, default
       * is 5.
+      *
       * @param n max pending batches
       * @return new builder
       */
@@ -427,6 +447,7 @@ object Tranquilizer
     /**
       * Wait this long for batches to collect more messages (up to maxBatchSize) before sending them. Set to zero to
       * disable waiting. Optional, default is zero.
+      *
       * @param n linger millis
       * @return new builder
       */
@@ -435,13 +456,33 @@ object Tranquilizer
     }
 
     /**
+      * Whether "send" will block (true) or throw an exception (false) when called while the outgoing queue is full.
+      * Optional, default is true.
+      *
+      * @param b flag for blocking when full
+      * @return new builder
+      */
+    def blockOnFull(b: Boolean) = {
+      new Builder(config.copy(blockOnFull = b))
+    }
+
+    /**
       * Build a Tranquilizer.
+      *
       * @param beam beam to wrap
       * @return tranquilizer
       */
     def build[MessageType](beam: Beam[MessageType]): Tranquilizer[MessageType] = {
-      new Tranquilizer[MessageType](beam, config.maxBatchSize, config.maxPendingBatches, config.lingerMillis)
+      new Tranquilizer[MessageType](
+        beam,
+        config.maxBatchSize,
+        config.maxPendingBatches,
+        config.lingerMillis,
+        config.blockOnFull
+      )
     }
+
+    override def toString = s"Tranquilizer.Builder($Config)"
   }
 
 }

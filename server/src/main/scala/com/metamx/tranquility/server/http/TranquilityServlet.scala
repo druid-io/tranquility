@@ -27,6 +27,7 @@ import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Walker
 import com.metamx.common.scala.untyped.Dict
 import com.metamx.tranquility.server.http.TranquilityServlet._
+import com.metamx.tranquility.tranquilizer.BufferFullException
 import com.metamx.tranquility.tranquilizer.MessageDroppedException
 import com.metamx.tranquility.tranquilizer.Tranquilizer
 import com.twitter.util.Return
@@ -73,11 +74,19 @@ class TranquilityServlet(
   }
 
   post("/v1/post") {
-    doV1Post(None)
+    doV1Post(None, false)
   }
 
   post("/v1/post/:dataSource") {
-    doV1Post(Some(params("dataSource")))
+    doV1Post(Some(params("dataSource")), false)
+  }
+
+  post("/v1/post-async") {
+    doV1Post(None, true)
+  }
+
+  post("/v1/post-async/:dataSource") {
+    doV1Post(Some(params("dataSource")), true)
   }
 
   notFound {
@@ -113,16 +122,16 @@ class TranquilityServlet(
       )
   }
 
-  private def doV1Post(dataSource: Option[String]): Array[Byte] = {
+  private def doV1Post(dataSource: Option[String], async: Boolean): Array[Byte] = {
     val objectMapper = getObjectMapper()
     val messages = Messages.fromInputStreamV1(objectMapper, request.inputStream, dataSource)
-    val (received, sent) = doSend(messages)
+    val (received, sent) = doSend(messages, async)
     val result = Dict("result" -> Dict("received" -> received, "sent" -> sent))
     contentType = request.contentType.get
     objectMapper.writeValueAsBytes(result)
   }
 
-  private def doSend(messages: Walker[(String, Dict)]): (Long, Long) = {
+  private def doSend(messages: Walker[(String, Dict)], async: Boolean): (Long, Long) = {
     val senders = mutable.HashMap[String, Tranquilizer[java.util.Map[String, AnyRef]]]()
     val received = new AtomicLong
     val sent = new AtomicLong
@@ -137,22 +146,41 @@ class TranquilityServlet(
           )
         }
       )
+
       received.incrementAndGet()
-      sender.send(message.asJava.asInstanceOf[java.util.Map[String, AnyRef]]) respond {
+
+      val future = try {
+        sender.send(message.asJava.asInstanceOf[java.util.Map[String, AnyRef]])
+      }
+      catch {
+        case e: BufferFullException =>
+          throw new HttpException(HttpResponseStatus.SERVICE_UNAVAILABLE, s"Buffer full for dataSource '$dataSource'")
+      }
+
+      future respond {
         case Return(_) => sent.incrementAndGet()
         case Throw(e: MessageDroppedException) => // Suppress
         case Throw(e) => exception.compareAndSet(null, e)
       }
+
+      // async => ignore sent, exception; just receive things.
+      if (!async && exception.get() != null) {
+        throw exception.get()
+      }
     }
 
-    senders.values.foreach(_.flush())
+    // async => ignore sent, exception; just receive things.
+    if (!async) {
+      senders.values.foreach(_.flush())
 
-    if (exception.get() != null) {
-      throw exception.get()
+      if (exception.get() != null) {
+        throw exception.get()
+      }
     }
 
-    (received.get(), sent.get())
+    (received.get(), if (async) 0L else sent.get())
   }
+
 }
 
 object TranquilityServlet

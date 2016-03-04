@@ -31,7 +31,34 @@ Where *received* is the number of messages you sent to the server, and *sent* is
 successfully sent along to Druid. This may be fewer than the number of messages received if some of them were dropped
 due to e.g. being outside the windowPeriod.
 
+This API is synchronous and will block until your messages are either sent to Druid, or have failed to send.
+
 If there is an error sending the data, you will get an HTTP error code (4xx or 5xx).
+
+### Asynchronous HTTP API
+
+Tranquility Server also offers an asynchronous API. The form of the request should be the same as the synchronous API,
+but you should use the URLs `/v1/post-async` or `/v1/post-async/DATASOURCE`.
+
+The response will be:
+
+```json
+{
+  "result": {
+    "received": 10,
+    "sent": 0
+  }
+}
+```
+
+Note that "sent" will always be 0 when using the asynchronous API.
+
+If the server's outgoing message queue fills up, your requests will either block or fail. To control this behavior,
+set the `tranquility.blockOnFull` property to either true or false. If you set this to "false" and your server's
+outgoing queue is full, you will get an HTTP 503.
+
+With either the synchronous or asynchronous APIs, you can adjust the size of your Tranquility Server's message queues
+through the properties `tranquility.maxBatchSize` and `tranquility.maxPendingBatches`.
 
 ## Setup
 
