@@ -73,22 +73,25 @@ Any of these properties can be specified either globally, or per-dataSource.
 |--------|-----------|-------|
 |`druid.discovery.curator.path`|Curator service discovery path.|/druid/discovery|
 |`druid.selectors.indexing.serviceName`|The druid.service name of the indexing service Overlord node.|druid/overlord|
-|`task.partitions`|Number of Druid partitions to create.|1|
-|`task.replicants`|Number of instances of each Druid partition to create. This is the *total* number of instances, so 2 replicants means 2 tasks will be created.|1|
-|`task.warmingPeriod`|If nonzero, create Druid tasks early. This can be useful if tasks take a long time to start up in your environment.|PT0M|
-|`zookeeper.connect`|ZooKeeper connect string.|none; must be provided|
-|`zookeeper.timeout`|ZooKeeper session timeout. ISO8601 duration.|PT20S|
-|`tranquility.blockOnFull`|Whether "send" will block (true) or throw an exception (false) when called while the outgoing queue is full.|true|
-|`tranquility.lingerMillis`|Wait this long for batches to collect more messages (up to maxBatchSize) before sending them. Set to zero to disable waiting.|0|
-|`tranquility.maxBatchSize`|Maximum number of messages to send at once.|2000|
-|`tranquility.maxPendingBatches`|Maximum number of batches that may be in flight before we block and wait for one to finish.|5|
 |`druidBeam.firehoseBufferSize`|Size of buffer used by firehose to store events.|100000|
 |`druidBeam.firehoseChunkSize`|Maximum number of events to send to Druid in one HTTP request.|1000|
 |`druidBeam.firehoseGracePeriod`|Druid indexing tasks will shut down this long after the windowPeriod has elapsed.|PT5M|
 |`druidBeam.firehoseQuietPeriod`|Wait this long for a task to appear before complaining that it cannot be found.|PT1M|
 |`druidBeam.firehoseRetryPeriod`|Retry for this long before complaining that events could not be pushed|PT1M|
 |`druidBeam.indexRetryPeriod`|If an indexing service overlord call fails for some apparently-transient reason, retry for this long before giving up.|PT1M|
+|`druidBeam.overlordLocator`|Strategy for locating the Druid Overlord. Can be "curator".|curator|
+|`druidBeam.overlordPollPeriod`|How often to poll the Overlord for task locations. Only applies if taskLocator is "overlord".|PT20S|
 |`druidBeam.randomizeTaskId`|True if we should add a random suffix to Druid task IDs. This is useful for testing.|false|
+|`druidBeam.taskLocator`|Strategy for locating Druid tasks. Can be "curator" or "overlord".|curator|
+|`task.partitions`|Number of Druid partitions to create.|1|
+|`task.replicants`|Number of instances of each Druid partition to create. This is the *total* number of instances, so 2 replicants means 2 tasks will be created.|1|
+|`task.warmingPeriod`|If nonzero, create Druid tasks early. This can be useful if tasks take a long time to start up in your environment.|PT0M|
+|`tranquility.blockOnFull`|Whether "send" will block (true) or throw an exception (false) when called while the outgoing queue is full.|true|
+|`tranquility.lingerMillis`|Wait this long for batches to collect more messages (up to maxBatchSize) before sending them. Set to zero to disable waiting.|0|
+|`tranquility.maxBatchSize`|Maximum number of messages to send at once.|2000|
+|`tranquility.maxPendingBatches`|Maximum number of batches that may be in flight before we block and wait for one to finish.|5|
+|`zookeeper.connect`|ZooKeeper connect string.|none; must be provided|
+|`zookeeper.timeout`|ZooKeeper session timeout. ISO8601 duration.|PT20S|
 
 ### Code
 

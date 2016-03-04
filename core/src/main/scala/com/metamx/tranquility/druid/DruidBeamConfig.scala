@@ -27,7 +27,10 @@ case class DruidBeamConfig(
   firehoseChunkSize: Int = 1000,
   randomizeTaskId: Boolean = false,
   indexRetryPeriod: Period = 1.minute,
-  firehoseBufferSize: Int = 100000
+  firehoseBufferSize: Int = 100000,
+  overlordLocator: String = OverlordLocator.Curator,
+  taskLocator: String = TaskLocator.Curator,
+  overlordPollPeriod: Period = 20.seconds
 ) extends IndexServiceConfig
 
 object DruidBeamConfig
@@ -94,6 +97,27 @@ object DruidBeamConfig
       * Default is 100000.
       */
     def firehoseBufferSize(x: Int) = new Builder(config.copy(firehoseBufferSize = x))
+
+    /**
+      * Strategy for locating the Druid Overlord. Can be "curator".
+      *
+      * Default is "curator".
+      */
+    def overlordLocator(x: String) = new Builder(config.copy(overlordLocator = x))
+
+    /**
+      * Strategy for locating Druid tasks. Can be "curator" or "overlord".
+      *
+      * Default is "curator".
+      */
+    def taskLocator(x: String) = new Builder(config.copy(taskLocator = x))
+
+    /**
+      * How often to poll the Overlord for task locations. Only applies if taskLocator is "overlord".
+      *
+      * Default is 20 seconds.
+      */
+    def overlordPollPeriod(x: Period) = new Builder(config.copy(overlordPollPeriod = x))
 
     def build(): DruidBeamConfig = config
   }

@@ -41,7 +41,7 @@ class DruidBeam[A](
   private[druid] val tasks: Seq[TaskPointer],
   location: DruidLocation,
   config: DruidBeamConfig,
-  finagleRegistry: FinagleRegistry,
+  taskLocator: TaskLocator,
   indexService: IndexService,
   emitter: ServiceEmitter,
   objectWriter: ObjectWriter[A]
@@ -50,11 +50,10 @@ class DruidBeam[A](
   private[this] val clients = Map(
     tasks map {
       task =>
-        val service = location.environment.firehoseServicePattern format task.serviceKey
         task ->
           new TaskClient(
             task,
-            finagleRegistry.checkout(service),
+            taskLocator.connect(task),
             location.dataSource,
             config.firehoseQuietPeriod,
             config.firehoseRetryPeriod,

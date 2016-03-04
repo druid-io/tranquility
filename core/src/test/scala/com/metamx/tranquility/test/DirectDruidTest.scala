@@ -30,12 +30,14 @@ import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.tranquility.beam.ClusteredBeamTuning
 import com.metamx.tranquility.beam.RoundRobinBeam
 import com.metamx.tranquility.config.TranquilityConfig
+import com.metamx.tranquility.druid.DruidBeamConfig
 import com.metamx.tranquility.druid.DruidBeams
 import com.metamx.tranquility.druid.DruidEnvironment
 import com.metamx.tranquility.druid.DruidLocation
 import com.metamx.tranquility.druid.DruidRollup
 import com.metamx.tranquility.druid.MultipleFieldDruidSpatialDimension
 import com.metamx.tranquility.druid.SpecificDruidDimensions
+import com.metamx.tranquility.druid.TaskLocator
 import com.metamx.tranquility.test.DirectDruidTest._
 import com.metamx.tranquility.test.common._
 import com.metamx.tranquility.tranquilizer.MessageDroppedException
@@ -202,6 +204,38 @@ class DirectDruidTest
         val indexing = DruidBeams
           .fromConfig(config.getDataSource("xxx"), implicitly[Timestamper[SimpleEvent]], new DefaultJsonWriter)
           .beamMergeFn(beams => new RoundRobinBeam(beams.toIndexedSeq))
+          .buildTranquilizer()
+        indexing.start()
+        try {
+          timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
+          val eventsSent = Future.collect(
+            generateEvents(timekeeper.now) map { event =>
+              indexing.send(event) transform {
+                case Return(()) => Future.value(true)
+                case Throw(e: MessageDroppedException) => Future.value(false)
+                case Throw(e) => Future.exception(e)
+              }
+            }
+          )
+          assert(Await.result(eventsSent) === Seq(true, false, true))
+          runTestQueriesAndAssertions(broker, timekeeper)
+        }
+        catch {
+          case NonFatal(e) =>
+            throw new ISE(e, "Failed test")
+        }
+        finally {
+          indexing.stop()
+        }
+    }
+  }
+
+  ignore("Druid standalone - overlord based task discovery") {
+    withDruidStack {
+      (curator, broker, coordinator, overlord) =>
+        val timekeeper = new TestingTimekeeper
+        val indexing = newBuilder(curator, timekeeper)
+          .druidBeamConfig(DruidBeamConfig(taskLocator = TaskLocator.Overlord))
           .buildTranquilizer()
         indexing.start()
         try {

@@ -38,6 +38,7 @@ import com.metamx.tranquility.beam.TransformingBeam
 import com.metamx.tranquility.config.DataSourceConfig
 import com.metamx.tranquility.config.PropertiesBasedConfig
 import com.metamx.tranquility.finagle.BeamService
+import com.metamx.tranquility.finagle.DruidTaskResolver
 import com.metamx.tranquility.finagle.FinagleRegistry
 import com.metamx.tranquility.finagle.FinagleRegistryConfig
 import com.metamx.tranquility.partition.GenericTimeAndDimsPartitioner
@@ -473,8 +474,8 @@ object DruidBeams
     def emitter(emitter: ServiceEmitter) = new Builder[InputType, EventType](config.copy(_emitter = Some(emitter)))
 
     /**
-      * Provide a FinagleRegistry that will be used to generate clients for your Overlord and Druid tasks. Optional,
-      * by default this is built based on [[Builder.curator]] and [[Builder.discoveryPath]].
+      * Provide a FinagleRegistry that will be used to generate clients for your Overlord. Optional, by default this
+      * is built based on [[Builder.curator]] and [[Builder.discoveryPath]].
       *
       * @param registry a registry
       * @return new builder
@@ -593,11 +594,10 @@ object DruidBeams
       */
     def buildBeam(): Beam[InputType] = {
       val things = config.buildAll()
-      implicit val eventTimestamped = things.timestamper
-      val indexService = new IndexService(
-        things.location.environment,
-        things.druidBeamConfig,
-        things.finagleRegistry
+      things.overlordLocator.maybeAddResolvers(() => things.disco)
+      things.taskLocator.maybeAddResolvers(
+        () => things.disco,
+        () => new DruidTaskResolver(things.indexService, things.timekeeper, things.druidBeamConfig.overlordPollPeriod)
       )
       val druidBeamMaker = new DruidBeamMaker[EventType](
         things.druidBeamConfig,
@@ -606,8 +606,8 @@ object DruidBeams
         things.druidTuningMap,
         things.rollup,
         things.timestampSpec,
-        things.finagleRegistry,
-        indexService,
+        things.taskLocator,
+        things.indexService,
         things.emitter,
         things.objectWriter,
         things.druidObjectMapper
@@ -624,7 +624,7 @@ object DruidBeams
         things.beamDecorateFn,
         things.beamMergeFn,
         things.alertMap
-      )
+      )(things.timestamper)
       if (things.curatorOwned) {
         things.curator.start()
       }
@@ -634,7 +634,7 @@ object DruidBeams
           override def sendBatch(events: Seq[EventType]) = clusteredBeam.sendBatch(events)
 
           override def close() = clusteredBeam.close()
-            .flatMap(_ => indexService.close())
+            .flatMap(_ => things.indexService.close())
             .map {
               _ => if (things.curatorOwned) {
                 things.curator.close()
@@ -744,7 +744,7 @@ object DruidBeams
       }
       val clusteredBeamZkBasePath = _clusteredBeamZkBasePath getOrElse "/tranquility/beams"
       val clusteredBeamIdent      = _clusteredBeamIdent getOrElse {
-        "%s/%s" format(location.environment.indexService, location.dataSource)
+        "%s/%s" format(location.environment.indexServiceKey, location.dataSource)
       }
       val druidBeamConfig         = _druidBeamConfig getOrElse DruidBeamConfig()
       val emitter                 = _emitter getOrElse {
@@ -756,20 +756,35 @@ object DruidBeams
         em.start()
         em
       }
-      val finagleRegistry         = _finagleRegistry getOrElse {
-        val discoveryPath = _discoveryPath getOrElse "/druid/discovery"
-        val disco = new Disco(
-          curator,
-          new DiscoConfig
-          {
-            def discoAnnounce = None
-
-            def discoPath = discoveryPath
-          }
-        )
-        new FinagleRegistry(FinagleRegistryConfig(), disco)
-      }
       val timekeeper              = _timekeeper getOrElse new SystemTimekeeper
+      val discoveryPath           = _discoveryPath getOrElse "/druid/discovery"
+      val disco                   = new Disco(
+        curator,
+        new DiscoConfig
+        {
+          def discoAnnounce = None
+
+          def discoPath = discoveryPath
+        }
+      )
+      val finagleRegistry         = _finagleRegistry getOrElse {
+        new FinagleRegistry(FinagleRegistryConfig(), Nil)
+      }
+      val overlordLocator         = OverlordLocator.create(
+        druidBeamConfig.overlordLocator,
+        finagleRegistry,
+        location.environment
+      )
+      val indexService            = new IndexService(
+        location.environment,
+        druidBeamConfig,
+        overlordLocator
+      )
+      val taskLocator             = TaskLocator.create(
+        druidBeamConfig.taskLocator,
+        finagleRegistry,
+        location.environment
+      )
       val beamDecorateFn          = _beamDecorateFn getOrElse {
         (interval: Interval, partition: Int) => (beam: Beam[EventType]) => beam
       }
