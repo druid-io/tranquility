@@ -32,7 +32,6 @@ import java.util.concurrent.TimeUnit
 import org.apache.curator.framework.CuratorFrameworkFactory
 import org.apache.curator.retry.BoundedExponentialBackoffRetry
 import org.apache.flink.api.scala._
-import org.apache.flink.runtime.StreamingMode
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.test.util.ForkableFlinkMiniCluster
 import org.apache.flink.test.util.TestBaseUtils
@@ -54,7 +53,6 @@ with Logging with BeforeAndAfter
     val cl = TestBaseUtils.startCluster(
       1,
       parallelism,
-      StreamingMode.STREAMING,
       false,
       false,
       true
