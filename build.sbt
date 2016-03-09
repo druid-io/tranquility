@@ -16,7 +16,7 @@ val jacksonTwoVersion = "2.4.6"
 val jacksonTwoModuleScalaVersion = "2.4.5"
 val druidVersion = "0.8.2"
 val guiceVersion = "4.0"
-val flinkVersion = "0.10.1"
+val flinkVersion = "1.0.0"
 val finagleVersion = "6.31.0"
 val twitterUtilVersion = "6.30.0"
 val samzaVersion = "0.8.0"
@@ -79,11 +79,9 @@ val loggingDependencies = Seq(
   "org.slf4j" % "jul-to-slf4j" % "1.7.12"
 )
 
-// Flink 2.10 dependency names do not contain the scala version suffix. 2.11 dependencies do.
 def flinkDependencies(scalaVersion: String) = {
-  val suffix = if (scalaVersion.startsWith("2.11")) "_2.11" else ""
   Seq(
-    "org.apache.flink" % s"flink-streaming-scala$suffix" % flinkVersion % "optional"
+    "org.apache.flink" %% "flink-streaming-scala" % flinkVersion % "optional"
     exclude("log4j", "log4j")
     exclude("org.slf4j", "slf4j-log4j12")
     force()
@@ -140,10 +138,9 @@ val coreTestDependencies = Seq(
 ) ++ loggingDependencies.map(_ % "test")
 
 def flinkTestDependencies(scalaVersion: String) = {
-  val suffix = if (scalaVersion.startsWith("2.11")) "_2.11" else ""
-  Seq("org.apache.flink" % s"flink-core$suffix" % flinkVersion % "test" classifier "tests",
-    "org.apache.flink" % s"flink-runtime$suffix" % flinkVersion % "test" classifier "tests",
-    "org.apache.flink" % s"flink-test-utils$suffix" % flinkVersion % "test"
+  Seq("org.apache.flink" % "flink-core" % flinkVersion % "test" classifier "tests",
+    "org.apache.flink" %% "flink-runtime" % flinkVersion % "test" classifier "tests",
+    "org.apache.flink" %% "flink-test-utils" % flinkVersion % "test"
   ).map(_ exclude("log4j", "log4j") exclude("org.slf4j", "slf4j-log4j12") force()) ++
     loggingDependencies.map(_ % "test")
 }
