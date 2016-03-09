@@ -73,6 +73,6 @@
     "druid.selectors.indexing.serviceName": "druid/overlord",
     "druid.discovery.curator.path": "/druid/discovery",
     "tranquility.maxBatchSize": "20000",
-    "tranquility.lingerMillis": "1"
+    "tranquility.lingerMillis": "900000"
   }
 }
