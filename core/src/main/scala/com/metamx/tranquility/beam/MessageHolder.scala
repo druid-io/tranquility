@@ -19,12 +19,28 @@
 
 package com.metamx.tranquility.beam
 
+import com.metamx.tranquility.partition.Partitioner
+import com.metamx.tranquility.typeclass.ObjectWriter
 import com.metamx.tranquility.typeclass.Timestamper
 import org.joda.time.DateTime
+import scala.collection.mutable
 
-class MessageHolder[A](val message: A, timestamper: Timestamper[A]) extends Equals
+class MessageHolder[A](
+  val message: A,
+  timestamper: Timestamper[A],
+  partitioner: Partitioner[A]
+) extends Equals
 {
-  lazy val timestamp = timestamper.timestamp(message)
+  lazy val timestamp: DateTime = timestamper.timestamp(message)
+
+  // numPartitions -> cached partition
+  private val cachedPartitions = mutable.HashMap[Int, Int]()
+
+  def partition(numPartitions: Int): Int = {
+    cachedPartitions.synchronized {
+      cachedPartitions.getOrElseUpdate(numPartitions, partitioner.partition(message, numPartitions))
+    }
+  }
 
   override def canEqual(other: Any): Boolean = other.isInstanceOf[MessageHolder[_]]
 
@@ -42,9 +58,38 @@ class MessageHolder[A](val message: A, timestamper: Timestamper[A]) extends Equa
 
 object MessageHolder
 {
-  implicit val timestamper = new Timestamper[MessageHolder[_]] {
-    override def timestamp(a: MessageHolder[_]): DateTime = a.timestamp
+  implicit val Timestamper: Timestamper[MessageHolder[_]] = {
+    new Timestamper[MessageHolder[_]]
+    {
+      override def timestamp(a: MessageHolder[_]): DateTime = a.timestamp
+    }
   }
 
-  def apply[A](message: A, timestamper: Timestamper[A]) = new MessageHolder(message, timestamper)
+  val Partitioner: Partitioner[MessageHolder[_]] = {
+    new Partitioner[MessageHolder[_]]
+    {
+      override def partition(a: MessageHolder[_], numPartitions: Int): Int = a.partition(numPartitions)
+    }
+  }
+
+  def wrapObjectWriter[A](underlying: ObjectWriter[A]): ObjectWriter[MessageHolder[A]] = {
+    new ObjectWriter[MessageHolder[A]]
+    {
+      override def asBytes(obj: MessageHolder[A]): Array[Byte] = {
+        underlying.asBytes(obj.message)
+      }
+
+      override def batchAsBytes(objects: TraversableOnce[MessageHolder[A]]): Array[Byte] = {
+        underlying.batchAsBytes(objects.map(_.message))
+      }
+
+      override def contentType: String = {
+        underlying.contentType
+      }
+    }
+  }
+
+  def apply[A](message: A, timestamper: Timestamper[A], partitioner: Partitioner[A]) = {
+    new MessageHolder(message, timestamper, partitioner)
+  }
 }

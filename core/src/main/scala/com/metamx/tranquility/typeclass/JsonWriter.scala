@@ -23,7 +23,7 @@ import com.metamx.common.scala.Predef._
 import java.io.ByteArrayOutputStream
 import javax.ws.rs.core.MediaType
 
-abstract class JsonWriter[A] extends ObjectWriter[A]
+abstract class JsonWriter[-A] extends ObjectWriter[A]
 {
   @transient private lazy val _jsonFactory = new JsonFactory
 

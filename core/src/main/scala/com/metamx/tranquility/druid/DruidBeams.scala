@@ -103,22 +103,25 @@ object DruidBeams
   ): Builder[ju.Map[String, AnyRef], MessageHolder[ju.Map[String, AnyRef]]] =
   {
     val epoch = new DateTime(0)
-    val inputFnFn: TimestampSpec => ju.Map[String, AnyRef] => MessageHolder[ju.Map[String, AnyRef]] = {
-      (timestampSpec: TimestampSpec) => {
+    val inputFnFn: (DruidRollup, TimestampSpec) => ju.Map[String, AnyRef] => MessageHolder[ju.Map[String, AnyRef]] = {
+      (rollup: DruidRollup, timestampSpec: TimestampSpec) => {
         val timestamper = new Timestamper[ju.Map[String, AnyRef]] {
           override def timestamp(d: ju.Map[String, AnyRef]): DateTime = {
             Option(timestampSpec.extractTimestamp(d)).getOrElse(epoch)
           }
         }
-        (d: ju.Map[String, AnyRef]) => MessageHolder[ju.Map[String, AnyRef]](d, timestamper)
+        val partitioner = GenericTimeAndDimsPartitioner.create(timestamper, timestampSpec, rollup)
+        (d: ju.Map[String, AnyRef]) => MessageHolder[ju.Map[String, AnyRef]](d, timestamper, partitioner)
       }
     }
-    val timestamperFn = (timestampSpec: TimestampSpec) => MessageHolder.timestamper
+    val timestamperFn = (timestampSpec: TimestampSpec) => MessageHolder.Timestamper
+    val innerObjectWriter: ObjectWriter[ju.Map[String, AnyRef]] = new DefaultJsonWriter(DefaultScalaObjectMapper)
     fromConfigInternal(
       inputFnFn,
       timestamperFn,
       config
-    )
+    ).partitioner(MessageHolder.Partitioner)
+      .objectWriter(MessageHolder.wrapObjectWriter(innerObjectWriter))
   }
 
   /**
@@ -139,7 +142,7 @@ object DruidBeams
   ): Builder[MessageType, MessageType] =
   {
     fromConfigInternal[MessageType, MessageType](
-      (timestampSpec: TimestampSpec) => identity,
+      (rollup: DruidRollup, timestampSpec: TimestampSpec) => identity,
       (timestampSpec: TimestampSpec) => timestamper,
       config
     ).objectWriter(objectWriter)
@@ -163,14 +166,14 @@ object DruidBeams
   ): Builder[MessageType, MessageType] =
   {
     fromConfigInternal[MessageType, MessageType](
-      (timestampSpec: TimestampSpec) => identity,
+      (rollup: DruidRollup, timestampSpec: TimestampSpec) => identity,
       (timestampSpec: TimestampSpec) => timestamper,
       config
     ).objectWriter(objectWriter)
   }
 
   private def fromConfigInternal[InputType, MessageType](
-    inputFnFn: TimestampSpec => (InputType => MessageType),
+    inputFnFn: (DruidRollup, TimestampSpec) => (InputType => MessageType),
     timestamperFn: TimestampSpec => Timestamper[MessageType],
     config: DataSourceConfig[_ <: PropertiesBasedConfig]
   ): Builder[InputType, MessageType] =
@@ -200,7 +203,28 @@ object DruidBeams
           case xs => MultipleFieldDruidSpatialDimension(spatial.getDimName, xs.asScala)
         }
     }
-    builder(inputFnFn(timestampSpec), timestamperFn(timestampSpec))
+    val rollup = DruidRollup(
+      dimensions = parseSpec.getDimensionsSpec.getDimensions match {
+        case null =>
+          SchemalessDruidDimensions(
+            j2sSet(parseSpec.getDimensionsSpec.getDimensionExclusions),
+            spatialDimensions
+          )
+        case xs if xs.isEmpty =>
+          SchemalessDruidDimensions(
+            j2sSet(parseSpec.getDimensionsSpec.getDimensionExclusions),
+            spatialDimensions
+          )
+        case _ =>
+          SpecificDruidDimensions(
+            j2s(parseSpec.getDimensionsSpec.getDimensions),
+            spatialDimensions
+          )
+      },
+      aggregators = fireDepartment.getDataSchema.getAggregators,
+      indexGranularity = fireDepartment.getDataSchema.getGranularitySpec.getQueryGranularity
+    )
+    builder(inputFnFn(rollup, timestampSpec), timestamperFn(timestampSpec))
       .curatorFactory(
         CuratorFrameworkFactory.builder()
           .connectString(config.propertiesBasedConfig.zookeeperConnect)
@@ -208,29 +232,7 @@ object DruidBeams
           .retryPolicy(new ExponentialBackoffRetry(1000, 20, 30000))
       )
       .location(DruidLocation(environment, fireDepartment.getDataSchema.getDataSource))
-      .rollup(
-        DruidRollup(
-          dimensions = parseSpec.getDimensionsSpec.getDimensions match {
-            case null =>
-              SchemalessDruidDimensions(
-                j2sSet(parseSpec.getDimensionsSpec.getDimensionExclusions),
-                spatialDimensions
-              )
-            case xs if xs.isEmpty =>
-              SchemalessDruidDimensions(
-                j2sSet(parseSpec.getDimensionsSpec.getDimensionExclusions),
-                spatialDimensions
-              )
-            case _ =>
-              SpecificDruidDimensions(
-                j2s(parseSpec.getDimensionsSpec.getDimensions),
-                spatialDimensions
-              )
-          },
-          aggregators = fireDepartment.getDataSchema.getAggregators,
-          indexGranularity = fireDepartment.getDataSchema.getGranularitySpec.getQueryGranularity
-        )
-      )
+      .rollup(rollup)
       .timestampSpec(timestampSpec)
       .tuning(
         ClusteredBeamTuning(

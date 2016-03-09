@@ -192,7 +192,7 @@ class DirectDruidTest
     }
   }
 
-  test("Druid standalone - From config file") {
+  test("Druid standalone - From config file - Custom type") {
     withDruidStack {
       (curator, broker, coordinator, overlord) =>
         val timekeeper = new TestingTimekeeper
@@ -203,8 +203,7 @@ class DirectDruidTest
         val config = TranquilityConfig.read(new ByteArrayInputStream(configString.getBytes(Charsets.UTF_8)))
         val indexing = DruidBeams
           .fromConfig(config.getDataSource("xxx"), implicitly[Timestamper[SimpleEvent]], new DefaultJsonWriter)
-          .beamMergeFn(beams => new RoundRobinBeam(beams.toIndexedSeq))
-          .buildTranquilizer()
+          .buildTranquilizer(config.getDataSource("xxx").tranquilizerBuilder())
         indexing.start()
         try {
           timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
@@ -243,6 +242,43 @@ class DirectDruidTest
           val eventsSent = Future.collect(
             generateEvents(timekeeper.now) map { event =>
               indexing.send(event) transform {
+                case Return(()) => Future.value(true)
+                case Throw(e: MessageDroppedException) => Future.value(false)
+                case Throw(e) => Future.exception(e)
+              }
+            }
+          )
+          assert(Await.result(eventsSent) === Seq(true, false, true))
+          runTestQueriesAndAssertions(broker, timekeeper)
+        }
+        catch {
+          case NonFatal(e) =>
+            throw new ISE(e, "Failed test")
+        }
+        finally {
+          indexing.stop()
+        }
+    }
+  }
+
+  test("Druid standalone - From config file - Java Map type") {
+    withDruidStack {
+      (curator, broker, coordinator, overlord) =>
+        val timekeeper = new TestingTimekeeper
+        val configString = new String(
+          ByteStreams.toByteArray(getClass.getClassLoader.getResourceAsStream("direct-druid-test.yaml")),
+          Charsets.UTF_8
+        ).replaceAll("@ZKPLACEHOLDER@", curator.getZookeeperClient.getCurrentConnectionString)
+        val config = TranquilityConfig.read(new ByteArrayInputStream(configString.getBytes(Charsets.UTF_8)))
+        val indexing = DruidBeams
+          .fromConfig(config.getDataSource("xxx"))
+          .buildTranquilizer(config.getDataSource("xxx").tranquilizerBuilder())
+        indexing.start()
+        try {
+          timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
+          val eventsSent = Future.collect(
+            generateEvents(timekeeper.now) map { event =>
+              indexing.send(event.toMap.asJava.asInstanceOf[java.util.Map[String, AnyRef]]) transform {
                 case Return(()) => Future.value(true)
                 case Throw(e: MessageDroppedException) => Future.value(false)
                 case Throw(e) => Future.exception(e)
