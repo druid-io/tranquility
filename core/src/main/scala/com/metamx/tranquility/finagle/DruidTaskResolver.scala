@@ -82,7 +82,7 @@ class DruidTaskResolver(
 
                 val running = Await.result(indexService.runningTasks())
 
-                log.info(s"Polled[$indexServiceKey] and found ${running.size} tasks " +
+                log.debug(s"Polled[$indexServiceKey] and found ${running.size} tasks " +
                   s"(${running.count(_._2.isBound)} bound).")
 
                 for ((taskNumber, (taskId, addr, updatable)) <- tasksSnapshot) {
