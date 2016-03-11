@@ -32,6 +32,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -55,13 +56,19 @@ public class WriterController
   public WriterController(Map<String, DataSourceConfig<PropertiesBasedKafkaConfig>> dataSourceConfigs)
   {
     this.dataSourceConfigList = new ArrayList<>(dataSourceConfigs.values());
-    this.dataSourceConfigList.sort(
+    Collections.sort(
+        dataSourceConfigList,
         new Comparator<DataSourceConfig<PropertiesBasedKafkaConfig>>()
         {
           @Override
-          public int compare(DataSourceConfig<PropertiesBasedKafkaConfig> o1, DataSourceConfig<PropertiesBasedKafkaConfig> o2)
+          public int compare(
+              DataSourceConfig<PropertiesBasedKafkaConfig> o1,
+              DataSourceConfig<PropertiesBasedKafkaConfig> o2
+          )
           {
-            return o2.propertiesBasedConfig().getTopicPatternPriority().compareTo(o1.propertiesBasedConfig().getTopicPatternPriority());
+            return o2.propertiesBasedConfig()
+                     .getTopicPatternPriority()
+                     .compareTo(o1.propertiesBasedConfig().getTopicPatternPriority());
           }
         }
     );
@@ -121,7 +128,10 @@ public class WriterController
     }
   }
 
-  protected TranquilityEventWriter createWriter(String topic, DataSourceConfig<PropertiesBasedKafkaConfig> dataSourceConfig)
+  protected TranquilityEventWriter createWriter(
+      String topic,
+      DataSourceConfig<PropertiesBasedKafkaConfig> dataSourceConfig
+  )
   {
     final String curatorKey = dataSourceConfig.propertiesBasedConfig().zookeeperConnect();
     if (!curators.containsKey(curatorKey)) {
