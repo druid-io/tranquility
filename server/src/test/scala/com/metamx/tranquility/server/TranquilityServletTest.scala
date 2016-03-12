@@ -215,7 +215,7 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
     )
   }
 
-  test("/v1/post-async, json array") {
+  test("/v1/post?async=true, json array") {
     val events = withBeams { beams =>
       withTester(beams) { tester =>
         val body = Jackson.bytes(
@@ -228,7 +228,7 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
           )
         )
 
-        tester.post("/v1/post-async", body, MyHeaders) {
+        tester.post("/v1/post?async=true", body, MyHeaders) {
           tester.status should be(200)
           tester.header("Content-Type") should startWith("application/json;")
           val response = Jackson.parse[Dict](tester.bodyBytes)
@@ -258,7 +258,7 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
     )
   }
 
-  test("/v1/post-async/dataSource, json array") {
+  test("/v1/post/dataSource?async=true, json array") {
     val events = withBeams { beams =>
       withTester(beams) { tester =>
         val body = Jackson.bytes(
@@ -271,7 +271,7 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
           )
         )
 
-        tester.post("/v1/post-async/foo", body, MyHeaders) {
+        tester.post("/v1/post/foo?async=true", body, MyHeaders) {
           tester.status should be(200)
           tester.header("Content-Type") should startWith("application/json;")
           val response = Jackson.parse[Dict](tester.bodyBytes)

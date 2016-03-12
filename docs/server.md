@@ -35,30 +35,17 @@ This API is synchronous and will block until your messages are either sent to Dr
 
 If there is an error sending the data, you will get an HTTP error code (4xx or 5xx).
 
-### Asynchronous HTTP API
+### Asynchronous option
 
-Tranquility Server also offers an asynchronous API. The form of the request should be the same as the synchronous API,
-but you should use the URLs `/v1/post-async` or `/v1/post-async/DATASOURCE`.
+Tranquility Server also offers an asynchronous option. Just add "?async=true" to the URL. Note that "sent" in the
+response will always be 0 when using the asynchronous option.
 
-The response will be:
+If the server's outgoing message queue fills up, your asynchronous requests will either block or fail. To control this
+behavior, set the `tranquility.blockOnFull` property to either true or false. If you set this to "false" and your
+server's outgoing queue is full, you will get an HTTP 503.
 
-```json
-{
-  "result": {
-    "received": 10,
-    "sent": 0
-  }
-}
-```
-
-Note that "sent" will always be 0 when using the asynchronous API.
-
-If the server's outgoing message queue fills up, your requests will either block or fail. To control this behavior,
-set the `tranquility.blockOnFull` property to either true or false. If you set this to "false" and your server's
-outgoing queue is full, you will get an HTTP 503.
-
-With either the synchronous or asynchronous APIs, you can adjust the size of your Tranquility Server's message queues
-through the properties `tranquility.maxBatchSize` and `tranquility.maxPendingBatches`.
+With both the synchronous and asynchronous modes, you can adjust the size of your Server's message queues through
+the properties `tranquility.maxBatchSize` and `tranquility.maxPendingBatches`.
 
 ## Setup
 

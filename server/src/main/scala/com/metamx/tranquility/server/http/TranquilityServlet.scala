@@ -74,19 +74,13 @@ class TranquilityServlet(
   }
 
   post("/v1/post") {
-    doV1Post(None, false)
+    val async = yesNo("async", false)
+    doV1Post(None, async)
   }
 
   post("/v1/post/:dataSource") {
-    doV1Post(Some(params("dataSource")), false)
-  }
-
-  post("/v1/post-async") {
-    doV1Post(None, true)
-  }
-
-  post("/v1/post-async/:dataSource") {
-    doV1Post(Some(params("dataSource")), true)
+    val async = yesNo("async", false)
+    doV1Post(Some(params("dataSource")), async)
   }
 
   notFound {
@@ -179,6 +173,17 @@ class TranquilityServlet(
     }
 
     (received.get(), if (async) 0L else sent.get())
+  }
+
+  private def yesNo(k: String, defaultValue: Boolean): Boolean = {
+    request.parameters.get(k) map { s =>
+      s.toLowerCase() match {
+        case "true" | "1" | "yes" => true
+        case "false" | "0" | "no" | "" => false
+        case _ =>
+          throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Expected true or false")
+      }
+    } getOrElse defaultValue
   }
 
 }
