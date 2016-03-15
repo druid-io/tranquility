@@ -13,3 +13,4 @@ dist/
 */conf
 */log
 */derby.log
+*/var/druid/metadata.db/*
