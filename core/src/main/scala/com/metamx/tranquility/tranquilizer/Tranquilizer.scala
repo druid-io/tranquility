@@ -57,7 +57,6 @@ class Tranquilizer[MessageType] private(
 {
   require(maxBatchSize >= 1, "batchSize >= 1")
   require(maxPendingBatches >= 1, "maxPendingBatches >= 1")
-  require(lingerMillis >= 0, "lingerMillis >= 0")
 
   @volatile private var started: Boolean = false
 
@@ -95,9 +94,11 @@ class Tranquilizer[MessageType] private(
           while (
             buffer.isEmpty ||
               pendingBatches.size >= maxPendingBatches ||
-              (!flushing && lingerMillis > 0 && System.currentTimeMillis() < bufferStartMillis + lingerMillis)
+              (!flushing &&
+                ((lingerMillis < 0 && buffer.size < maxBatchSize) // wait for full batches
+                  || (lingerMillis > 0 && System.currentTimeMillis() < bufferStartMillis + lingerMillis)))
           ) {
-            if (lingerMillis == 0 || bufferStartMillis == 0) {
+            if (lingerMillis <= 0 || bufferStartMillis == 0) {
               lock.wait()
             } else {
               lock.wait(math.max(1, bufferStartMillis + lingerMillis - System.currentTimeMillis()))
