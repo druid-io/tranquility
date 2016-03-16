@@ -75,7 +75,7 @@ abstract class PropertiesBasedConfig(
   def tranquilityLingerMillis: Long = Tranquilizer.DefaultLingerMillis
 
   @Config(Array("druid.discovery.curator.path"))
-  def discoPath: String = "/druid/discovery"
+  override def discoPath: String = "/druid/discovery"
 
   @Config(Array("druidBeam.firehoseGracePeriod"))
   def firehoseGracePeriod: Period = DruidBeamConfig().firehoseGracePeriod
