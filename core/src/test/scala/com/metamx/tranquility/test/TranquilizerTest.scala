@@ -309,7 +309,7 @@ class TranquilizerTest extends FunSuite with Matchers with Logging
 
 object TranquilizerTest
 {
-  val MomentsSoDear = Seq(525600 * 60000)
+  val MomentsSoDear = Seq(525600 * 60000, -1)
 
   def newBeams(): Seq[Beam[String]] = {
     Seq(
