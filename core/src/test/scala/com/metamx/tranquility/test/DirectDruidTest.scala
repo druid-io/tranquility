@@ -100,6 +100,7 @@ object DirectDruidTest
     val druidLocation = new DruidLocation(druidEnvironment, dataSource)
     DruidBeams.builder[SimpleEvent]()
       .curator(curator)
+      .discoveryPath("/disco-fever")
       .location(druidLocation)
       .rollup(rollup)
       .tuning(tuning)

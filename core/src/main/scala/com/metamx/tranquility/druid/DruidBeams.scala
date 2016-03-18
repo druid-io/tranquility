@@ -231,6 +231,7 @@ object DruidBeams
           .sessionTimeoutMs(config.propertiesBasedConfig.zookeeperTimeout.standardDuration.millis.toInt)
           .retryPolicy(new ExponentialBackoffRetry(1000, 20, 30000))
       )
+      .discoveryPath(config.propertiesBasedConfig.discoPath)
       .location(DruidLocation(environment, fireDepartment.getDataSchema.getDataSource))
       .rollup(rollup)
       .timestampSpec(timestampSpec)

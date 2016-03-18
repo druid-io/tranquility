@@ -28,5 +28,6 @@ dataSources:
         buildV9Directly: true
 
 properties:
+  druid.discovery.curator.path: /disco-fever
   druid.selectors.indexing.serviceName: druid/tranquility/indexer
   zookeeper.connect: @ZKPLACEHOLDER@
