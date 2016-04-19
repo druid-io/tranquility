@@ -55,6 +55,11 @@ import scala.collection.JavaConverters._
 
 class DruidBeamTest extends FunSuite with Matchers
 {
+  test("GenerateAvailabilityGroup") {
+    val dt = new DateTime("2010-02-03T04:34:56.789", DateTimeZone.forID("America/Los_Angeles"))
+    assert(DruidBeamMaker.generateAvailabilityGroup("x", dt, 1) === "x-2010-02-03T12:34:56.789Z-0001")
+  }
+
   test("GenerateFirehoseId") {
     val dt = new DateTime("2010-02-03T12:34:56.789Z")
     assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.MINUTE, dt, 1) === "x-34-0001")

@@ -151,14 +151,15 @@ class DruidBeamMaker[A](
       beamTuning.segmentGranularity.widen(interval) == interval,
       "Interval does not match segmentGranularity[%s]: %s" format(beamTuning.segmentGranularity, interval)
     )
-    val availabilityGroup = DruidBeamMaker.generateBaseFirehoseId(
+    val baseFirehoseId = DruidBeamMaker.generateBaseFirehoseId(
       location.dataSource,
       beamTuning.segmentGranularity,
       interval.start,
       partition
     )
+    val availabilityGroup = DruidBeamMaker.generateAvailabilityGroup(location.dataSource, interval.start, partition)
     val futureTasks = for (replicant <- 0 until beamTuning.replicants) yield {
-      val firehoseId = "%s-%04d" format(availabilityGroup, replicant)
+      val firehoseId = "%s-%04d" format(baseFirehoseId, replicant)
       indexService.submit(taskBytes(interval, availabilityGroup, firehoseId, partition, replicant)) map {
         taskId =>
           TaskPointer(taskId, firehoseId)
@@ -225,7 +226,17 @@ class DruidBeamMaker[A](
 
 object DruidBeamMaker
 {
-  def generateBaseFirehoseId(dataSource: String, segmentGranularity: Granularity, ts: DateTime, partition: Int) = {
+  def generateAvailabilityGroup(dataSource: String, ts: DateTime, partition: Int): String = {
+    "%s-%s-%04d".format(dataSource, ts.withChronology(ISOChronology.getInstanceUTC), partition)
+  }
+
+  def generateBaseFirehoseId(
+    dataSource: String,
+    segmentGranularity: Granularity,
+    ts: DateTime,
+    partition: Int
+  ): String =
+  {
     // Not only is this a nasty hack, it also only works if the RT task hands things off in a timely manner. We'd rather
     // use UUIDs, but this creates a ton of clutter in service discovery.
 
