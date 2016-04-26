@@ -102,11 +102,8 @@ case class SpecificDruidDimensions(
   val dimensionsSet = dimensions.toSet
 
   @transient override lazy val specMap: ju.Map[String, AnyRef] = {
-    // Sort dimenions as a workaround for https://github.com/druid-io/druid/issues/658
-    // Should preserve the originally-provided order once this is fixed.
-    // (Indexer does not merge properly when dimensions are provided in non-lexicographic order.)
     Map[String, AnyRef](
-      "dimensions" -> dimensions.toIndexedSeq.sorted.asJava,
+      "dimensions" -> dimensions.toIndexedSeq.asJava,
       "spatialDimensions" -> spatialDimensions.map(_.schema).asJava
     ).asJava
   }

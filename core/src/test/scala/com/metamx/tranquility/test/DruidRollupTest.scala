@@ -75,14 +75,14 @@ class DruidRollupTest extends FunSuite with Matchers
     e.getMessage should be("Duplicate columns: what")
   }
 
-  test("Dimensions are sorted") {
+  test("Dimension order is preserved") {
     val rollup = DruidRollup(
       SpecificDruidDimensions(Vector("e", "f", "a", "b", "z", "t"), Vector.empty),
       Seq(new CountAggregatorFactory("hey")),
       QueryGranularity.NONE
     )
     rollup.dimensions.specMap.get("dimensions").asInstanceOf[java.util.List[String]].asScala should
-      be(Seq("a", "b", "e", "f", "t", "z"))
+      be(Seq("e", "f", "a", "b", "z", "t"))
   }
 
   test("isStringDimension: Specific") {
