@@ -204,6 +204,7 @@ class DirectDruidTest
         val config = TranquilityConfig.read(new ByteArrayInputStream(configString.getBytes(Charsets.UTF_8)))
         val indexing = DruidBeams
           .fromConfig(config.getDataSource("xxx"), implicitly[Timestamper[SimpleEvent]], new DefaultJsonWriter)
+          .timekeeper(timekeeper)
           .buildTranquilizer(config.getDataSource("xxx").tranquilizerBuilder())
         indexing.start()
         try {
@@ -236,6 +237,7 @@ class DirectDruidTest
         val timekeeper = new TestingTimekeeper
         val indexing = newBuilder(curator, timekeeper)
           .druidBeamConfig(DruidBeamConfig(taskLocator = TaskLocator.Overlord))
+          .timekeeper(timekeeper)
           .buildTranquilizer()
         indexing.start()
         try {
@@ -273,6 +275,7 @@ class DirectDruidTest
         val config = TranquilityConfig.read(new ByteArrayInputStream(configString.getBytes(Charsets.UTF_8)))
         val indexing = DruidBeams
           .fromConfig(config.getDataSource("xxx"))
+          .timekeeper(timekeeper)
           .buildTranquilizer(config.getDataSource("xxx").tranquilizerBuilder())
         indexing.start()
         try {

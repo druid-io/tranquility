@@ -34,27 +34,25 @@ class DruidGuicerTest extends FunSuite with ShouldMatchers
   test("Default ExtensionsConfig") {
     val guicer = new DruidGuicer(new Properties)
     val extensionsConfig = guicer.get[ExtensionsConfig]
-    extensionsConfig.getCoordinates.asScala should be(Nil)
-    extensionsConfig.getRemoteRepositories.asScala should be(
-      Seq(
-        "https://repo1.maven.org/maven2/",
-        "https://metamx.artifactoryonline.com/metamx/pub-libs-releases-local"
-      )
-    )
+    extensionsConfig.getLoadList should be(null)
+    extensionsConfig.getDirectory should be("extensions")
+    extensionsConfig.getHadoopDependenciesDir should be("hadoop-dependencies")
     extensionsConfig.searchCurrentClassloader should be(true)
   }
 
   test("Overridden ExtensionsConfig") {
     val guicer = new DruidGuicer(
       new Properties withEffect { props =>
-        props.setProperty("druid.extensions.coordinates", "[]")
-        props.setProperty("druid.extensions.remoteRepositories", "[\"https://foo.example.com/\"]")
+        props.setProperty("druid.extensions.loadList", "[]")
+        props.setProperty("druid.extensions.directory", "/opt/druid/ext")
+        props.setProperty("druid.extensions.hadoopDependenciesDir", "/opt/druid/hadoop")
         props.setProperty("druid.extensions.searchCurrentClassloader", "false")
       }
     )
     val extensionsConfig = guicer.get[ExtensionsConfig]
-    extensionsConfig.getCoordinates.asScala should be(Nil)
-    extensionsConfig.getRemoteRepositories.asScala should be(Seq("https://foo.example.com/"))
+    extensionsConfig.getLoadList.asScala should be(Nil)
+    extensionsConfig.getDirectory should be("/opt/druid/ext")
+    extensionsConfig.getHadoopDependenciesDir should be("/opt/druid/hadoop")
     extensionsConfig.searchCurrentClassloader should be(false)
   }
 

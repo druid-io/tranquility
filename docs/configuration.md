@@ -110,5 +110,17 @@ for any custom object type by providing your own Timestamper and ObjectWriter. S
 
 If your Druid ingestion spec requires extensions to read (perhaps you're using an aggregator that is only available in
 an extension, such as `approxHistogramFold`) then you can load them by specifying JVM properties on the command line.
-For example, add `-Ddruid.extensions.coordinates='["io.druid.extensions:druid-histogram:0.8.2"]'` to load the
-approximate histogram extension. The version should match the version of Druid that Tranquility is built with.
+The following properties are respected:
+
+|Property|Description|Default|
+|--------|-----------|-------|
+|`druid.extensions.directory`|The root extension directory where user can put extensions related files. Druid will load extensions stored under this directory.|`extensions` (This is a relative path to Druid's working directory)|
+|`druid.extensions.hadoopDependenciesDir`|The root hadoop dependencies directory where user can put hadoop related dependencies files. Druid will load the dependencies based on the hadoop coordinate specified in the hadoop index task.|`hadoop-dependencies` (This is a relative path to Druid's working directory|
+|`druid.extensions.loadList`|A JSON array of extensions to load from extension directories by Druid. If it is not specified, its value will be `null` and Druid will load all the extensions under `druid.extensions.directory`. If its value is empty list `[]`, then no extensions will be loaded at all.|null|
+|`druid.extensions.searchCurrentClassloader`|This is a boolean flag that determines if Druid will search the main classloader for extensions.  It defaults to true but can be turned off if you have reason to not automatically add all modules on the classpath.|true|
+
+For example, to load the approximate histogram extension from the `/opt/druid/extensions` directory, provide:
+
+```
+-Ddruid.extensions.loadList='["druid-histogram"]' -Ddruid.extensions.directory=/opt/druid/extensions
+```

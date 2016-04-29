@@ -46,6 +46,7 @@ import io.druid.query.aggregation.LongSumAggregatorFactory
 import io.druid.segment.realtime.firehose.ChatHandlerProvider
 import io.druid.segment.realtime.firehose.ClippedFirehoseFactory
 import io.druid.segment.realtime.firehose.NoopChatHandlerProvider
+import io.druid.server.metrics.EventReceiverFirehoseRegister
 import io.druid.timeline.partition.LinearShardSpec
 import org.joda.time.chrono.ISOChronology
 import org.scala_tools.time.Imports._
@@ -132,6 +133,8 @@ class DruidBeamTest extends FunSuite with Matchers
           valueId match {
             case k: Key[_] if k.getTypeLiteral.getRawType == classOf[ChatHandlerProvider] => new NoopChatHandlerProvider
             case k: Key[_] if k.getTypeLiteral.getRawType == classOf[ObjectMapper] => DruidGuicer.Default.objectMapper
+            case k: Key[_] if k.getTypeLiteral.getRawType == classOf[EventReceiverFirehoseRegister] =>
+              new EventReceiverFirehoseRegister
           }
         }
       }
