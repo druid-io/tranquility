@@ -20,7 +20,9 @@
 package com.metamx.tranquility.spark
 
 import com.metamx.common.scala.Logging
+import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.tranquilizer.MessageDroppedException
+import com.metamx.tranquility.tranquilizer.Tranquilizer
 import com.twitter.util.Return
 import com.twitter.util.Throw
 import java.util.concurrent.atomic.AtomicLong
@@ -39,7 +41,8 @@ class BeamRDD[T: ClassTag](rdd: RDD[T]) extends Logging with Serializable
   def propagate(beamFactory: BeamFactory[T]) = {
     rdd.foreachPartition {
       partitionOfRecords => {
-        val sender = beamFactory.tranquilizer
+        val beam = beamFactory.makeBeam
+        val sender = BeamRDD.tranquilizer(beam)
         val received = new AtomicLong
         val sent = new AtomicLong
         val exception = new AtomicReference[Throwable]
@@ -61,4 +64,21 @@ class BeamRDD[T: ClassTag](rdd: RDD[T]) extends Logging with Serializable
 object BeamRDD extends Serializable
 {
   implicit def createBeamRDD[T: ClassTag](rdd: RDD[T]): BeamRDD[T] = new BeamRDD(rdd)
+
+  // We want a single Tranquilizer per Beam, this is the only way that comes to mind of making that happen...
+  private val tranquilizers: java.util.IdentityHashMap[Beam[_], Tranquilizer[_]] = new java.util.IdentityHashMap
+
+  private def tranquilizer[A](beam: Beam[A]): Tranquilizer[A] = {
+    tranquilizers.synchronized {
+      tranquilizers.get(beam) match {
+        case null =>
+          val t = Tranquilizer.create(beam)
+          tranquilizers.put(beam, t)
+          t.start()
+          t
+
+        case t => t.asInstanceOf[Tranquilizer[A]]
+      }
+    }
+  }
 }
