@@ -36,6 +36,12 @@ case class SimpleEvent(ts: DateTime, foo: String, bar: Int, lat: Double, lon: Do
     "lon" -> lon
   )
 
+  def toNestedMap: Map[String, Any] = Map(
+    TimeColumn -> (ts.millis / 1000),
+    "data" -> Map("foo" -> foo, "bar" -> bar),
+    "geo" -> Map("lat" -> lat, "lon" -> lon)
+  )
+
   def toCsv: String = Seq(ts.millis / 1000, foo, bar, lat, lon).mkString(",")
 }
 

@@ -19,6 +19,11 @@
 
 package com.metamx.tranquility.test
 
+import _root_.io.druid.data.input.impl.TimestampSpec
+import _root_.io.druid.granularity.QueryGranularity
+import _root_.io.druid.query.aggregation.LongSumAggregatorFactory
+import _root_.scala.collection.JavaConverters._
+import _root_.scala.reflect.runtime.universe.typeTag
 import com.google.common.base.Charsets
 import com.google.common.io.ByteStreams
 import com.metamx.common.Granularity
@@ -53,9 +58,6 @@ import com.twitter.util.Future
 import com.twitter.util.NonFatal
 import com.twitter.util.Return
 import com.twitter.util.Throw
-import io.druid.data.input.impl.TimestampSpec
-import io.druid.granularity.QueryGranularity
-import io.druid.query.aggregation.LongSumAggregatorFactory
 import java.io.ByteArrayInputStream
 import java.nio.ByteBuffer
 import java.{util => ju}
@@ -64,8 +66,6 @@ import org.apache.curator.framework.CuratorFramework
 import org.joda.time.DateTime
 import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
-import scala.collection.JavaConverters._
-import scala.reflect.runtime.universe.typeTag
 
 object DirectDruidTest
 {
@@ -114,9 +114,13 @@ object DirectDruidTest
       .beamMergeFn(beams => new RoundRobinBeam(beams.toIndexedSeq))
   }
 
-  def readDataSourceConfig(zkConnect: String): DataSourceConfig[PropertiesBasedConfig] = {
+  def readDataSourceConfig(
+    zkConnect: String,
+    rsrc: String = "direct-druid-test.yaml"
+  ): DataSourceConfig[PropertiesBasedConfig] =
+  {
     val configString = new String(
-      ByteStreams.toByteArray(getClass.getClassLoader.getResourceAsStream("direct-druid-test.yaml")),
+      ByteStreams.toByteArray(getClass.getClassLoader.getResourceAsStream(rsrc)),
       Charsets.UTF_8
     ).replaceAll("@ZKPLACEHOLDER@", zkConnect)
     val config = TranquilityConfig.read(new ByteArrayInputStream(configString.getBytes(Charsets.UTF_8)))
@@ -443,4 +447,39 @@ class DirectDruidTest
     }
   }
 
+  test("Druid standalone - From config file - Array[Byte] type (JSON with flattenSpec)") {
+    withDruidStack {
+      (curator, broker, coordinator, overlord) =>
+        val timekeeper = new TestingTimekeeper
+        val config = readDataSourceConfig(
+          curator.getZookeeperClient.getCurrentConnectionString,
+          "direct-druid-test-flattenSpec.yaml"
+        )
+        val indexing = DruidBeams
+          .fromConfig(config, typeTag[Array[Byte]])
+          .buildTranquilizer(config.tranquilizerBuilder())
+        indexing.start()
+        try {
+          timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
+          val eventsSent = Future.collect(
+            generateEvents(timekeeper.now).map(_.toNestedMap) map { m =>
+              indexing.send(Jackson.bytes(m)) transform {
+                case Return(()) => Future.value(1)
+                case Throw(e: MessageDroppedException) => Future.value(2)
+                case Throw(e) => Future.exception(e)
+              }
+            }
+          )
+          assert(Await.result(eventsSent) === Seq(1, 2, 1))
+          runTestQueriesAndAssertions(broker, timekeeper)
+        }
+        catch {
+          case NonFatal(e) =>
+            throw new ISE(e, "Failed test")
+        }
+        finally {
+          indexing.stop()
+        }
+    }
+  }
 }
