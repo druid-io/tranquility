@@ -16,17 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package com.metamx.tranquility.beam
 
-import com.twitter.util.Future
+package com.metamx.tranquility.server.http
 
-class NoopBeam[A] extends Beam[A]
+import com.metamx.tranquility.druid.input.ThreadLocalInputRowParser
+import com.metamx.tranquility.tranquilizer.Tranquilizer
+import io.druid.data.input.InputRow
+import io.druid.data.input.impl.MapInputRowParser
+import io.druid.data.input.impl.ParseSpec
+import io.druid.data.input.impl.StringInputRowParser
+
+class DataSourceBundle(
+  val tranquilizer: Tranquilizer[InputRow],
+  val parseSpec: ParseSpec
+)
 {
-  override def sendAll(messages: Seq[A]): Seq[Future[SendResult]] = {
-    messages.map(_ => Future(SendResult.Dropped))
-  }
+  private val threadLocalStringParser = new ThreadLocalInputRowParser(() => new StringInputRowParser(parseSpec, null))
+  private val threadLocalMapParser    = new ThreadLocalInputRowParser(() => new MapInputRowParser(parseSpec))
 
-  override def close() = Future.Done
+  def stringParser: StringInputRowParser = threadLocalStringParser.get()
 
-  override def toString = "NoopBeam()"
+  def mapParser: MapInputRowParser = threadLocalMapParser.get()
 }

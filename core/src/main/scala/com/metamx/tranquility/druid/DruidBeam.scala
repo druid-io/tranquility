@@ -23,17 +23,20 @@ import com.metamx.common.scala.Predef._
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.DefunctBeamException
+import com.metamx.tranquility.beam.SendResult
 import com.metamx.tranquility.finagle._
 import com.metamx.tranquility.typeclass.ObjectWriter
 import com.twitter.io.Buf
 import com.twitter.util.Closable
 import com.twitter.util.Future
+import com.twitter.util.Promise
+import com.twitter.util.Return
+import com.twitter.util.Throw
 import com.twitter.util.Time
 import org.scala_tools.time.Imports._
-import scala.collection.immutable.BitSet
 
 /**
-  * A Beam that writes all events to a fixed set of Druid tasks.
+  * A Beam that writes all messages to a fixed set of Druid tasks.
   */
 class DruidBeam[A](
   private[druid] val interval: Interval,
@@ -63,57 +66,64 @@ class DruidBeam[A](
     }: _*
   )
 
-  override def sendBatch(events: Seq[A]): Future[BitSet] = {
-    // Chunk payloads + indexed original events
-    val eventsChunks: List[(Array[Byte], IndexedSeq[(A, Int)])] = Beam.index(events)
+  override def sendAll(messages: Seq[A]): Seq[Future[SendResult]] = {
+    val messagesWithPromises = Vector() ++ messages.map(message => (message, Promise[SendResult]()))
+
+    // Messages grouped into chunks
+    val messagesChunks: List[(Array[Byte], IndexedSeq[(A, Promise[SendResult])])] = messagesWithPromises
       .grouped(config.firehoseChunkSize)
       .map(xs => (objectWriter.batchAsBytes(xs.map(_._1)), xs))
       .toList
-    // Futures will be the number of events pushed, or an exception. Zero events pushed means we gave up on the task.
-    val taskChunkFutures: Seq[Future[(TaskPointer, BitSet)]] = for {
-      (eventsChunkBytes, eventsChunk) <- eventsChunks
-      task <- tasks
-      client <- clients.get(task) if client.active
-    } yield {
-      val eventPost = HttpPost(
-        "/druid/worker/v1/chat/%s/push-events" format
-          (location.environment.firehoseServicePattern format task.serviceKey)
-      ) withEffect {
-        req =>
-          req.headerMap("Content-Type") = objectWriter.contentType
-          req.headerMap("Content-Length") = eventsChunkBytes.length.toString
-          req.content = Buf.ByteArray.Shared(eventsChunkBytes)
-      }
-      if (log.isTraceEnabled) {
-        log.trace(
-          "Sending %,d events to task[%s], firehose[%s]: %s",
-          eventsChunk.size,
-          task.id,
-          task.serviceKey,
-          new String(eventsChunkBytes)
-        )
-      }
-      client(eventPost) map {
-        case Some(response) => task -> (BitSet.empty ++ eventsChunk.map(_._2))
-        case None => task -> BitSet.empty
-      }
-    }
-    val taskBitSetsFuture: Future[Map[TaskPointer, BitSet]] = Future.collect(taskChunkFutures) map {
-      xs =>
-        xs.groupBy(_._1).map {
-          case (task, tuples: Seq[(TaskPointer, BitSet)]) =>
-            task -> Beam.mergeBitsets(tuples.view.map(_._2))
+
+    for ((messagesChunkBytes, messagesChunk) <- messagesChunks) {
+      // Try to send to all tasks, return "sent" if any of them accepted it.
+      val taskResponses: Seq[Future[(TaskPointer, SendResult)]] = for {
+        task <- tasks
+        client <- clients.get(task) if client.active
+      } yield {
+        val messagePost = HttpPost(
+          "/druid/worker/v1/chat/%s/push-events" format
+            (location.environment.firehoseServicePattern format task.serviceKey)
+        ) withEffect {
+          req =>
+            req.headerMap("Content-Type") = objectWriter.contentType
+            req.headerMap("Content-Length") = messagesChunkBytes.length.toString
+            req.content = Buf.ByteArray.Shared(messagesChunkBytes)
         }
-    }
-    val finalFuture: Future[BitSet] = taskBitSetsFuture map {
-      taskBitSets =>
-        Beam.mergeBitsets(taskBitSets.values) withEffect { bitset =>
-          if (bitset.isEmpty) {
-            throw new DefunctBeamException("Tasks are all gone: %s" format tasks.map(_.id).mkString(", "))
-          }
+        if (log.isTraceEnabled) {
+          log.trace(
+            "Sending %,d messages to task[%s], firehose[%s]: %s",
+            messagesChunk.size,
+            task.id,
+            task.serviceKey,
+            new String(messagesChunkBytes)
+          )
         }
+        client(messagePost) map {
+          case Some(response) => task -> SendResult.Sent
+          case None => task -> SendResult.Dropped
+        }
+      }
+
+      // Get the SendResult for this chunk.
+      val chunkResult: Future[SendResult] = Future.collect(taskResponses) map { responses =>
+        responses collectFirst {
+          case (taskPointer, taskResult) if taskResult.sent => taskResult
+        } getOrElse {
+          // Nothing failed (or else Future.collect would have returned a failed future) but also nothing sent.
+          // This means all tasks must be gone.
+          throw new DefunctBeamException("Tasks are all gone: %s" format tasks.map(_.id).mkString(", "))
+        }
+      }
+
+      // Avoid become(chunkResult), for some reason it creates massive promise chains.
+      chunkResult respond {
+        case Return(result) => messagesChunk.foreach(_._2.setValue(result))
+        case Throw(e) => messagesChunk.foreach(_._2.setException(e))
+      }
     }
-    finalFuture
+
+    messagesWithPromises.map(_._2)
   }
 
   override def close(deadline: Time): Future[Unit] = {

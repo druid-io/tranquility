@@ -22,10 +22,10 @@ package com.metamx.tranquility.beam
 import com.metamx.common.scala.Logging
 import com.metamx.tranquility.partition.Partitioner
 import com.twitter.util.Future
-import scala.collection.immutable.BitSet
+import com.twitter.util.Promise
 
 /**
-  * Partitions events based on the output of a Partitioner, and propagates the partitioned events via the
+  * Partitions messages based on the output of a Partitioner, and propagates the partitioned messages via the
   * appropriate underlying beams.
   */
 class MergingPartitioningBeam[A](
@@ -33,18 +33,18 @@ class MergingPartitioningBeam[A](
   val beams: IndexedSeq[Beam[A]]
 ) extends Beam[A] with Logging
 {
-  override def sendBatch(events: Seq[A]): Future[BitSet] = {
-    val grouped: Map[Int, IndexedSeq[(A, Int)]] = Beam.index(events) groupBy { tuple =>
+  override def sendAll(messages: Seq[A]): Seq[Future[SendResult]] = {
+    val messagesWithPromises = Vector() ++ messages.map(message => (message, Promise[SendResult]()))
+    val grouped: Map[Int, IndexedSeq[(A, Promise[SendResult])]] = messagesWithPromises groupBy { tuple =>
       partitioner.partition(tuple._1, beams.size)
     }
-    val futures = grouped map {
-      case (i, group) =>
-        beams(i).sendBatch(group.map(_._1)) map { bitset =>
-          // Remap indexes
-          bitset.map(index => group(index)._2)
-        }
+    for {
+      (i, group) <- grouped
+      ((message, promise), future) <- group zip beams(i).sendAll(group.map(_._1))
+    } {
+      promise.become(future)
     }
-    Future.collect(futures.toList).map(Beam.mergeBitsets)
+    messagesWithPromises.map(_._2)
   }
 
   override def close() = {

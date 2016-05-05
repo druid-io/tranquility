@@ -20,12 +20,33 @@
 package com.metamx.tranquility.beam
 
 import com.twitter.util.Future
-import scala.collection.immutable.BitSet
+import com.twitter.util.Promise
+import com.twitter.util.Return
+import com.twitter.util.Throw
+import com.twitter.util.Try
+import scala.collection.mutable.ArrayBuffer
 
 class TransformingBeam[A, B](underlying: Beam[B], f: A => B) extends Beam[A]
 {
-  override def sendBatch(events: Seq[A]): Future[BitSet] = {
-    underlying.sendBatch(events.map(f))
+  override def sendAll(messages: Seq[A]): Seq[Future[SendResult]] = {
+    val messagesWithPromises = Vector() ++ messages.map(message => (message, Promise[SendResult]()))
+    val sendable = ArrayBuffer[(B, Promise[SendResult])]()
+
+    for ((message, promise) <- messagesWithPromises) {
+      Try(f(message)) match {
+        case Return(transformedMessage) =>
+          sendable += ((transformedMessage, promise))
+        case Throw(e) =>
+          promise.setException(e)
+      }
+    }
+
+    // Send sendable messages, and assign their promises.
+    for (((message, promise), future) <- sendable zip underlying.sendAll(sendable.map(_._1))) {
+      promise.become(future)
+    }
+
+    messagesWithPromises.map(_._2)
   }
 
   override def close(): Future[Unit] = {

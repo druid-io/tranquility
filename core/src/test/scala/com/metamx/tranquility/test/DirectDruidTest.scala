@@ -23,12 +23,15 @@ import com.google.common.base.Charsets
 import com.google.common.io.ByteStreams
 import com.metamx.common.Granularity
 import com.metamx.common.ISE
+import com.metamx.common.parsers.ParseException
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.timekeeper.TestingTimekeeper
 import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.tranquility.beam.ClusteredBeamTuning
 import com.metamx.tranquility.beam.RoundRobinBeam
+import com.metamx.tranquility.config.DataSourceConfig
+import com.metamx.tranquility.config.PropertiesBasedConfig
 import com.metamx.tranquility.config.TranquilityConfig
 import com.metamx.tranquility.druid.DruidBeamConfig
 import com.metamx.tranquility.druid.DruidBeams
@@ -54,6 +57,7 @@ import io.druid.data.input.impl.TimestampSpec
 import io.druid.granularity.QueryGranularity
 import io.druid.query.aggregation.LongSumAggregatorFactory
 import java.io.ByteArrayInputStream
+import java.nio.ByteBuffer
 import java.{util => ju}
 import javax.ws.rs.core.MediaType
 import org.apache.curator.framework.CuratorFramework
@@ -61,6 +65,7 @@ import org.joda.time.DateTime
 import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
 import scala.collection.JavaConverters._
+import scala.reflect.runtime.universe.typeTag
 
 object DirectDruidTest
 {
@@ -72,13 +77,13 @@ object DirectDruidTest
     // against unmodified Druid indexing, and it will use real wall clock time to make its decisions.
     Seq(
       // This event should be sent
-      SimpleEvent(now, Map("foo" -> "hey", "bar" -> "2", "lat" -> "37.7833", "lon" -> "-122.4167")),
+      SimpleEvent(now, "hey", 2, 37.7833, -122.4167),
 
       // This event is intended to be dropped
-      SimpleEvent(now - 1.year, Map("foo" -> "hey", "bar" -> "4", "lat" -> "37.7833", "lon" -> "122.4167")),
+      SimpleEvent(now - 1.year, "hey", 4, 37.7833, -122.4167),
 
       // This event should be sent
-      SimpleEvent(now + 1.minute, Map("foo" -> "what", "bar" -> "3", "lat" -> "37.7833", "lon" -> "122.4167"))
+      SimpleEvent(now + 1.minute, "what", 3, 37.7833, 122.4167)
     )
   }
 
@@ -107,6 +112,15 @@ object DirectDruidTest
       .timekeeper(timekeeper)
       .timestampSpec(new TimestampSpec(TimeColumn, TimeFormat, null))
       .beamMergeFn(beams => new RoundRobinBeam(beams.toIndexedSeq))
+  }
+
+  def readDataSourceConfig(zkConnect: String): DataSourceConfig[PropertiesBasedConfig] = {
+    val configString = new String(
+      ByteStreams.toByteArray(getClass.getClassLoader.getResourceAsStream("direct-druid-test.yaml")),
+      Charsets.UTF_8
+    ).replaceAll("@ZKPLACEHOLDER@", zkConnect)
+    val config = TranquilityConfig.read(new ByteArrayInputStream(configString.getBytes(Charsets.UTF_8)))
+    config.getDataSource("xxx")
   }
 }
 
@@ -197,15 +211,11 @@ class DirectDruidTest
     withDruidStack {
       (curator, broker, coordinator, overlord) =>
         val timekeeper = new TestingTimekeeper
-        val configString = new String(
-          ByteStreams.toByteArray(getClass.getClassLoader.getResourceAsStream("direct-druid-test.yaml")),
-          Charsets.UTF_8
-        ).replaceAll("@ZKPLACEHOLDER@", curator.getZookeeperClient.getCurrentConnectionString)
-        val config = TranquilityConfig.read(new ByteArrayInputStream(configString.getBytes(Charsets.UTF_8)))
+        val config = readDataSourceConfig(curator.getZookeeperClient.getCurrentConnectionString)
         val indexing = DruidBeams
-          .fromConfig(config.getDataSource("xxx"), implicitly[Timestamper[SimpleEvent]], new DefaultJsonWriter)
+          .fromConfig(config, implicitly[Timestamper[SimpleEvent]], new DefaultJsonWriter)
           .timekeeper(timekeeper)
-          .buildTranquilizer(config.getDataSource("xxx").tranquilizerBuilder())
+          .buildTranquilizer(config.tranquilizerBuilder())
         indexing.start()
         try {
           timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
@@ -268,15 +278,11 @@ class DirectDruidTest
     withDruidStack {
       (curator, broker, coordinator, overlord) =>
         val timekeeper = new TestingTimekeeper
-        val configString = new String(
-          ByteStreams.toByteArray(getClass.getClassLoader.getResourceAsStream("direct-druid-test.yaml")),
-          Charsets.UTF_8
-        ).replaceAll("@ZKPLACEHOLDER@", curator.getZookeeperClient.getCurrentConnectionString)
-        val config = TranquilityConfig.read(new ByteArrayInputStream(configString.getBytes(Charsets.UTF_8)))
+        val config = readDataSourceConfig(curator.getZookeeperClient.getCurrentConnectionString)
         val indexing = DruidBeams
-          .fromConfig(config.getDataSource("xxx"))
+          .fromConfig(config, typeTag[java.util.Map[String, AnyRef]])
           .timekeeper(timekeeper)
-          .buildTranquilizer(config.getDataSource("xxx").tranquilizerBuilder())
+          .buildTranquilizer(config.tranquilizerBuilder())
         indexing.start()
         try {
           timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
@@ -290,6 +296,141 @@ class DirectDruidTest
             }
           )
           assert(Await.result(eventsSent) === Seq(true, false, true))
+          runTestQueriesAndAssertions(broker, timekeeper)
+        }
+        catch {
+          case NonFatal(e) =>
+            throw new ISE(e, "Failed test")
+        }
+        finally {
+          indexing.stop()
+        }
+    }
+  }
+
+  test("Druid standalone - From config file - Scala Map type") {
+    withDruidStack {
+      (curator, broker, coordinator, overlord) =>
+        val timekeeper = new TestingTimekeeper
+        val config = readDataSourceConfig(curator.getZookeeperClient.getCurrentConnectionString)
+        val indexing = DruidBeams
+          .fromConfig(config, typeTag[Map[String, Any]])
+          .buildTranquilizer(config.tranquilizerBuilder())
+        indexing.start()
+        try {
+          timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
+          val eventsSent = Future.collect(
+            generateEvents(timekeeper.now) map { event =>
+              indexing.send(event.toMap) transform {
+                case Return(()) => Future.value(true)
+                case Throw(e: MessageDroppedException) => Future.value(false)
+                case Throw(e) => Future.exception(e)
+              }
+            }
+          )
+          assert(Await.result(eventsSent) === Seq(true, false, true))
+          runTestQueriesAndAssertions(broker, timekeeper)
+        }
+        catch {
+          case NonFatal(e) =>
+            throw new ISE(e, "Failed test")
+        }
+        finally {
+          indexing.stop()
+        }
+    }
+  }
+
+  test("Druid standalone - From config file - String type (CSV with ParseExceptions)") {
+    withDruidStack {
+      (curator, broker, coordinator, overlord) =>
+        val timekeeper = new TestingTimekeeper
+        val config = readDataSourceConfig(curator.getZookeeperClient.getCurrentConnectionString)
+        val indexing = DruidBeams
+          .fromConfig(config, typeTag[String])
+          .buildTranquilizer(config.tranquilizerBuilder())
+        indexing.start()
+        try {
+          timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
+          val eventsSent = Future.collect(
+            (generateEvents(timekeeper.now).map(_.toCsv) ++ Seq("invalid \"csv")) map { csv =>
+              indexing.send(csv) transform {
+                case Return(()) => Future.value(1)
+                case Throw(e: MessageDroppedException) => Future.value(2)
+                case Throw(e: ParseException) => Future.value(3)
+                case Throw(e) => Future.exception(e)
+              }
+            }
+          )
+          assert(Await.result(eventsSent) === Seq(1, 2, 1, 3))
+          runTestQueriesAndAssertions(broker, timekeeper)
+        }
+        catch {
+          case NonFatal(e) =>
+            throw new ISE(e, "Failed test")
+        }
+        finally {
+          indexing.stop()
+        }
+    }
+  }
+
+  test("Druid standalone - From config file - Array[Byte] type (CSV with ParseExceptions)") {
+    withDruidStack {
+      (curator, broker, coordinator, overlord) =>
+        val timekeeper = new TestingTimekeeper
+        val config = readDataSourceConfig(curator.getZookeeperClient.getCurrentConnectionString)
+        val indexing = DruidBeams
+          .fromConfig(config, typeTag[Array[Byte]])
+          .buildTranquilizer(config.tranquilizerBuilder())
+        indexing.start()
+        try {
+          timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
+          val eventsSent = Future.collect(
+            (generateEvents(timekeeper.now).map(_.toCsv) ++ Seq("invalid \"csv")) map { csv =>
+              indexing.send(csv.getBytes(Charsets.UTF_8)) transform {
+                case Return(()) => Future.value(1)
+                case Throw(e: MessageDroppedException) => Future.value(2)
+                case Throw(e: ParseException) => Future.value(3)
+                case Throw(e) => Future.exception(e)
+              }
+            }
+          )
+          assert(Await.result(eventsSent) === Seq(1, 2, 1, 3))
+          runTestQueriesAndAssertions(broker, timekeeper)
+        }
+        catch {
+          case NonFatal(e) =>
+            throw new ISE(e, "Failed test")
+        }
+        finally {
+          indexing.stop()
+        }
+    }
+  }
+
+  test("Druid standalone - From config file - ByteBuffer type (CSV with ParseExceptions)") {
+    withDruidStack {
+      (curator, broker, coordinator, overlord) =>
+        val timekeeper = new TestingTimekeeper
+        val config = readDataSourceConfig(curator.getZookeeperClient.getCurrentConnectionString)
+        val indexing = DruidBeams
+          .fromConfig(config, typeTag[ByteBuffer])
+          .buildTranquilizer(config.tranquilizerBuilder())
+        indexing.start()
+        try {
+          timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
+          val eventsSent = Future.collect(
+            (generateEvents(timekeeper.now).map(_.toCsv) ++ Seq("invalid \"csv")) map { csv =>
+              indexing.send(ByteBuffer.wrap(csv.getBytes(Charsets.UTF_8))) transform {
+                case Return(()) => Future.value(1)
+                case Throw(e: MessageDroppedException) => Future.value(2)
+                case Throw(e: ParseException) => Future.value(3)
+                case Throw(e) => Future.exception(e)
+              }
+            }
+          )
+          assert(Await.result(eventsSent) === Seq(1, 2, 1, 3))
           runTestQueriesAndAssertions(broker, timekeeper)
         }
         catch {

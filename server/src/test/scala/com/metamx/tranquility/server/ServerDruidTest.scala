@@ -19,6 +19,7 @@
 
 package com.metamx.tranquility.server
 
+import com.google.common.base.Charsets
 import com.metamx.common.Granularity
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Logging
@@ -30,7 +31,6 @@ import com.metamx.common.scala.untyped.long
 import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.ClusteredBeamTuning
 import com.metamx.tranquility.beam.RoundRobinBeam
-import com.metamx.tranquility.beam.TransformingBeam
 import com.metamx.tranquility.druid.DruidBeams
 import com.metamx.tranquility.druid.DruidEnvironment
 import com.metamx.tranquility.druid.DruidLocation
@@ -40,9 +40,9 @@ import com.metamx.tranquility.druid.SpecificDruidDimensions
 import com.metamx.tranquility.server.ServerDruidTest._
 import com.metamx.tranquility.server.ServerTestUtil.withTester
 import com.metamx.tranquility.test.DirectDruidTest
-import com.metamx.tranquility.test.SimpleEvent
 import com.metamx.tranquility.test.common.CuratorRequiringSuite
 import com.metamx.tranquility.test.common.DruidIntegrationSuite
+import io.druid.data.input.InputRow
 import io.druid.data.input.impl.TimestampSpec
 import io.druid.granularity.QueryGranularity
 import io.druid.query.aggregation.LongSumAggregatorFactory
@@ -51,20 +51,20 @@ import org.joda.time.DateTime
 import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
 import org.scalatest.ShouldMatchers
+import scala.reflect.runtime.universe.typeTag
 
 class ServerDruidTest
   extends FunSuite with DruidIntegrationSuite with CuratorRequiringSuite with ShouldMatchers with Logging
 {
-  test("Server to Druid") {
+  test("Server to Druid, application/json") {
     withDruidStack {
       (curator, broker, coordinator, overlord) =>
         val now = new DateTime().hourOfDay().roundFloorCopy()
         val timekeeper = new TestingTimekeeper withEffect (_.now = now)
-        val beam = new TransformingBeam[Dict, SimpleEvent](
-          DirectDruidTest.newBuilder(curator, timekeeper).buildBeam(),
-          SimpleEvent.fromMap
-        )
-        withTester(Map(DataSource -> beam)) { tester =>
+        val config = DirectDruidTest.readDataSourceConfig(curator.getZookeeperClient.getCurrentConnectionString)
+        val beam = DruidBeams.fromConfig(config, typeTag[InputRow]).buildBeam()
+        val parseSpec = DruidBeams.makeFireDepartment(config).getDataSchema.getParser.getParseSpec
+        withTester(Map(DataSource -> beam), Map(DataSource -> parseSpec)) { tester =>
           val path = s"/v1/post/$DataSource"
           val body = Jackson.bytes(DirectDruidTest.generateEvents(now))
           val headers = Map("Content-Type" -> "application/json")
@@ -85,6 +85,34 @@ class ServerDruidTest
     }
   }
 
+  test("Server to Druid, text/plain") {
+    withDruidStack {
+      (curator, broker, coordinator, overlord) =>
+        val now = new DateTime().hourOfDay().roundFloorCopy()
+        val timekeeper = new TestingTimekeeper withEffect (_.now = now)
+        val config = DirectDruidTest.readDataSourceConfig(curator.getZookeeperClient.getCurrentConnectionString)
+        val beam = DruidBeams.fromConfig(config, typeTag[InputRow]).buildBeam()
+        val parseSpec = DruidBeams.makeFireDepartment(config).getDataSchema.getParser.getParseSpec
+        withTester(Map(DataSource -> beam), Map(DataSource -> parseSpec)) { tester =>
+          val path = s"/v1/post/$DataSource"
+          val body = DirectDruidTest.generateEvents(now).map(_.toCsv).mkString("\n").getBytes(Charsets.UTF_8)
+          val headers = Map("Content-Type" -> "text/plain")
+          tester.post(path, body, headers) {
+            tester.status should be(200)
+            tester.header("Content-Type") should startWith("application/json;")
+            Jackson.parse[Dict](tester.bodyBytes) should be(
+              Dict(
+                "result" -> Dict(
+                  "received" -> 3,
+                  "sent" -> 2
+                )
+              )
+            )
+          }
+        }
+        runTestQueriesAndAssertions(broker, timekeeper)
+    }
+  }
 }
 
 object ServerDruidTest

@@ -71,4 +71,8 @@ public abstract class PropertiesBasedKafkaConfig extends PropertiesBasedConfig
   @Config("reportDropsAsExceptions")
   @Default("false")
   public abstract Boolean reportDropsAsExceptions();
+
+  @Config("reportParseExceptions")
+  @Default("false")
+  public abstract Boolean reportParseExceptions();
 }

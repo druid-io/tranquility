@@ -19,6 +19,7 @@
 
 package com.metamx.tranquility.server.http
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.smile.SmileFactory
 import com.fasterxml.jackson.jaxrs.smile.SmileMediaTypes
 import com.metamx.common.scala.Abort
@@ -29,9 +30,9 @@ import com.metamx.common.scala.untyped.Dict
 import com.metamx.tranquility.server.http.TranquilityServlet._
 import com.metamx.tranquility.tranquilizer.BufferFullException
 import com.metamx.tranquility.tranquilizer.MessageDroppedException
-import com.metamx.tranquility.tranquilizer.Tranquilizer
 import com.twitter.util.Return
 import com.twitter.util.Throw
+import io.druid.data.input.InputRow
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import javax.ws.rs.core.MediaType
@@ -41,7 +42,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 class TranquilityServlet(
-  tranquilizers: Map[String, Tranquilizer[java.util.Map[String, AnyRef]]]
+  dataSourceBundles: Map[String, DataSourceBundle]
 ) extends ScalatraServlet with Logging
 {
   get("/") {
@@ -106,45 +107,65 @@ class TranquilityServlet(
       Abort(e)
   }
 
-  private def getObjectMapper() = request.contentType match {
-    case Some(JsonContentType) => JsonObjectMapper
-    case Some(SmileContentType) => SmileObjectMapper
-    case _ =>
-      throw new HttpException(
-        HttpResponseStatus.BAD_REQUEST,
-        s"Expected contentType $JsonContentType or $SmileContentType"
-      )
-  }
-
-  private def doV1Post(dataSource: Option[String], async: Boolean): Array[Byte] = {
+  private def doV1Post(forceDataSource: Option[String], async: Boolean): Array[Byte] = {
     val objectMapper = getObjectMapper()
-    val messages = Messages.fromInputStreamV1(objectMapper, request.inputStream, dataSource)
+    val messages: Walker[(String, InputRow)] = request.contentType match {
+      case Some(JsonContentType) | Some(SmileContentType) =>
+        Messages.fromObjectStream(request.inputStream, forceDataSource, objectMapper) map {
+          case (dataSource, d) =>
+            val row = getBundle(dataSource).mapParser.parse(d.asJava.asInstanceOf[java.util.Map[String, AnyRef]])
+            (dataSource, row)
+        }
+
+      case Some(TextContentType) =>
+        val dataSource = forceDataSource getOrElse {
+          throw new HttpException(
+            HttpResponseStatus.BAD_REQUEST,
+            s"Must include dataSource in URL for contentType[$TextContentType]"
+          )
+        }
+        Messages.fromStringStream(request.inputStream, getBundle(dataSource).stringParser) map { row =>
+          (dataSource, row)
+        }
+
+      case _ =>
+        throw new HttpException(
+          HttpResponseStatus.BAD_REQUEST,
+          s"Expected contentType $JsonContentType, $SmileContentType, or $TextContentType"
+        )
+    }
     val (received, sent) = doSend(messages, async)
     val result = Dict("result" -> Dict("received" -> received, "sent" -> sent))
-    contentType = request.contentType.get
+    contentType = getOutputContentType()
     objectMapper.writeValueAsBytes(result)
   }
 
-  private def doSend(messages: Walker[(String, Dict)], async: Boolean): (Long, Long) = {
-    val senders = mutable.HashMap[String, Tranquilizer[java.util.Map[String, AnyRef]]]()
+  private def getObjectMapper(): ObjectMapper = {
+    request.contentType match {
+      case Some(SmileContentType) => SmileObjectMapper
+      case _ => JsonObjectMapper
+    }
+  }
+
+  private def getOutputContentType(): String = {
+    request.contentType match {
+      case Some(SmileContentType) => SmileContentType
+      case _ => JsonContentType
+    }
+  }
+
+  private def doSend(messages: Walker[(String, InputRow)], async: Boolean): (Long, Long) = {
+    val myBundles = mutable.HashMap[String, DataSourceBundle]()
     val received = new AtomicLong
     val sent = new AtomicLong
     val exception = new AtomicReference[Throwable]
     for ((dataSource, message) <- messages) {
-      val sender = senders.getOrElseUpdate(
-        dataSource, {
-          tranquilizers.getOrElse(
-            dataSource, {
-              throw new HttpException(HttpResponseStatus.BAD_REQUEST, s"No beam defined for dataSource '$dataSource'")
-            }
-          )
-        }
-      )
+      val bundle = myBundles.getOrElseUpdate(dataSource, getBundle(dataSource))
 
       received.incrementAndGet()
 
       val future = try {
-        sender.send(message.asJava.asInstanceOf[java.util.Map[String, AnyRef]])
+        bundle.tranquilizer.send(message)
       }
       catch {
         case e: BufferFullException =>
@@ -165,7 +186,7 @@ class TranquilityServlet(
 
     // async => ignore sent, exception; just receive things.
     if (!async) {
-      senders.values.foreach(_.flush())
+      myBundles.values.foreach(_.tranquilizer.flush())
 
       if (exception.get() != null) {
         throw exception.get()
@@ -173,6 +194,14 @@ class TranquilityServlet(
     }
 
     (received.get(), if (async) 0L else sent.get())
+  }
+
+  private def getBundle(dataSource: String): DataSourceBundle = {
+    dataSourceBundles.getOrElse(
+      dataSource, {
+        throw new HttpException(HttpResponseStatus.BAD_REQUEST, s"No definition for dataSource '$dataSource'")
+      }
+    )
   }
 
   private def yesNo(k: String, defaultValue: Boolean): Boolean = {
@@ -195,4 +224,5 @@ object TranquilityServlet
 
   val JsonContentType  = MediaType.APPLICATION_JSON
   val SmileContentType = SmileMediaTypes.APPLICATION_JACKSON_SMILE
+  val TextContentType  = MediaType.TEXT_PLAIN
 }

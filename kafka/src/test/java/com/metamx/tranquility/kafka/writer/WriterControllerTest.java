@@ -167,8 +167,8 @@ public class WriterControllerTest
 
     mock0.flush();
     mock1.flush();
-    EasyMock.expect(mock0.getMessageCounters()).andReturn(new MessageCounters(1, 2, 3));
-    EasyMock.expect(mock1.getMessageCounters()).andReturn(new MessageCounters(4, 5, 6));
+    EasyMock.expect(mock0.getMessageCounters()).andReturn(new MessageCounters(1, 2, 3, 0));
+    EasyMock.expect(mock1.getMessageCounters()).andReturn(new MessageCounters(4, 5, 6, 0));
     EasyMock.replay(mock0, mock1);
 
     Map<String, MessageCounters> results = writerController.flushAll();
@@ -176,12 +176,16 @@ public class WriterControllerTest
     EasyMock.verify(mock0, mock1);
 
     Assert.assertEquals(2, results.size());
+
     Assert.assertEquals(1, results.get("test0").getReceivedCount());
     Assert.assertEquals(2, results.get("test0").getSentCount());
-    Assert.assertEquals(3, results.get("test0").getFailedCount());
+    Assert.assertEquals(3, results.get("test0").getDroppedCount());
+    Assert.assertEquals(0, results.get("test0").getUnparseableCount());
+
     Assert.assertEquals(4, results.get("test1").getReceivedCount());
     Assert.assertEquals(5, results.get("test1").getSentCount());
-    Assert.assertEquals(6, results.get("test1").getFailedCount());
+    Assert.assertEquals(6, results.get("test1").getDroppedCount());
+    Assert.assertEquals(0, results.get("test1").getUnparseableCount());
   }
 
   @Test

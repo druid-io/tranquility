@@ -20,23 +20,23 @@ package com.metamx.tranquility.beam
 
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.untyped.Dict
-import com.metamx.tranquility.typeclass.JsonWriter
+import com.metamx.tranquility.typeclass.ObjectWriter
 import com.twitter.util.Future
-import scala.collection.immutable.BitSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 class MemoryBeam[A](
   val key: String,
-  jsonWriter: JsonWriter[A]
+  objectWriter: ObjectWriter[A]
 ) extends Beam[A]
 {
-  override def sendBatch(events: Seq[A]): Future[BitSet] = {
-    events.map(event => Jackson.parse[Dict](jsonWriter.asBytes(event))) foreach {
-      d =>
-        MemoryBeam.add(key, d)
+  override def sendAll(messages: Seq[A]): Seq[Future[SendResult]] = {
+    messages map { message =>
+      Future {
+        MemoryBeam.add(key, Jackson.parse[Dict](objectWriter.asBytes(message)))
+        SendResult.Sent
+      }
     }
-    Future.value(BitSet.empty ++ events.indices)
   }
 
   override def close() = Future.Done

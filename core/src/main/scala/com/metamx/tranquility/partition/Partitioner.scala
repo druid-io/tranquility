@@ -19,12 +19,12 @@
 
 package com.metamx.tranquility.partition
 
-import com.google.common.base.Charsets
+import com.google.common.hash.Hasher
 import com.google.common.hash.Hashing
+import java.{lang => jl}
 import java.{util => ju}
 import scala.collection.JavaConverters._
 import scala.collection.immutable.SortedMap
-import scala.collection.immutable.SortedSet
 
 /**
   * Class that knows how to partition objects of a certain type into an arbitrary number of buckets. This is
@@ -42,41 +42,75 @@ object Partitioner
     * truncated timestamp and its dimensions.
     *
     * @param truncatedTimestamp timestamp, truncated to indexGranularity
-    * @param dimensions iterable of (dim name, dim value) tuples. The dim value can be a String,
+    * @param dimensions         iterable of (dim name, dim value) tuples. The dim value can be a String,
+    *                           Number, or Iterable of anything.
     * @return
     */
   def timeAndDimsHashCode(truncatedTimestamp: Long, dimensions: Iterable[(String, Any)]): Int = {
     val hasher = Hashing.murmur3_32().newHasher()
     hasher.putLong(truncatedTimestamp)
 
-    for ((dimName, dimValue) <- SortedMap(dimensions.toSeq: _*)) {
-      val dimValueAsStrings: Set[String] = dimValue match {
-        case x: String if x.nonEmpty =>
-          Set(x)
+    val b = SortedMap.newBuilder[String, Any] ++= dimensions
+
+    for ((dimName, dimValue) <- b.result()) {
+      dimValue match {
+        case x: String =>
+          // Treat empty strings the same as nulls (ignore them).
+          if (x.nonEmpty) {
+            addString(hasher, dimName)
+            addString(hasher, x)
+          }
 
         case x: Number =>
-          Set(String.valueOf(x))
+          addString(hasher, dimName)
+          addString(hasher, String.valueOf(x))
 
-        case xs: ju.List[_] =>
-          SortedSet(xs.asScala.filterNot(s => s == null).map(String.valueOf): _*).filterNot(_.isEmpty)
+        case xs: jl.Iterable[_] =>
+          val strings = iterableToSortedStringSet(xs.asScala)
+          if (strings.nonEmpty) {
+            addString(hasher, dimName)
+            for (s <- strings if s != null && !s.isEmpty) {
+              addString(hasher, s)
+            }
+          }
 
-        case xs: Seq[_] =>
-          SortedSet(xs.filterNot(s => s == null).map(String.valueOf): _*).filterNot(_.isEmpty)
+        case xs: Iterable[_] =>
+          val strings = iterableToSortedStringSet(xs)
+          if (strings.nonEmpty) {
+            addString(hasher, dimName)
+            for (s <- strings if s != null && !s.isEmpty) {
+              addString(hasher, s)
+            }
+          }
 
         case _ =>
-          Set.empty
-      }
-
-      // This is not a one-to-one mapping, but that's okay, since we're only using it for hashing and
-      // not for an equality check. Some moderate collisions are fine.
-      if (dimValueAsStrings.nonEmpty) {
-        hasher.putBytes(dimName.getBytes(Charsets.UTF_8))
-        for (s <- dimValueAsStrings) {
-          hasher.putBytes(s.getBytes(Charsets.UTF_8))
-        }
+        // Unknown type, don't include it in the hashCode.
+        // This may hurt dispersion but won't hurt correctness.
       }
     }
 
     hasher.hash().asInt()
+  }
+
+  private def iterableToSortedStringSet(xs: Iterable[_]): collection.Set[String] = {
+    val iter = xs.iterator
+    if (iter.hasNext) {
+      val retVal = new ju.TreeSet[String]().asScala
+      for (x <- xs) {
+        if (x != null) {
+          val s = String.valueOf(x)
+          if (s.nonEmpty) {
+            retVal.add(s)
+          }
+        }
+      }
+      retVal
+    } else {
+      Set.empty
+    }
+  }
+
+  private def addString(hasher: Hasher, s: String): Unit = {
+    hasher.putInt(s.hashCode)
   }
 }

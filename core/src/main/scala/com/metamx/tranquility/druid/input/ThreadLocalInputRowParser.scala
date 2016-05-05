@@ -16,17 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package com.metamx.tranquility.beam
 
-import com.twitter.util.Future
+package com.metamx.tranquility.druid.input
 
-class NoopBeam[A] extends Beam[A]
+import io.druid.data.input.impl.InputRowParser
+
+/**
+  * InputRowParsers are not generally thread-safe.
+  */
+class ThreadLocalInputRowParser[ParserType <: InputRowParser[_]](mk: () => ParserType)
+  extends ThreadLocal[ParserType]
 {
-  override def sendAll(messages: Seq[A]): Seq[Future[SendResult]] = {
-    messages.map(_ => Future(SendResult.Dropped))
-  }
-
-  override def close() = Future.Done
-
-  override def toString = "NoopBeam()"
+  override def initialValue(): ParserType = mk()
 }

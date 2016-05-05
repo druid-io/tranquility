@@ -19,30 +19,40 @@
 
 package com.metamx.tranquility.server
 
-import com.metamx.common.scala.collection.implicits._
-import com.metamx.common.scala.untyped._
 import com.metamx.tranquility.beam.Beam
-import com.metamx.tranquility.beam.TransformingBeam
+import com.metamx.tranquility.server.http.DataSourceBundle
 import com.metamx.tranquility.server.http.TranquilityServlet
 import com.metamx.tranquility.tranquilizer.Tranquilizer
+import io.druid.data.input.InputRow
+import io.druid.data.input.impl.DimensionsSpec
+import io.druid.data.input.impl.ParseSpec
+import io.druid.data.input.impl.TimeAndDimsParseSpec
+import io.druid.data.input.impl.TimestampSpec
+import org.joda.time.DateTime
 import org.scalatra.test.ScalatraTests
-import scala.collection.JavaConverters._
 
 object ServerTestUtil
 {
-  def withTester(beams: Map[String, Beam[Dict]])(f: ScalatraTests => Unit): Unit = {
+  def withTester(
+    beams: Map[String, Beam[InputRow]],
+    parseSpecs: Map[String, ParseSpec] = Map.empty
+  )(f: ScalatraTests => Unit): Unit =
+  {
     val tester = new ScalatraTests {}
-    val tranquilizers = beams strictMapValues { beam =>
-      val t = Tranquilizer.create(
-        new TransformingBeam[java.util.Map[String, AnyRef], Dict](
-          beam,
-          _.asScala.toMap
+    val bundles = (beams.keys map { dataSource =>
+      val beam = beams(dataSource)
+      val tranquilizer: Tranquilizer[InputRow] = Tranquilizer.create(beam)
+      tranquilizer.start()
+      val parseSpec = parseSpecs.getOrElse(
+        dataSource,
+        new TimeAndDimsParseSpec(
+          new TimestampSpec("ts", "posix", new DateTime(0)),
+          new DimensionsSpec(null, null, null)
         )
       )
-      t.start()
-      t
-    }
-    val servlet = new TranquilityServlet(tranquilizers)
+      (dataSource, new DataSourceBundle(tranquilizer, parseSpec))
+    }).toMap
+    val servlet = new TranquilityServlet(bundles)
     tester.addServlet(servlet, "/*")
     tester.start()
     try {
@@ -50,8 +60,8 @@ object ServerTestUtil
     }
     finally {
       tester.stop()
-      tranquilizers.values.foreach(_.flush())
-      tranquilizers.values.foreach(_.stop())
+      bundles.values.foreach(_.tranquilizer.flush())
+      bundles.values.foreach(_.tranquilizer.stop())
     }
   }
 }

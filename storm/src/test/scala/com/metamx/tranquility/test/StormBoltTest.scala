@@ -24,6 +24,7 @@ import backtype.storm.task.IMetricsContext
 import backtype.storm.topology.TopologyBuilder
 import com.metamx.common.scala.Logging
 import com.metamx.tranquility.beam.Beam
+import com.metamx.tranquility.beam.SendResult
 import com.metamx.tranquility.storm.BeamBolt
 import com.metamx.tranquility.storm.BeamFactory
 import com.metamx.tranquility.storm.common.SimpleKryoFactory
@@ -35,15 +36,14 @@ import com.twitter.util.Future
 import java.{util => ju}
 import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
-import scala.collection.immutable.BitSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 class SimpleBeam extends Beam[SimpleEvent]
 {
-  override def sendBatch(events: Seq[SimpleEvent]): Future[BitSet] = {
-    SimpleBeam.buffer ++= events
-    Future.value(BitSet.empty ++ events.indices)
+  override def sendAll(messages: Seq[SimpleEvent]): Seq[Future[SendResult]] = {
+    SimpleBeam.buffer ++= messages
+    messages.map(_ => Future(SendResult.Sent))
   }
 
   override def close() = Future.Done
@@ -72,8 +72,8 @@ class StormBoltTest extends FunSuite with CuratorRequiringSuite with StormRequir
         withLocalStorm {
           storm =>
             val inputs = Seq(
-              new SimpleEvent(new DateTime("2010-01-01T02:03:04Z"), Map("hey" -> "what")),
-              new SimpleEvent(new DateTime("2010-01-01T02:03:05Z"), Map("foo" -> "bar"))
+              new SimpleEvent(new DateTime("2010-01-01T02:03:04Z"), "what", 1, 2, 3),
+              new SimpleEvent(new DateTime("2010-01-01T02:03:05Z"), "bar", 1, 2, 3)
             ).sortBy(_.ts.millis)
             val spout = SimpleSpout.create(inputs)
             val conf = new Config

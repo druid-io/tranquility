@@ -27,6 +27,7 @@ import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.BeamPacketizer
 import com.metamx.tranquility.beam.BeamPacketizerListener
 import com.metamx.tranquility.beam.MemoryBeam
+import com.metamx.tranquility.test.common.FailableBeam
 import com.metamx.tranquility.typeclass.JsonWriter
 import com.twitter.util.Future
 import java.util.concurrent.atomic.AtomicLong
@@ -49,18 +50,7 @@ class BeamPacketizerTest extends FunSuite with Logging
         }
       }
     )
-    val beam = new Beam[String] {
-      override def sendBatch(events: Seq[String]): Future[BitSet] = {
-        if (events.contains("__fail__")) {
-          Future.exception(new IllegalStateException("fail!"))
-        } else {
-          memoryBeam.sendBatch(events)
-        }
-      }
-
-      override def close() = memoryBeam.close()
-    }
-
+    val beam = FailableBeam.forStrings(memoryBeam)
     val acked = new AtomicLong()
     val failed = new AtomicLong()
     val listener = new BeamPacketizerListener[String] {

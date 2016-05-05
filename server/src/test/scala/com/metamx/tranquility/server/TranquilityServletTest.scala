@@ -28,12 +28,18 @@ import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.MemoryBeam
 import com.metamx.tranquility.server.ServerTestUtil.withTester
 import com.metamx.tranquility.server.TranquilityServletTest._
+import com.metamx.tranquility.test.common.FailableBeam
 import com.metamx.tranquility.typeclass.JsonWriter
 import com.twitter.util.Await
 import com.twitter.util.Future
+import io.druid.data.input.InputRow
+import io.druid.data.input.MapBasedInputRow
+import io.druid.data.input.impl.CSVParseSpec
+import io.druid.data.input.impl.DimensionsSpec
+import io.druid.data.input.impl.TimestampSpec
 import org.scalatest.FunSuite
 import org.scalatest.ShouldMatchers
-import scala.collection.immutable.BitSet
+import scala.collection.JavaConverters._
 
 class TranquilityServletTest extends FunSuite with ShouldMatchers
 {
@@ -50,7 +56,7 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
     events should be(Map.empty)
   }
 
-  test("/v1/post, json array") {
+  test("/v1/post, application/json, json array") {
     val events = withBeams { beams =>
       withTester(beams) { tester =>
         val body = Jackson.bytes(
@@ -58,12 +64,12 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
             Dict("dataSource" -> "foo", "n" -> 1),
             Dict("dataSource" -> "foo", "n" -> 2),
             Dict("feed" -> "bar", "n" -> 3),
-            Dict("dataSource" -> "bar", "n" -> 4, ActionKey -> "__drop__"),
+            Dict("dataSource" -> "bar", "n" -> 4, FailableBeam.ActionKey -> "__drop__"),
             Dict("dataSource" -> "bar", "n" -> 5)
           )
         )
 
-        tester.post("/v1/post", body, MyHeaders) {
+        tester.post("/v1/post", body, JsonHeaders) {
           tester.status should be(200)
           tester.header("Content-Type") should startWith("application/json;")
           val response = Jackson.parse[Dict](tester.bodyBytes)
@@ -93,7 +99,7 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
     )
   }
 
-  test("/v1/post, errors") {
+  test("/v1/post, application/json, errors") {
     withBeams { beams =>
       withTester(beams) { tester =>
         val body = Jackson.bytes(
@@ -101,12 +107,12 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
             Dict("dataSource" -> "foo", "n" -> 1),
             Dict("dataSource" -> "foo", "n" -> 2),
             Dict("feed" -> "bar", "n" -> 3),
-            Dict("dataSource" -> "bar", "n" -> 4, ActionKey -> "__fail__"),
+            Dict("dataSource" -> "bar", "n" -> 4, FailableBeam.ActionKey -> "__fail__"),
             Dict("dataSource" -> "bar", "n" -> 5)
           )
         )
 
-        tester.post("/v1/post", body, MyHeaders) {
+        tester.post("/v1/post", body, JsonHeaders) {
           tester.status should be(500)
           tester.header("Content-Type") should startWith("text/plain;")
           tester.body should be("Server error\n")
@@ -115,7 +121,7 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
     }
   }
 
-  test("/v1/post, unrecognized dataSource") {
+  test("/v1/post, application/json, unrecognized dataSource") {
     withBeams { beams =>
       withTester(beams) { tester =>
         val body = Jackson.bytes(
@@ -124,27 +130,27 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
           )
         )
 
-        tester.post("/v1/post", body, MyHeaders) {
+        tester.post("/v1/post", body, JsonHeaders) {
           tester.status should be(400)
           tester.header("Content-Type") should startWith("text/plain;")
-          tester.body should be("No beam defined for dataSource 'baz'\n")
+          tester.body should be("No definition for dataSource 'baz'\n")
         }
       }
     }
   }
 
-  test("/v1/post, newline delimited json") {
+  test("/v1/post, application/json, newline delimited json") {
     val events = withBeams { beams =>
       withTester(beams) { tester =>
         val body = Seq(
           Dict("dataSource" -> "foo", "n" -> 1),
           Dict("dataSource" -> "foo", "n" -> 2),
           Dict("feed" -> "bar", "n" -> 3),
-          Dict("dataSource" -> "bar", "n" -> 4, ActionKey -> "__drop__"),
+          Dict("dataSource" -> "bar", "n" -> 4, FailableBeam.ActionKey -> "__drop__"),
           Dict("dataSource" -> "bar", "n" -> 5)
         ).map(Jackson.generate(_)).mkString("\n").getBytes(Charsets.UTF_8)
 
-        tester.post("/v1/post", body, MyHeaders) {
+        tester.post("/v1/post", body, JsonHeaders) {
           tester.status should be(200)
           tester.header("Content-Type") should startWith("application/json;")
           val response = Jackson.parse[Dict](tester.bodyBytes)
@@ -174,7 +180,7 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
     )
   }
 
-  test("/v1/post/dataSource, json array") {
+  test("/v1/post/dataSource, application/json, json array") {
     val events = withBeams { beams =>
       withTester(beams) { tester =>
         val body = Jackson.bytes(
@@ -182,12 +188,12 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
             Dict("dataSource" -> "foo", "n" -> 1),
             Dict("dataSource" -> "foo", "n" -> 2),
             Dict("feed" -> "bar", "n" -> 3),
-            Dict("dataSource" -> "bar", "n" -> 4, ActionKey -> "__drop__"),
+            Dict("dataSource" -> "bar", "n" -> 4, FailableBeam.ActionKey -> "__drop__"),
             Dict("dataSource" -> "bar", "n" -> 5)
           )
         )
 
-        tester.post("/v1/post/foo", body, MyHeaders) {
+        tester.post("/v1/post/foo", body, JsonHeaders) {
           tester.status should be(200)
           tester.header("Content-Type") should startWith("application/json;")
           val response = Jackson.parse[Dict](tester.bodyBytes)
@@ -215,7 +221,52 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
     )
   }
 
-  test("/v1/post?async=true, json array") {
+  test("/v1/post/dataSource, text/plain, csv") {
+    val events = withBeams { beams =>
+      val parseSpec = new CSVParseSpec(
+        new TimestampSpec("ts", "posix", null),
+        new DimensionsSpec(Seq("ts", "dataSource", "n").asJava, null, null),
+        null,
+        Seq("ts", "dataSource", "n", FailableBeam.ActionKey).asJava
+      )
+      withTester(beams, Map("foo" -> parseSpec)) { tester =>
+        val body = Seq(
+          "1,foo,1,x",
+          "1,foo,2,x",
+          "1,bar,3,x",
+          "1,bar,4,__drop__",
+          "1,bar,5,x"
+        ).mkString("\n").getBytes(Charsets.UTF_8)
+
+        tester.post("/v1/post/foo", body, TextHeaders) {
+          tester.status should be(200)
+          tester.header("Content-Type") should startWith("application/json;")
+          val response = Jackson.parse[Dict](tester.bodyBytes)
+          response should be(
+            Dict(
+              "result" -> Dict(
+                "received" -> 5,
+                "sent" -> 4
+              )
+            )
+          )
+        }
+      }
+    }
+
+    events should be(
+      Map(
+        "foo" -> Seq(
+          Dict("ts" -> "1", "dataSource" -> "foo", "n" -> "1", FailableBeam.ActionKey -> "x"),
+          Dict("ts" -> "1", "dataSource" -> "foo", "n" -> "2", FailableBeam.ActionKey -> "x"),
+          Dict("ts" -> "1", "dataSource" -> "bar", "n" -> "3", FailableBeam.ActionKey -> "x"),
+          Dict("ts" -> "1", "dataSource" -> "bar", "n" -> "5", FailableBeam.ActionKey -> "x")
+        )
+      )
+    )
+  }
+
+  test("/v1/post?async=true, application/json, json array") {
     val events = withBeams { beams =>
       withTester(beams) { tester =>
         val body = Jackson.bytes(
@@ -223,12 +274,12 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
             Dict("dataSource" -> "foo", "n" -> 1),
             Dict("dataSource" -> "foo", "n" -> 2),
             Dict("feed" -> "bar", "n" -> 3),
-            Dict("dataSource" -> "bar", "n" -> 4, ActionKey -> "__drop__"),
+            Dict("dataSource" -> "bar", "n" -> 4, FailableBeam.ActionKey -> "__drop__"),
             Dict("dataSource" -> "bar", "n" -> 5)
           )
         )
 
-        tester.post("/v1/post?async=true", body, MyHeaders) {
+        tester.post("/v1/post?async=true", body, JsonHeaders) {
           tester.status should be(200)
           tester.header("Content-Type") should startWith("application/json;")
           val response = Jackson.parse[Dict](tester.bodyBytes)
@@ -258,7 +309,7 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
     )
   }
 
-  test("/v1/post/dataSource?async=true, json array") {
+  test("/v1/post/dataSource?async=true, application/json, json array") {
     val events = withBeams { beams =>
       withTester(beams) { tester =>
         val body = Jackson.bytes(
@@ -266,12 +317,12 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
             Dict("dataSource" -> "foo", "n" -> 1),
             Dict("dataSource" -> "foo", "n" -> 2),
             Dict("feed" -> "bar", "n" -> 3),
-            Dict("dataSource" -> "bar", "n" -> 4, ActionKey -> "__drop__"),
+            Dict("dataSource" -> "bar", "n" -> 4, FailableBeam.ActionKey -> "__drop__"),
             Dict("dataSource" -> "bar", "n" -> 5)
           )
         )
 
-        tester.post("/v1/post/foo?async=true", body, MyHeaders) {
+        tester.post("/v1/post/foo?async=true", body, JsonHeaders) {
           tester.status should be(200)
           tester.header("Content-Type") should startWith("application/json;")
           val response = Jackson.parse[Dict](tester.bodyBytes)
@@ -302,36 +353,26 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
 
 object TranquilityServletTest
 {
-  private val ActionKey = "action"
-  private val MyHeaders = Map("Content-Type" -> "application/json")
+  private val JsonHeaders = Map("Content-Type" -> "application/json")
+  private val TextHeaders = Map("Content-Type" -> "text/plain")
 
-  private def withBeams(f: Map[String, Beam[Dict]] => Unit): Map[String, Seq[Dict]] =
+  private def withBeams(f: Map[String, Beam[InputRow]] => Unit): Map[String, Seq[Dict]] =
   {
-    val memoryBeams: Map[String, MemoryBeam[Dict]] = (for (dataSource <- Seq("foo", "bar")) yield {
-      val beam = new MemoryBeam[Dict](
+    val memoryBeams: Map[String, MemoryBeam[InputRow]] = (for (dataSource <- Seq("foo", "bar")) yield {
+      val beam = new MemoryBeam[InputRow](
         dataSource,
-        new JsonWriter[Dict]
+        new JsonWriter[InputRow]
         {
-          override protected def viaJsonGenerator(d: Dict, jg: JsonGenerator): Unit = {
-            Jackson.generate(d, jg)
+          override protected def viaJsonGenerator(d: InputRow, jg: JsonGenerator): Unit = {
+            Jackson.generate(d.asInstanceOf[MapBasedInputRow].getEvent, jg)
           }
         }
       )
       (dataSource, beam)
     }).toMap
 
-    val beams: Map[String, Beam[Dict]] = memoryBeams strictMapValues { memoryBeam =>
-      new Beam[Dict] {
-        override def sendBatch(events: Seq[Dict]): Future[BitSet] = {
-          if (events.exists(_.get(ActionKey) == Some("__fail__"))) {
-            Future.exception(new IllegalStateException("fail!"))
-          } else {
-            memoryBeam.sendBatch(events.filterNot(_.get(ActionKey) == Some("__drop__")))
-          }
-        }
-
-        override def close() = memoryBeam.close()
-      }
+    val beams: Map[String, Beam[InputRow]] = memoryBeams strictMapValues { memoryBeam =>
+      FailableBeam.forInputRows(memoryBeam)
     }
 
     MemoryBeam.clear()

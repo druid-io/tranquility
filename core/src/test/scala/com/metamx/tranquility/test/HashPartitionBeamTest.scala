@@ -21,6 +21,7 @@ package com.metamx.tranquility.test
 
 import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.HashPartitionBeam
+import com.metamx.tranquility.beam.SendResult
 import com.twitter.util.Await
 import com.twitter.util.Future
 import java.util.concurrent.CopyOnWriteArrayList
@@ -40,16 +41,18 @@ class HashPartitionBeamTest extends FunSuite with Matchers
 
   class DroppingBeam() extends Beam[TestObject]
   {
-    override def sendBatch(messages: Seq[TestObject]): Future[BitSet] = Future.value(BitSet.empty)
+    override def sendAll(messages: Seq[TestObject]): Seq[Future[SendResult]] = {
+      messages.map(_ => Future(SendResult.Dropped))
+    }
 
     override def close(): Future[Unit] = Future.Done
   }
 
   class TestBeam(callback: TestObject => Unit, dropAll: Boolean = false) extends Beam[TestObject]
   {
-    override def sendBatch(events: Seq[TestObject]): Future[BitSet] = {
-      events foreach callback
-      Future.value(BitSet.empty ++ events.indices)
+    override def sendAll(messages: Seq[TestObject]): Seq[Future[SendResult]] = {
+      messages foreach callback
+      messages.map(_ => Future(SendResult.Sent))
     }
 
     override def close() = Future.Done

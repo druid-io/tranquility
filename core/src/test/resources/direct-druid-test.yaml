@@ -6,7 +6,8 @@ dataSources:
         parser:
           type: string
           parseSpec:
-            format: json
+            format: csv
+            columns: [ts, foo, bar, lat, lon]
             timestampSpec:
               column: ts
               format: posix
@@ -31,3 +32,5 @@ properties:
   druid.discovery.curator.path: /disco-fever
   druid.selectors.indexing.serviceName: druid/tranquility/indexer
   zookeeper.connect: @ZKPLACEHOLDER@
+  tranquility.batchSize: 1000
+  tranquility.lingerMillis: 1000

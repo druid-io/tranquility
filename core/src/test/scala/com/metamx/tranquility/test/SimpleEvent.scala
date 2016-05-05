@@ -20,16 +20,23 @@
 package com.metamx.tranquility.test
 
 import com.fasterxml.jackson.annotation.JsonValue
-import com.metamx.common.scala.untyped.Dict
-import com.metamx.common.scala.untyped.long
+import com.metamx.common.scala.untyped._
 import com.metamx.tranquility.test.DirectDruidTest.TimeColumn
 import com.metamx.tranquility.typeclass.Timestamper
 import org.scala_tools.time.Imports._
 
-case class SimpleEvent(ts: DateTime, fields: Dict)
+case class SimpleEvent(ts: DateTime, foo: String, bar: Int, lat: Double, lon: Double)
 {
   @JsonValue
-  def toMap = fields ++ Map(TimeColumn -> (ts.millis / 1000))
+  def toMap: Map[String, Any] = Map(
+    TimeColumn -> (ts.millis / 1000),
+    "foo" -> foo,
+    "bar" -> bar,
+    "lat" -> lat,
+    "lon" -> lon
+  )
+
+  def toCsv: String = Seq(ts.millis / 1000, foo, bar, lat, lon).mkString(",")
 }
 
 object SimpleEvent
@@ -38,7 +45,15 @@ object SimpleEvent
     def timestamp(a: SimpleEvent) = a.ts
   }
 
+  val Columns = Seq(TimeColumn, "foo", "bar", "lat", "lon")
+
   def fromMap(d: Dict): SimpleEvent = {
-    SimpleEvent(new DateTime(long(d(TimeColumn)) * 1000), d)
+    SimpleEvent(
+      new DateTime(long(d(TimeColumn)) * 1000),
+      str(d("foo")),
+      int(d("bar")),
+      double(d("lat")),
+      double(d("lon"))
+    )
   }
 }

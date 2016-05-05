@@ -6,15 +6,13 @@ scale out by simply starting more server processes and putting them behind a lo
 
 ## HTTP API
 
-You can send data through HTTP POST. You can send as little or as much data at once as you like. The form of the
-request should be:
+You can send data through HTTP POST. You can send as little or as much data at once as you like.
 
-- URL `/v1/post` or `/v1/post/DATASOURCE`.
-- Content-Type `application/json` or `application/x-jackson-smile`.
-- JSON or Smile data matching the Content-Type you provided. If JSON, you can provide either an array of JSON objects
-or a sequence of newline-delimited JSON objects. If Smile, you should provide an array of objects.
-- If using the URL `/v1/post`, your objects must have a field named "dataSource" or "feed" containing the destination
-dataSource for that object.
+The form of the request is:
+
+- POST to `/v1/post/DATASOURCE`.
+- Set `Content-Type: text/plain`.
+- Body should be newline-delimited text data matching the parser you provided in your [server.json](#configuration).
 
 The response will be:
 
@@ -34,6 +32,21 @@ due to e.g. being outside the windowPeriod.
 This API is synchronous and will block until your messages are either sent to Druid, or have failed to send.
 
 If there is an error sending the data, you will get an HTTP error code (4xx or 5xx).
+
+### Direct object option
+
+You can also POST objects directly to Tranquility Server without going through the string-oriented parser. To do this,
+use a request with this form:
+
+- POST to `/v1/post` or `/v1/post/{DATASOURCE}`.
+- Set `Content-Type: application/json` or `Content-Type: application/x-jackson-smile`.
+- Body should be JSON or Smile data matching the Content-Type you provided. If JSON, you can provide either an array
+of JSON objects or a sequence of newline-delimited JSON objects. If Smile, you should provide an array of objects.
+- If using the path `/v1/post`, your objects must have a field named "dataSource" or "feed" containing the destination
+dataSource for that object.
+
+In this case, the parser provided in your [server.json](#configuration) is still used to extract the timestamp and
+dimensions from your objects, but is not used to parse your objects.
 
 ### Asynchronous option
 

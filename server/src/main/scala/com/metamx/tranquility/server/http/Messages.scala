@@ -22,24 +22,53 @@ package com.metamx.tranquility.server.http
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.core.JsonToken
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.google.common.base.Charsets
+import com.metamx.common.parsers.ParseException
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.Walker
-import com.metamx.common.scala.collection.implicits._
 import com.metamx.common.scala.untyped._
-import java.io.Closeable
+import io.druid.data.input.InputRow
+import io.druid.data.input.impl.StringInputRowParser
+import java.io.BufferedReader
 import java.io.InputStream
+import java.io.InputStreamReader
 import org.jboss.netty.handler.codec.http.HttpResponseStatus
 import scala.collection.JavaConverters._
-import sun.reflect.annotation.ExceptionProxy
 
 object Messages
 {
   val DataSourceFields = Seq("dataSource", "feed")
 
-  def fromInputStreamV1(
-    objectMapper: ObjectMapper,
+  def fromStringStream(
     in: InputStream,
-    forceDataSource: Option[String]
+    parser: StringInputRowParser
+  ): Walker[InputRow] =
+  {
+    new Walker[InputRow]
+    {
+      override def foreach(f: InputRow => Unit): Unit = {
+        var lineNumber: Long = 1L
+        try {
+          new BufferedReader(new InputStreamReader(in, Charsets.UTF_8)).withFinally(_.close()) { reader =>
+            val iter = Iterator.continually(reader.readLine()).takeWhile(_ != null)
+            for (string <- iter) {
+              f(parser.parse(string))
+              lineNumber += 1
+            }
+          }
+        }
+        catch {
+          case e: ParseException =>
+            throw new HttpException(HttpResponseStatus.BAD_REQUEST, s"Malformed string on line[$lineNumber]")
+        }
+      }
+    }
+  }
+
+  def fromObjectStream(
+    in: InputStream,
+    forceDataSource: Option[String],
+    objectMapper: ObjectMapper
   ): Walker[(String, Dict)] =
   {
     new Walker[(String, Dict)]

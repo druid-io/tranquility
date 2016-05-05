@@ -28,9 +28,9 @@ import com.metamx.common.scala.concurrent.abortingRunnable
 import com.metamx.common.scala.untyped.Dict
 import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.MemoryBeam
-import com.metamx.tranquility.druid.DruidRollup
-import com.metamx.tranquility.druid.SpecificDruidDimensions
+import com.metamx.tranquility.beam.SendResult
 import com.metamx.tranquility.test.TranquilizerTest._
+import com.metamx.tranquility.test.common.FailableBeam
 import com.metamx.tranquility.tranquilizer.BufferFullException
 import com.metamx.tranquility.tranquilizer.MessageDroppedException
 import com.metamx.tranquility.tranquilizer.Tranquilizer
@@ -40,14 +40,11 @@ import com.twitter.util.Future
 import com.twitter.util.Promise
 import com.twitter.util.Return
 import com.twitter.util.Throw
-import io.druid.granularity.QueryGranularity
-import io.druid.query.aggregation.CountAggregatorFactory
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import org.scalatest.FunSuite
 import org.scalatest.Matchers
-import scala.collection.immutable.BitSet
 import scala.util.Random
 
 class TranquilizerTest extends FunSuite with Matchers with Logging
@@ -150,11 +147,11 @@ class TranquilizerTest extends FunSuite with Matchers with Logging
       newTranquilizer(beam, maxBatchSize, maxPendingBatches, lingerMillis).withFinally(_._1.stop()) {
         case (tranquilizer, desc) =>
           val (acked, dropped, failed) = doSend(tranquilizer, Seq("hey", "__fail__"))
-          assert(acked === 0, "acked (%s)" format desc)
+          assert(acked === 1, "acked (%s)" format desc)
           assert(dropped === 0, "dropped (%s)" format desc)
-          assert(failed === 2, "failed (%s)" format desc)
+          assert(failed === 1, "failed (%s)" format desc)
           assert(
-            MemoryBeam.get() === Map.empty,
+            MemoryBeam.get("foo") === Seq(Dict("bar" -> "hey")),
             "output (%s)" format desc
           )
       }
@@ -338,19 +335,21 @@ object TranquilizerTest
     val random = new Random()
     new Beam[String] with Logging
     {
-      override def sendBatch(events: Seq[String]): Future[BitSet] = {
+      override def sendAll(messages: Seq[String]): Seq[Future[SendResult]] = {
         val delay = math.max(1, baseDelay + fuzz * baseDelay * random.nextGaussian()).toLong
         log.debug(s"Delaying propagate by ${delay}ms.")
 
-        val future = Promise[BitSet]()
+        val promises = messages.map(_ => Promise[SendResult]())
         exec.schedule(
           abortingRunnable {
-            future.become(memoryBeam.sendBatch(events))
+            for ((promise, future) <- promises zip memoryBeam.sendAll(messages)) {
+              promise.become(future)
+            }
           },
           delay,
           TimeUnit.MILLISECONDS
         )
-        future
+        promises
       }
 
       override def close(): Future[Unit] = memoryBeam.close()
@@ -360,22 +359,9 @@ object TranquilizerTest
   }
 
   def newTranquilizer(beam: Beam[String], builder: Tranquilizer.Builder): (Tranquilizer[String], String) = {
-    val wrappedBeam = new Beam[String] {
-      override def sendBatch(events: Seq[String]): Future[BitSet] = {
-        if (events.contains("__fail__")) {
-          Future.exception(new IllegalStateException("fail!"))
-        } else if (events.contains("__superfail__")) {
-          throw new IllegalStateException("superfail")
-        } else {
-          beam.sendBatch(events.filterNot(_ == "__drop__"))
-        }
-      }
-
-      override def close() = beam.close()
-    }
-
+    val wrappedBeam = FailableBeam.forStrings(beam)
     val tranquilizer = builder.build(wrappedBeam)
-    val desc = s"(builder = $builder, beam = $beam)"
+    val desc = s"(builder = $builder, beam = $wrappedBeam)"
 
     tranquilizer.start()
     (tranquilizer, desc)

@@ -16,17 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package com.metamx.tranquility.beam
 
-import com.twitter.util.Future
+package com.metamx.tranquility.druid.input
 
-class NoopBeam[A] extends Beam[A]
+import io.druid.data.input.MapBasedInputRow
+import org.joda.time.DateTime
+import org.scalatest.FunSuite
+import org.scalatest.ShouldMatchers
+import scala.collection.JavaConverters._
+
+class InputRowTimestamperTest extends FunSuite with ShouldMatchers
 {
-  override def sendAll(messages: Seq[A]): Seq[Future[SendResult]] = {
-    messages.map(_ => Future(SendResult.Dropped))
+  val row = new MapBasedInputRow(
+    new DateTime("2000"),
+    Seq("foo", "baz").asJava,
+    Map[String, AnyRef](
+      "foo" -> "x",
+      "bar" -> Int.box(2),
+      "baz" -> "what",
+      "hey" -> "there"
+    ).asJava
+  )
+
+  val timestamper = InputRowTimestamper.Instance
+
+  test("timestamp") {
+    timestamper.timestamp(row) should be(new DateTime("2000"))
   }
-
-  override def close() = Future.Done
-
-  override def toString = "NoopBeam()"
 }

@@ -24,13 +24,14 @@ package com.metamx.tranquility.kafka.model;
  */
 public class MessageCounters
 {
-  private final long receivedCount, sentCount, failedCount;
+  private final long receivedCount, sentCount, droppedCount, unparseableCount;
 
-  public MessageCounters(long receivedCount, long sentCount, long failedCount)
+  public MessageCounters(long receivedCount, long sentCount, long droppedCount, long unparseableCount)
   {
     this.receivedCount = receivedCount;
     this.sentCount = sentCount;
-    this.failedCount = failedCount;
+    this.droppedCount = droppedCount;
+    this.unparseableCount = unparseableCount;
   }
 
   public long getReceivedCount()
@@ -43,9 +44,14 @@ public class MessageCounters
     return this.sentCount;
   }
 
-  public long getFailedCount()
+  public long getDroppedCount()
   {
-    return this.failedCount;
+    return droppedCount;
+  }
+
+  public long getUnparseableCount()
+  {
+    return unparseableCount;
   }
 
   public MessageCounters difference(MessageCounters subtrahend)
@@ -57,13 +63,19 @@ public class MessageCounters
     return new MessageCounters(
         this.receivedCount - subtrahend.getReceivedCount(),
         this.sentCount - subtrahend.getSentCount(),
-        this.failedCount - subtrahend.getFailedCount()
+        this.droppedCount - subtrahend.getDroppedCount(),
+        this.unparseableCount - subtrahend.getUnparseableCount()
     );
   }
 
   @Override
   public String toString()
   {
-    return String.format("{receivedCount=%s, sentCount=%s, failedCount=%s}", receivedCount, sentCount, failedCount);
+    return "{" +
+           "receivedCount=" + receivedCount +
+           ", sentCount=" + sentCount +
+           ", droppedCount=" + droppedCount +
+           ", unparseableCount=" + unparseableCount +
+           '}';
   }
 }

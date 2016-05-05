@@ -29,7 +29,7 @@ import java.{util => ju}
 import org.scala_tools.time.Imports._
 import scala.collection.JavaConverters._
 
-object GenericTimeAndDimsPartitioner
+object MapPartitioner
 {
   /**
     * Create a Partitioner that can partition Scala and Java Maps according to their Druid grouping key (truncated
@@ -42,7 +42,7 @@ object GenericTimeAndDimsPartitioner
     rollup: DruidRollup
   ): Partitioner[A] =
   {
-    new GenericTimeAndDimsPartitioner[A](
+    new MapPartitioner[A](
       timestamper,
       timestampSpec,
       rollup
@@ -50,7 +50,7 @@ object GenericTimeAndDimsPartitioner
   }
 }
 
-class GenericTimeAndDimsPartitioner[A](
+class MapPartitioner[A](
   timestamper: Timestamper[A],
   timestampSpec: TimestampSpec,
   rollup: DruidRollup

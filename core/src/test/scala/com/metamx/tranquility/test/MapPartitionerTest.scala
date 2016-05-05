@@ -25,7 +25,7 @@ import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.untyped.Dict
 import com.metamx.tranquility.druid.DruidRollup
 import com.metamx.tranquility.druid.SpecificDruidDimensions
-import com.metamx.tranquility.partition.GenericTimeAndDimsPartitioner
+import com.metamx.tranquility.partition.MapPartitioner
 import com.metamx.tranquility.typeclass.Timestamper
 import io.druid.data.input.impl.TimestampSpec
 import io.druid.granularity.QueryGranularity
@@ -35,7 +35,7 @@ import org.joda.time.DateTime
 import org.scalatest.FunSuite
 import org.scalatest.Matchers
 
-class GenericTimeAndDimsPartitionerTest extends FunSuite with Matchers
+class MapPartitionerTest extends FunSuite with Matchers
 {
   val same = Seq(
     Dict("t" -> new DateTime("2000T00:00:03"), "foo" -> 1, "bar" -> Seq("y", "z")),
@@ -63,7 +63,7 @@ class GenericTimeAndDimsPartitionerTest extends FunSuite with Matchers
     val timestamper = new Timestamper[Dict] {
       override def timestamp(a: Dict): DateTime = new DateTime(a("t"))
     }
-    val partitioner = GenericTimeAndDimsPartitioner.create(
+    val partitioner = MapPartitioner.create(
       timestamper,
       new TimestampSpec("t", "auto", null),
       DruidRollup(
@@ -100,7 +100,7 @@ class GenericTimeAndDimsPartitionerTest extends FunSuite with Matchers
     val timestamper = new Timestamper[ju.Map[String, Any]] {
       override def timestamp(a: ju.Map[String, Any]): DateTime = new DateTime(a.get("t"))
     }
-    val partitioner = GenericTimeAndDimsPartitioner.create(
+    val partitioner = MapPartitioner.create(
       timestamper,
       new TimestampSpec("t", "auto", null),
       DruidRollup(
@@ -140,7 +140,7 @@ class GenericTimeAndDimsPartitionerTest extends FunSuite with Matchers
     val timestamper = new Timestamper[String] {
       override def timestamp(a: String): DateTime = new DateTime(1000)
     }
-    val partitioner = GenericTimeAndDimsPartitioner.create(
+    val partitioner = MapPartitioner.create(
       timestamper,
       new TimestampSpec("t", "auto", null),
       DruidRollup(

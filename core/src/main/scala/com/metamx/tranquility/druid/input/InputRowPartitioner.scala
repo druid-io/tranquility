@@ -16,17 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package com.metamx.tranquility.beam
 
-import com.twitter.util.Future
+package com.metamx.tranquility.druid.input
 
-class NoopBeam[A] extends Beam[A]
+import com.google.common.hash.Hashing
+import com.metamx.tranquility.partition.Partitioner
+import io.druid.data.input.InputRow
+import io.druid.granularity.QueryGranularity
+import scala.collection.JavaConverters._
+
+/**
+  * Partitioner that partitions Druid InputRows by their truncated timestamp and dimensions.
+  */
+class InputRowPartitioner(queryGranularity: QueryGranularity) extends Partitioner[InputRow]
 {
-  override def sendAll(messages: Seq[A]): Seq[Future[SendResult]] = {
-    messages.map(_ => Future(SendResult.Dropped))
+  override def partition(row: InputRow, numPartitions: Int): Int = {
+    val partitionHashCode = Partitioner.timeAndDimsHashCode(
+      queryGranularity.truncate(row.getTimestampFromEpoch),
+      row.getDimensions.asScala.view map { dim =>
+        dim -> row.getRaw(dim)
+      }
+    )
+
+    Hashing.consistentHash(partitionHashCode, numPartitions)
   }
-
-  override def close() = Future.Done
-
-  override def toString = "NoopBeam()"
 }

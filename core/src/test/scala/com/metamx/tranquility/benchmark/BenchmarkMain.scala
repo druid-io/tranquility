@@ -139,7 +139,7 @@ object BenchmarkMain extends Logging with CuratorRequiringSuite
         )
       )
       val wikipediaConfig: DataSourceConfig[PropertiesBasedConfig] = config.getDataSource("wikipedia")
-      val druidBeamsBuilder: DruidBeams.Builder[java.util.Map[String, AnyRef], MessageHolder[java.util.Map[String, AnyRef]]] = {
+      val druidBeamsBuilder = {
         DruidBeams
           .fromConfig(config.getDataSource("wikipedia"))
           .curator(curator)

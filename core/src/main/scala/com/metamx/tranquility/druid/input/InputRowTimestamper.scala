@@ -16,17 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package com.metamx.tranquility.beam
 
-import com.twitter.util.Future
+package com.metamx.tranquility.druid.input
 
-class NoopBeam[A] extends Beam[A]
+import com.metamx.tranquility.typeclass.Timestamper
+import io.druid.data.input.InputRow
+import org.joda.time.DateTime
+
+class InputRowTimestamper private() extends Timestamper[InputRow]
 {
-  override def sendAll(messages: Seq[A]): Seq[Future[SendResult]] = {
-    messages.map(_ => Future(SendResult.Dropped))
-  }
+  override def timestamp(row: InputRow): DateTime = row.getTimestamp
+}
 
-  override def close() = Future.Done
-
-  override def toString = "NoopBeam()"
+object InputRowTimestamper
+{
+  val Instance = new InputRowTimestamper
 }

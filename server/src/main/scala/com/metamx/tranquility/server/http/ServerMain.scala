@@ -24,6 +24,8 @@ import com.metamx.common.scala.Abort
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.collection.implicits._
+import io.druid.data.input.InputRow
+import scala.reflect.runtime.universe.typeTag
 import com.metamx.common.scala.collection.mutable.ConcurrentMap
 import com.metamx.common.scala.lifecycle._
 import com.metamx.common.scala.net.curator.Curator
@@ -93,7 +95,7 @@ object ServerMain extends App with Logging
   {
     val curators = ConcurrentMap[String, CuratorFramework]()
     val finagleRegistries = ConcurrentMap[(String, String), FinagleRegistry]()
-    val tranquilizers = config.dataSourceConfigs strictMapValues { dataSourceConfig =>
+    val bundles = config.dataSourceConfigs strictMapValues { dataSourceConfig =>
       // Corral Zookeeper stuff
       val zookeeperConnect = dataSourceConfig.propertiesBasedConfig.zookeeperConnect
       val discoPath = dataSourceConfig.propertiesBasedConfig.discoPath
@@ -112,15 +114,17 @@ object ServerMain extends App with Logging
         }
       )
 
-      lifecycle.addManagedInstance(
-        DruidBeams.fromConfig(dataSourceConfig)
+      val tranquilizer = lifecycle.addManagedInstance(
+        DruidBeams.fromConfig(dataSourceConfig, typeTag[InputRow])
           .curator(curator)
           .finagleRegistry(finagleRegistry)
           .buildTranquilizer(dataSourceConfig.tranquilizerBuilder())
       )
+      val parseSpec = DruidBeams.makeFireDepartment(dataSourceConfig).getDataSchema.getParser.getParseSpec
+      new DataSourceBundle(tranquilizer, parseSpec)
     }
 
-    new TranquilityServlet(tranquilizers)
+    new TranquilityServlet(bundles)
   }
 
   def createJettyServer(

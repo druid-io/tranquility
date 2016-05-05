@@ -25,6 +25,7 @@ import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.concurrent.loggingThread
 import com.metamx.tranquility.beam.Beam
+import com.metamx.tranquility.beam.SendResult
 import com.twitter.finagle.Service
 import com.twitter.util.Await
 import com.twitter.util.Future
@@ -32,7 +33,7 @@ import com.twitter.util.Promise
 import com.twitter.util.Return
 import com.twitter.util.Throw
 import com.twitter.util.Time
-import scala.collection.immutable.BitSet
+import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.Buffer
 
@@ -60,14 +61,14 @@ class Tranquilizer[MessageType] private(
 
   @volatile private var started: Boolean = false
 
-  case class MessageHolder(message: MessageType, future: Promise[Unit])
+  case class MessageAndPromise(message: MessageType, promise: Promise[Unit])
 
   // lock synchronizes buffer, bufferStartMillis, pendingBatches, currentBatchNumber, currentBatchFuture, flushing.
   // lock should be notified when waiters might be waiting: buffer becomes non-empty, buffer is sent, flush starts.
   private val lock: AnyRef = new AnyRef
 
   // Current batch of pending messages. Not yet handed off to the Beam.
-  private var buffer: Buffer[MessageHolder] = new ArrayBuffer[MessageHolder]
+  private var buffer: Buffer[MessageAndPromise] = new ArrayBuffer[MessageAndPromise]
 
   // How long "buffer" has been open for
   private var bufferStartMillis: Long = 0L
@@ -163,7 +164,7 @@ class Tranquilizer[MessageType] private(
     if (log.isTraceEnabled) {
       log.trace(s"Sending message: $message")
     }
-    val holder = MessageHolder(message, Promise())
+    val messageAndPromise = MessageAndPromise(message, Promise())
 
     val (exIndexBufferPair, future) = lock.synchronized {
       while (buffer.size >= maxBatchSize - 1 && pendingBatches.size >= maxPendingBatches) {
@@ -185,9 +186,9 @@ class Tranquilizer[MessageType] private(
         lock.notifyAll()
       }
 
-      buffer += holder
+      buffer += messageAndPromise
 
-      val _exIndexBufferPair: Option[(Long, Buffer[MessageHolder])] = if (buffer.size == maxBatchSize) {
+      val _exIndexBufferPair: Option[(Long, Buffer[MessageAndPromise])] = if (buffer.size == maxBatchSize) {
         Some(swap())
       } else if (lingerMillis == 0 && pendingBatches.size < maxPendingBatches) {
         Some(swap())
@@ -195,7 +196,7 @@ class Tranquilizer[MessageType] private(
         None
       }
 
-      (_exIndexBufferPair, holder.future)
+      (_exIndexBufferPair, messageAndPromise.promise)
     }
 
     exIndexBufferPair.foreach(t => sendBuffer(t._1, t._2))
@@ -271,14 +272,14 @@ class Tranquilizer[MessageType] private(
   // Must be called while holding the "lock".
   // Preconditions: buffer must be non-empty and pendingBatches.size must be lower than maxPendingBatches.
   // Postconditions: buffer is empty
-  private def swap(): (Long, Buffer[MessageHolder]) = {
+  private def swap(): (Long, Buffer[MessageAndPromise]) = {
     assert(buffer.nonEmpty && buffer.size <= maxBatchSize)
     assert(pendingBatches.size < maxPendingBatches)
 
     val _buffer = buffer
     val _currentBatchNumber = currentBatchNumber
     pendingBatches = pendingBatches + (currentBatchNumber -> currentBatchFuture)
-    buffer = new ArrayBuffer[MessageHolder]()
+    buffer = new ArrayBuffer[MessageAndPromise]()
     currentBatchNumber += 1
     currentBatchFuture = Promise()
     bufferStartMillis = 0L
@@ -291,44 +292,57 @@ class Tranquilizer[MessageType] private(
 
   // Send a buffer of messages. Decrement pendingBatches once the send finishes.
   // Generally should be called outside of the "lock".
-  private def sendBuffer(myIndex: Long, myBuffer: Buffer[MessageHolder]): Unit = {
+  private def sendBuffer(myIndex: Long, myBuffer: Buffer[MessageAndPromise]): Unit = {
     if (log.isDebugEnabled) {
       log.debug(s"Sending buffer with ${myBuffer.size} messages.")
     }
 
-    val propagate: Future[BitSet] = try {
-      beam.sendBatch(myBuffer.map(_.message))
+    val futureResults: Seq[Future[SendResult]] = try {
+      beam.sendAll(myBuffer.map(_.message))
     }
     catch {
       case e: Exception =>
         // Should not happen- exceptions should be in the Future. This is a defensive check.
-        Future.exception(new IllegalStateException("Propagate call failed", e))
+        myBuffer.map(_ => Future.exception(new IllegalStateException("sendAll failed", e)))
     }
 
-    propagate respond { result =>
-      result match {
-        case Return(bitset) =>
-          log.debug(s"Sent ${bitset.size} out of ${myBuffer.size} messages.")
-          for ((holder, index) <- Beam.index(myBuffer)) {
-            if (bitset.contains(index)) {
-              holder.future.setValue(())
+    val remaining = new AtomicInteger(futureResults.size)
+    val sent = new AtomicInteger()
+    val dropped = new AtomicInteger()
+    val failed = new AtomicInteger()
+
+    for ((futureResult, index) <- futureResults.zipWithIndex) {
+      futureResult respond { tryResult =>
+        val promise = myBuffer(index).promise
+        tryResult match {
+          case Return(result) =>
+            if (result.sent) {
+              sent.incrementAndGet()
+              promise.setValue(())
             } else {
-              holder.future.setException(MessageDroppedException.instance)
+              dropped.incrementAndGet()
+              promise.setException(MessageDroppedException.Instance)
             }
+
+          case Throw(e) =>
+            failed.incrementAndGet()
+            promise.setException(e)
+        }
+
+        if (remaining.decrementAndGet() == 0) {
+          lock.synchronized {
+            val batchFuture: Promise[Unit] = pendingBatches(myIndex)
+            pendingBatches = pendingBatches - myIndex
+            batchFuture.setValue(())
+            if (log.isDebugEnabled) {
+              log.debug(
+                s"Sent[${sent.get()}], dropped[${dropped.get()}], failed[${failed.get()}] " +
+                  s"out of ${myBuffer.size} messages from batch #$myIndex. " +
+                  s"${pendingBatches.size} batches still pending."
+              )
+            }
+            lock.notifyAll()
           }
-
-        case Throw(e) =>
-          log.warn(e, s"Failed to send ${myBuffer.size} messages.")
-          myBuffer.foreach(_.future.setException(e))
-      }
-
-      lock.synchronized {
-        val batchFuture: Promise[Unit] = pendingBatches(myIndex)
-        pendingBatches = pendingBatches - myIndex
-        batchFuture.setValue(())
-        lock.notifyAll()
-        if (log.isDebugEnabled) {
-          log.debug(s"Sent buffer, ${pendingBatches.size} batches pending.")
         }
       }
     }
@@ -343,7 +357,7 @@ class MessageDroppedException private() extends Exception("Message dropped") wit
 
 object MessageDroppedException
 {
-  val instance = new MessageDroppedException
+  val Instance = new MessageDroppedException
 }
 
 /**
