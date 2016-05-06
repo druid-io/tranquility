@@ -243,10 +243,10 @@ object DruidBeamMaker
     val tsUtc = new DateTime(ts.millis, ISOChronology.getInstanceUTC)
 
     val cycleBucket = segmentGranularity match {
-      case Granularity.MINUTE => tsUtc.minuteOfHour().get
-      case Granularity.FIVE_MINUTE => tsUtc.minuteOfHour().get
-      case Granularity.TEN_MINUTE => tsUtc.minuteOfHour().get
-      case Granularity.FIFTEEN_MINUTE => tsUtc.minuteOfHour().get
+      case Granularity.MINUTE => tsUtc.hourOfDay().get % 3 * 60 + tsUtc.minuteOfHour().get // 180 buckets
+      case Granularity.FIVE_MINUTE => tsUtc.hourOfDay().get % 3 * 60 + tsUtc.minuteOfHour().get // 36 buckets
+      case Granularity.TEN_MINUTE => tsUtc.hourOfDay().get % 3 * 60 + tsUtc.minuteOfHour().get // 18 buckets
+      case Granularity.FIFTEEN_MINUTE => tsUtc.hourOfDay().get % 3 * 60 + tsUtc.minuteOfHour().get // 12 buckets
       case Granularity.HOUR => tsUtc.hourOfDay().get
       case Granularity.SIX_HOUR => tsUtc.hourOfDay().get
       case Granularity.DAY => tsUtc.dayOfMonth().get
@@ -256,6 +256,6 @@ object DruidBeamMaker
       case x => throw new IllegalArgumentException("No gross firehose id hack for granularity[%s]" format x)
     }
 
-    "%s-%02d-%04d".format(dataSource, cycleBucket, partition)
+    "%s-%03d-%04d".format(dataSource, cycleBucket, partition)
   }
 }
