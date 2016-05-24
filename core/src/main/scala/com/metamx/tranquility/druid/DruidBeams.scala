@@ -18,6 +18,9 @@
  */
 package com.metamx.tranquility.druid
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.dataformat.smile.SmileFactory
+import com.fasterxml.jackson.jaxrs.smile.SmileMediaTypes
 import com.metamx.common.logger.Logger
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.net.curator.Disco
@@ -208,6 +211,9 @@ object DruidBeams
       "millis",
       null
     )
+    val (objectMapper, contentType) = objectMapperAndContentTypeForFormat(
+      config.propertiesBasedConfig.serializationFormat
+    )
     builder = builder
       .timestampSpec(newTimestampSpec)
       .objectWriter(
@@ -216,8 +222,8 @@ object DruidBeams
             newTimestampSpec,
             builder.config._rollup.get.aggregators,
             builder.config._rollup.get.dimensions.spatialDimensions,
-            DefaultScalaObjectMapper,
-            MediaType.APPLICATION_JSON
+            objectMapper,
+            contentType
           )
         )
       )
@@ -364,6 +370,15 @@ object DruidBeams
         _timestamper = Some(timestamper)
       )
     )
+  }
+
+  private def objectMapperAndContentTypeForFormat(formatString: String): (ObjectMapper, String) = {
+    formatString match {
+      case "json" => (DefaultScalaObjectMapper, MediaType.APPLICATION_JSON)
+      case "smile" => (Jackson.newObjectMapper(new SmileFactory()), SmileMediaTypes.APPLICATION_JACKSON_SMILE)
+      case _ =>
+        throw new IllegalArgumentException("Unknown format: %s" format formatString)
+    }
   }
 
   /**

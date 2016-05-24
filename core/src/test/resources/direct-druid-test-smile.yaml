@@ -1,0 +1,37 @@
+dataSources:
+  xxx:
+    spec:
+      dataSchema:
+        dataSource: xxx
+        parser:
+          type: string
+          parseSpec:
+            format: csv
+            columns: [ts, foo, bar, lat, lon]
+            timestampSpec:
+              column: ts
+              format: posix
+            dimensionsSpec:
+              dimensions: [foo]
+              spatialDimensions:
+                - { dimName: coord.geo, dims: [lat, lon] }
+
+        metricsSpec:
+          - { type: longSum, name: barr, fieldName: bar }
+
+        granularitySpec:
+          type: uniform
+          segmentGranularity: hour
+          queryGranularity: minute
+
+      tuningConfig:
+        type: realtime
+        buildV9Directly: true
+
+properties:
+  druid.discovery.curator.path: /disco-fever
+  druid.selectors.indexing.serviceName: druid/tranquility/indexer
+  zookeeper.connect: @ZKPLACEHOLDER@
+  tranquility.batchSize: 1000
+  tranquility.lingerMillis: 1000
+  serialization.format: smile

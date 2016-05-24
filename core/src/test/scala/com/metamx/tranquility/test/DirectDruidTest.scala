@@ -211,6 +211,43 @@ class DirectDruidTest
     }
   }
 
+  test("Druid standalone - From config file - Smile mapper") {
+    withDruidStack {
+      (curator, broker, coordinator, overlord) =>
+        val timekeeper = new TestingTimekeeper
+        val config = readDataSourceConfig(
+          curator.getZookeeperClient.getCurrentConnectionString,
+          "direct-druid-test-smile.yaml"
+        )
+        val indexing = DruidBeams
+          .fromConfig(config)
+          .timekeeper(timekeeper)
+          .buildTranquilizer(config.tranquilizerBuilder())
+        indexing.start()
+        try {
+          timekeeper.now = new DateTime().hourOfDay().roundFloorCopy()
+          val eventsSent = Future.collect(
+            generateEvents(timekeeper.now) map { event =>
+              indexing.send(event.toMap.asJava.asInstanceOf[ju.Map[String, AnyRef]]) transform {
+                case Return(()) => Future.value(true)
+                case Throw(e: MessageDroppedException) => Future.value(false)
+                case Throw(e) => Future.exception(e)
+              }
+            }
+          )
+          assert(Await.result(eventsSent) === Seq(true, false, true))
+          runTestQueriesAndAssertions(broker, timekeeper)
+        }
+        catch {
+          case NonFatal(e) =>
+            throw new ISE(e, "Failed test")
+        }
+        finally {
+          indexing.stop()
+        }
+    }
+  }
+
   test("Druid standalone - From config file - Custom type") {
     withDruidStack {
       (curator, broker, coordinator, overlord) =>

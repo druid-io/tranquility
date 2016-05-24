@@ -83,6 +83,7 @@ Any of these properties can be specified either globally, or per-dataSource.
 |`druidBeam.overlordPollPeriod`|How often to poll the Overlord for task locations. Only applies if taskLocator is "overlord".|PT20S|
 |`druidBeam.randomizeTaskId`|True if we should add a random suffix to Druid task IDs. This is useful for testing.|false|
 |`druidBeam.taskLocator`|Strategy for locating Druid tasks. Can be "curator" or "overlord".|curator|
+|`serialization.format`|Serialization format for objects sent to Druid. Can be "json" or "smile". Does not apply if you define a custom objectWriter.|json|
 |`task.partitions`|Number of Druid partitions to create.|1|
 |`task.replicants`|Number of instances of each Druid partition to create. This is the *total* number of instances, so 2 replicants means 2 tasks will be created.|1|
 |`task.warmingPeriod`|If nonzero, create Druid tasks early. This can be useful if tasks take a long time to start up in your environment.|PT0M|
