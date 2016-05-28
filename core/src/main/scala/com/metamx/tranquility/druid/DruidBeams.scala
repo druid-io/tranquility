@@ -341,7 +341,8 @@ object DruidBeams
       .tuning(
         ClusteredBeamTuning(
           segmentGranularity = fireDepartment.getDataSchema.getGranularitySpec.getSegmentGranularity,
-          windowPeriod = fireDepartment.getTuningConfig.getWindowPeriod
+          windowPeriod = fireDepartment.getTuningConfig.getWindowPeriod,
+          warmingPeriod = config.propertiesBasedConfig.taskWarmingPeriod
         )
       )
       .druidTuningMap(Option(config.specMap.getOrElse("tuningConfig", null)).map(dict(_)).getOrElse(Map.empty))
