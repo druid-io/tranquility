@@ -20,9 +20,11 @@
 package com.metamx.tranquility.server
 
 import com.fasterxml.jackson.core.JsonGenerator
+import com.fasterxml.jackson.dataformat.smile.SmileFactory
 import com.google.common.base.Charsets
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.collection.implicits._
+import com.metamx.common.scala.gz.gzip
 import com.metamx.common.scala.untyped._
 import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.MemoryBeam
@@ -197,6 +199,55 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
           tester.status should be(200)
           tester.header("Content-Type") should startWith("application/json;")
           val response = Jackson.parse[Dict](tester.bodyBytes)
+          response should be(
+            Dict(
+              "result" -> Dict(
+                "received" -> 5,
+                "sent" -> 4
+              )
+            )
+          )
+        }
+      }
+    }
+
+    events should be(
+      Map(
+        "foo" -> Seq(
+          Dict("dataSource" -> "foo", "n" -> 1),
+          Dict("dataSource" -> "foo", "n" -> 2),
+          Dict("feed" -> "bar", "n" -> 3),
+          Dict("dataSource" -> "bar", "n" -> 5)
+        )
+      )
+    )
+  }
+
+  test("/v1/post/dataSource, application/x-jackson-smile, gzip encoded, array") {
+    val objectMapper = Jackson.newObjectMapper(new SmileFactory())
+    val events = withBeams { beams =>
+      withTester(beams) { tester =>
+        val body = gzip(
+          objectMapper.writeValueAsBytes(
+            Seq(
+              Dict("dataSource" -> "foo", "n" -> 1),
+              Dict("dataSource" -> "foo", "n" -> 2),
+              Dict("feed" -> "bar", "n" -> 3),
+              Dict("dataSource" -> "bar", "n" -> 4, FailableBeam.ActionKey -> "__drop__"),
+              Dict("dataSource" -> "bar", "n" -> 5)
+            )
+          )
+        )
+
+        val headers = Map(
+          "Content-Type" -> "application/x-jackson-smile",
+          "Content-Encoding" -> "gzip"
+        )
+
+        tester.post("/v1/post/foo", body, headers) {
+          tester.status should be(200)
+          tester.header("Content-Type") should startWith("application/x-jackson-smile;")
+          val response = objectMapper.readValue(tester.bodyBytes, classOf[Dict])
           response should be(
             Dict(
               "result" -> Dict(

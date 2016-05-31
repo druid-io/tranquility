@@ -22,6 +22,7 @@ package com.metamx.tranquility.server.http
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.smile.SmileFactory
 import com.fasterxml.jackson.jaxrs.smile.SmileMediaTypes
+import com.metamx.common.CompressionUtils
 import com.metamx.common.scala.Abort
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Logging
@@ -33,8 +34,10 @@ import com.metamx.tranquility.tranquilizer.MessageDroppedException
 import com.twitter.util.Return
 import com.twitter.util.Throw
 import io.druid.data.input.InputRow
+import java.io.InputStream
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+import java.util.zip.GZIPInputStream
 import javax.ws.rs.core.MediaType
 import org.jboss.netty.handler.codec.http.HttpResponseStatus
 import org.scalatra.ScalatraServlet
@@ -109,9 +112,10 @@ class TranquilityServlet(
 
   private def doV1Post(forceDataSource: Option[String], async: Boolean): Array[Byte] = {
     val objectMapper = getObjectMapper()
+    val decompressor = getRequestDecompressor()
     val messages: Walker[(String, InputRow)] = request.contentType match {
       case Some(JsonContentType) | Some(SmileContentType) =>
-        Messages.fromObjectStream(request.inputStream, forceDataSource, objectMapper) map {
+        Messages.fromObjectStream(decompressor(request.inputStream), forceDataSource, objectMapper) map {
           case (dataSource, d) =>
             val row = getBundle(dataSource).mapParser.parse(d.asJava.asInstanceOf[java.util.Map[String, AnyRef]])
             (dataSource, row)
@@ -124,7 +128,7 @@ class TranquilityServlet(
             s"Must include dataSource in URL for contentType[$TextContentType]"
           )
         }
-        Messages.fromStringStream(request.inputStream, getBundle(dataSource).stringParser) map { row =>
+        Messages.fromStringStream(decompressor(request.inputStream), getBundle(dataSource).stringParser) map { row =>
           (dataSource, row)
         }
 
@@ -151,6 +155,17 @@ class TranquilityServlet(
     request.contentType match {
       case Some(SmileContentType) => SmileContentType
       case _ => JsonContentType
+    }
+  }
+
+  private def getRequestDecompressor(): InputStream => InputStream = {
+    request.header("Content-Encoding") match {
+      case Some("gzip") | Some("x-gzip") =>
+        in => CompressionUtils.gzipInputStream(in)
+      case Some("identity") | None =>
+        identity
+      case Some(x) =>
+        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Unrecognized request Content-Encoding")
     }
   }
 

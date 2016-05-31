@@ -33,6 +33,14 @@ This API is synchronous and will block until your messages are either sent to Dr
 
 If there is an error sending the data, you will get an HTTP error code (4xx or 5xx).
 
+### Request compression
+
+Tranquility Server supports request compression. To use request compression, set the "Content-Encoding" header of your
+request and compress your payload. Currently supported options are:
+
+- gzip: Same scheme as HTTP's gzip response encoding.
+- identity: No compression.
+
 ### Direct object option
 
 You can also POST objects directly to Tranquility Server without going through the string-oriented parser. To do this,
