@@ -63,6 +63,7 @@ class DruidBeamTest extends FunSuite with Matchers
 
   test("GenerateFirehoseId: H=00") {
     val dt = new DateTime("2010-02-03T00:34:56.789Z")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.SECOND, dt, 1) === "x-296-0001")
     assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.MINUTE, dt, 1) === "x-034-0001")
     assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.FIVE_MINUTE, dt, 1) === "x-034-0001")
     assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.TEN_MINUTE, dt, 1) === "x-034-0001")
@@ -77,6 +78,7 @@ class DruidBeamTest extends FunSuite with Matchers
 
   test("GenerateFirehoseId: H=12") {
     val dt = new DateTime("2010-02-03T12:34:56.789Z")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.SECOND, dt, 1) === "x-296-0001")
     assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.MINUTE, dt, 1) === "x-034-0001")
     assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.FIVE_MINUTE, dt, 1) === "x-034-0001")
     assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.TEN_MINUTE, dt, 1) === "x-034-0001")
@@ -91,6 +93,7 @@ class DruidBeamTest extends FunSuite with Matchers
 
   test("GenerateFirehoseId: H=23") {
     val dt = new DateTime("2010-02-03T23:34:56.789Z")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.SECOND, dt, 1) === "x-296-0001")
     assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.MINUTE, dt, 1) === "x-154-0001")
     assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.FIVE_MINUTE, dt, 1) === "x-154-0001")
     assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.TEN_MINUTE, dt, 1) === "x-154-0001")
