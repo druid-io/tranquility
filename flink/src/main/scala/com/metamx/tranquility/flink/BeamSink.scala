@@ -32,8 +32,9 @@ import org.apache.flink.streaming.api.functions.sink.RichSinkFunction
   * This class provides a sink that can propagate any event type to Druid.
   *
   * @param beamFactory your implementation of [[BeamFactory]].
+  * @param reportDropsAsExceptions throws an exception if set to true and a message gets dropped.
   */
-class BeamSink[T](beamFactory: BeamFactory[T])
+class BeamSink[T](beamFactory: BeamFactory[T], reportDropsAsExceptions: Boolean = false)
   extends RichSinkFunction[T] with Logging
 {
   var sender: Option[Tranquilizer[T]] = None
@@ -54,6 +55,7 @@ class BeamSink[T](beamFactory: BeamFactory[T])
     receivedCounter.add(1)
     sender.get.send(value) respond {
       case Return(()) => sentCounter.add(1)
+      case Throw(e: MessageDroppedException) if reportDropsAsExceptions => exception.compareAndSet(null, e)
       case Throw(e: MessageDroppedException) => droppedCounter.add(1)
       case Throw(e) => exception.compareAndSet(null, e)
     }
