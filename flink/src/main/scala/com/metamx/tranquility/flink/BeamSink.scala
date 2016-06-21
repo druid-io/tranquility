@@ -39,24 +39,24 @@ class BeamSink[T](beamFactory: BeamFactory[T], reportDropsAsExceptions: Boolean 
 {
   var sender: Option[Tranquilizer[T]] = None
 
-  private val exception       = new AtomicReference[Throwable]()
-  private val receivedCounter = new LongCounter()
-  private val sentCounter     = new LongCounter()
-  private val droppedCounter  = new LongCounter()
+  private val exception                            = new AtomicReference[Throwable]()
+  private var receivedCounter: Option[LongCounter] = None
+  private var sentCounter    : Option[LongCounter] = None
+  private var droppedCounter : Option[LongCounter] = None
 
   override def open(parameters: Configuration) = {
     sender = Some(beamFactory.tranquilizer)
-    getRuntimeContext.addAccumulator("Druid: Messages received", receivedCounter)
-    getRuntimeContext.addAccumulator("Druid: Messages sent", sentCounter)
-    getRuntimeContext.addAccumulator("Druid: Messages dropped", droppedCounter)
+    receivedCounter = Some(getRuntimeContext.getLongCounter("Druid: Messages received"))
+    sentCounter = Some(getRuntimeContext.getLongCounter("Druid: Messages sent"))
+    droppedCounter = Some(getRuntimeContext.getLongCounter("Druid: Messages dropped"))
   }
 
   override def invoke(value: T) = {
-    receivedCounter.add(1)
+    receivedCounter.get.add(1)
     sender.get.send(value) respond {
-      case Return(()) => sentCounter.add(1)
+      case Return(()) => sentCounter.get.add(1)
       case Throw(e: MessageDroppedException) if reportDropsAsExceptions => exception.compareAndSet(null, e)
-      case Throw(e: MessageDroppedException) => droppedCounter.add(1)
+      case Throw(e: MessageDroppedException) => droppedCounter.get.add(1)
       case Throw(e) => exception.compareAndSet(null, e)
     }
 
