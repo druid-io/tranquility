@@ -38,21 +38,21 @@ import com.metamx.tranquility.druid.DruidRollup
 import com.metamx.tranquility.druid.DruidSpatialDimension
 import com.metamx.tranquility.druid.DruidTuning
 import com.metamx.tranquility.druid.SpecificDruidDimensions
-import io.druid.data.input.impl.TimestampSpec
-import io.druid.granularity.QueryGranularity
-import io.druid.indexing.common.task.RealtimeIndexTask
-import io.druid.indexing.common.task.Task
-import io.druid.query.aggregation.LongSumAggregatorFactory
-import io.druid.segment.realtime.firehose.ChatHandlerProvider
-import io.druid.segment.realtime.firehose.ClippedFirehoseFactory
-import io.druid.segment.realtime.firehose.NoopChatHandlerProvider
-import io.druid.server.metrics.EventReceiverFirehoseRegister
-import io.druid.timeline.partition.LinearShardSpec
+import _root_.io.druid.data.input.impl.TimestampSpec
+import _root_.io.druid.granularity.QueryGranularities
+import _root_.io.druid.indexing.common.task.RealtimeIndexTask
+import _root_.io.druid.indexing.common.task.Task
+import _root_.io.druid.query.aggregation.LongSumAggregatorFactory
+import _root_.io.druid.segment.realtime.firehose.ChatHandlerProvider
+import _root_.io.druid.segment.realtime.firehose.ClippedFirehoseFactory
+import _root_.io.druid.segment.realtime.firehose.NoopChatHandlerProvider
+import _root_.io.druid.server.metrics.EventReceiverFirehoseRegister
+import _root_.io.druid.timeline.partition.LinearShardSpec
 import org.joda.time.chrono.ISOChronology
 import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
 import org.scalatest.Matchers
-import scala.collection.JavaConverters._
+import _root_.scala.collection.JavaConverters._
 
 class DruidBeamTest extends FunSuite with Matchers
 {
@@ -123,7 +123,7 @@ class DruidBeamTest extends FunSuite with Matchers
       DruidRollup(
         dimensions = SpecificDruidDimensions(Seq("dim1", "dim2"), Seq(DruidSpatialDimension.singleField("spatial1"))),
         aggregators = Seq(new LongSumAggregatorFactory("met1", "met1")),
-        indexGranularity = QueryGranularity.MINUTE
+        indexGranularity = QueryGranularities.MINUTE
       ),
       new TimestampSpec("ts", "iso", null),
       null,
@@ -194,12 +194,12 @@ class DruidBeamTest extends FunSuite with Matchers
     dataSchema.getDataSource should be("mydatasource")
     dataSchema.getAggregators.deep should be(Array(new LongSumAggregatorFactory("met1", "met1")).deep)
     dataSchema.getGranularitySpec.getSegmentGranularity should be(Granularity.HOUR)
-    dataSchema.getGranularitySpec.getQueryGranularity should be(QueryGranularity.MINUTE)
+    dataSchema.getGranularitySpec.getQueryGranularity should be(QueryGranularities.MINUTE)
 
     val parseSpec = dataSchema.getParser.getParseSpec
     parseSpec.getTimestampSpec.getTimestampColumn should be("ts")
     parseSpec.getTimestampSpec.getTimestampFormat should be("iso")
-    parseSpec.getDimensionsSpec.getDimensions.asScala should be(Seq("dim1", "dim2"))
+    parseSpec.getDimensionsSpec.getDimensions.asScala.map(_.getName) should be(Seq("dim1", "dim2", "spatial1"))
     parseSpec.getDimensionsSpec.getSpatialDimensions.asScala.map(_.getDimName) should be(Seq("spatial1"))
   }
 }

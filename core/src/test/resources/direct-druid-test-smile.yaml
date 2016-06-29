@@ -7,7 +7,7 @@ dataSources:
           type: string
           parseSpec:
             format: csv
-            columns: [ts, foo, bar, lat, lon]
+            columns: [ts, foo, bar, lat, lon, coord.geo]
             timestampSpec:
               column: ts
               format: posix

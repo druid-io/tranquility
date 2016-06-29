@@ -28,7 +28,7 @@ import com.metamx.tranquility.druid.DruidLocation;
 import com.metamx.tranquility.druid.DruidRollup;
 import com.metamx.tranquility.samza.BeamFactory;
 import com.metamx.tranquility.typeclass.Timestamper;
-import io.druid.granularity.QueryGranularity;
+import io.druid.granularity.QueryGranularities;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.CountAggregatorFactory;
 import org.apache.curator.framework.CuratorFramework;
@@ -79,7 +79,7 @@ public class TestSamzaBeamFactory implements BeamFactory
         .curator(curator)
         .discoveryPath("/druid/discovery")
         .location(DruidLocation.create("overlord", "druid:firehose:%s", dataSource))
-        .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularity.MINUTE))
+        .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularities.MINUTE))
         .tuning(
             ClusteredBeamTuning.builder()
                                .segmentGranularity(Granularity.HOUR)

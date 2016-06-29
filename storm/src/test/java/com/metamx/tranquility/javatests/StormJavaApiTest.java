@@ -35,7 +35,7 @@ import com.metamx.tranquility.storm.BeamFactory;
 import com.metamx.tranquility.typeclass.JavaObjectWriter;
 import com.metamx.tranquility.typeclass.Timestamper;
 import com.twitter.finagle.Service;
-import io.druid.granularity.QueryGranularity;
+import io.druid.granularity.QueryGranularities;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.CountAggregatorFactory;
 import org.apache.curator.framework.CuratorFramework;
@@ -102,7 +102,7 @@ public class StormJavaApiTest
                     dataSource
                 )
             )
-            .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularity.MINUTE))
+            .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularities.MINUTE))
             .tuning(
                 ClusteredBeamTuning.builder()
                                    .segmentGranularity(Granularity.HOUR)

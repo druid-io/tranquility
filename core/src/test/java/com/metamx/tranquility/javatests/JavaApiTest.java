@@ -28,7 +28,7 @@ import com.metamx.tranquility.druid.DruidSpatialDimension;
 import com.metamx.tranquility.druid.SchemalessDruidDimensions;
 import com.metamx.tranquility.druid.SpecificDruidDimensions;
 import com.metamx.tranquility.finagle.FinagleRegistryConfig;
-import io.druid.granularity.QueryGranularity;
+import io.druid.granularity.QueryGranularities;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.CountAggregatorFactory;
 import org.joda.time.Period;
@@ -52,7 +52,7 @@ public class JavaApiTest
     final DruidRollup rollup = DruidRollup.create(
         DruidDimensions.specific(dimensions),
         aggregators,
-        QueryGranularity.MINUTE
+        QueryGranularities.MINUTE
     );
     Assert.assertTrue(rollup.dimensions() instanceof SpecificDruidDimensions);
     Assert.assertEquals("column", ((SpecificDruidDimensions) rollup.dimensions()).dimensions().iterator().next());
@@ -64,7 +64,7 @@ public class JavaApiTest
     final DruidRollup rollup = DruidRollup.create(
         DruidDimensions.schemaless(),
         aggregators,
-        QueryGranularity.MINUTE
+        QueryGranularities.MINUTE
     );
     Assert.assertTrue(rollup.dimensions() instanceof SchemalessDruidDimensions);
     Assert.assertEquals(0, ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().size());
@@ -76,7 +76,7 @@ public class JavaApiTest
     final DruidRollup rollup = DruidRollup.create(
         DruidDimensions.schemalessWithExclusions(dimensions),
         aggregators,
-        QueryGranularity.MINUTE
+        QueryGranularities.MINUTE
     );
     Assert.assertTrue(rollup.dimensions() instanceof SchemalessDruidDimensions);
     Assert.assertEquals("column", ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().iterator().next());
@@ -96,7 +96,7 @@ public class JavaApiTest
                            )
                        ),
         aggregators,
-        QueryGranularity.MINUTE
+        QueryGranularities.MINUTE
     );
     Assert.assertTrue(rollup.dimensions() instanceof SchemalessDruidDimensions);
     Assert.assertEquals("column", ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().iterator().next());

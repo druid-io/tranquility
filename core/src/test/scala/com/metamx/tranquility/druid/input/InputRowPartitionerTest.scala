@@ -19,21 +19,14 @@
 
 package com.metamx.tranquility.druid.input
 
-import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.untyped.Dict
-import com.metamx.tranquility.druid.DruidRollup
-import com.metamx.tranquility.druid.SpecificDruidDimensions
-import com.metamx.tranquility.partition.MapPartitioner
-import com.metamx.tranquility.typeclass.Timestamper
 import io.druid.data.input.MapBasedInputRow
 import io.druid.data.input.impl.DimensionsSpec
 import io.druid.data.input.impl.MapInputRowParser
 import io.druid.data.input.impl.TimeAndDimsParseSpec
 import io.druid.data.input.impl.TimestampSpec
-import io.druid.granularity.QueryGranularity
-import io.druid.query.aggregation.DoubleSumAggregatorFactory
+import io.druid.granularity.QueryGranularities
 import org.joda.time.DateTime
-import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
 import org.scalatest.ShouldMatchers
 import scala.collection.JavaConverters._
@@ -54,13 +47,11 @@ class InputRowPartitionerTest extends FunSuite with ShouldMatchers
   val parser = new MapInputRowParser(
     new TimeAndDimsParseSpec(
       new TimestampSpec("t", "iso", null),
-      new DimensionsSpec(Seq("foo", "bar", "baz").asJava, null, null)
+      new DimensionsSpec(DimensionsSpec.getDefaultSchemas(Seq("foo", "bar", "baz").asJava), null, null)
     )
   )
 
-  val partitioner = new InputRowPartitioner(
-    QueryGranularity.MINUTE
-  )
+  val partitioner = new InputRowPartitioner(QueryGranularities.MINUTE)
 
   val same = Seq(
     Dict("t" -> new DateTime("2000T00:00:03"), "foo" -> 1, "bar" -> Seq("y", "z")),

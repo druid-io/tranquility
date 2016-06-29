@@ -42,16 +42,16 @@ import com.metamx.tranquility.server.ServerTestUtil.withTester
 import com.metamx.tranquility.test.DirectDruidTest
 import com.metamx.tranquility.test.common.CuratorRequiringSuite
 import com.metamx.tranquility.test.common.DruidIntegrationSuite
-import io.druid.data.input.InputRow
-import io.druid.data.input.impl.TimestampSpec
-import io.druid.granularity.QueryGranularity
-import io.druid.query.aggregation.LongSumAggregatorFactory
+import _root_.io.druid.data.input.InputRow
+import _root_.io.druid.data.input.impl.TimestampSpec
+import _root_.io.druid.granularity.QueryGranularities
+import _root_.io.druid.query.aggregation.LongSumAggregatorFactory
 import org.apache.curator.framework.CuratorFramework
 import org.joda.time.DateTime
 import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
 import org.scalatest.ShouldMatchers
-import scala.reflect.runtime.universe.typeTag
+import _root_.scala.reflect.runtime.universe.typeTag
 
 class ServerDruidTest
   extends FunSuite with DruidIntegrationSuite with CuratorRequiringSuite with ShouldMatchers with Logging
@@ -129,7 +129,7 @@ object ServerDruidTest
         Vector(MultipleFieldDruidSpatialDimension("coord.geo", Seq("lat", "lon")))
       ),
       IndexedSeq(new LongSumAggregatorFactory("barr", "bar")),
-      QueryGranularity.MINUTE
+      QueryGranularities.MINUTE
     )
     val druidEnvironment = DruidEnvironment.create(
       "druid/tranquility/indexer" /* Slashes should be converted to colons */

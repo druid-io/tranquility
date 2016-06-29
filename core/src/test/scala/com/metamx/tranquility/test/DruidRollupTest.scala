@@ -19,12 +19,11 @@
 
 package com.metamx.tranquility.test
 
-import com.metamx.common.parsers.ParseException
 import com.metamx.tranquility.druid.DruidRollup
 import com.metamx.tranquility.druid.SchemalessDruidDimensions
 import com.metamx.tranquility.druid.SpecificDruidDimensions
 import io.druid.data.input.impl.TimestampSpec
-import io.druid.granularity.QueryGranularity
+import io.druid.granularity.QueryGranularities
 import io.druid.query.aggregation.CountAggregatorFactory
 import io.druid.query.aggregation.LongSumAggregatorFactory
 import org.scalatest.FunSuite
@@ -37,7 +36,7 @@ class DruidRollupTest extends FunSuite with Matchers
     val rollup = DruidRollup(
       SpecificDruidDimensions(Vector("hey", "what"), Vector.empty),
       Seq(new CountAggregatorFactory("heyyo")),
-      QueryGranularity.NONE
+      QueryGranularities.NONE
     )
     rollup.validate()
   }
@@ -47,7 +46,7 @@ class DruidRollupTest extends FunSuite with Matchers
       DruidRollup(
         SpecificDruidDimensions(Vector("hey", "what"), Vector.empty),
         Seq(new CountAggregatorFactory("hey")),
-        QueryGranularity.NONE
+        QueryGranularities.NONE
       )
     }
     e.getMessage should be("Duplicate columns: hey")
@@ -58,7 +57,7 @@ class DruidRollupTest extends FunSuite with Matchers
       DruidRollup(
         SpecificDruidDimensions(Vector("what"), Vector.empty),
         Seq(new CountAggregatorFactory("hey"), new LongSumAggregatorFactory("hey", "blah")),
-        QueryGranularity.NONE
+        QueryGranularities.NONE
       )
     }
     e.getMessage should be("Duplicate columns: hey")
@@ -69,7 +68,7 @@ class DruidRollupTest extends FunSuite with Matchers
       DruidRollup(
         SpecificDruidDimensions(Vector("what", "what"), Vector.empty),
         Seq(new CountAggregatorFactory("hey")),
-        QueryGranularity.NONE
+        QueryGranularities.NONE
       )
     }
     e.getMessage should be("Duplicate columns: what")
@@ -79,7 +78,7 @@ class DruidRollupTest extends FunSuite with Matchers
     val rollup = DruidRollup(
       SpecificDruidDimensions(Vector("e", "f", "a", "b", "z", "t"), Vector.empty),
       Seq(new CountAggregatorFactory("hey")),
-      QueryGranularity.NONE
+      QueryGranularities.NONE
     )
     rollup.dimensions.specMap.get("dimensions").asInstanceOf[java.util.List[String]].asScala should
       be(Seq("e", "f", "a", "b", "z", "t"))
@@ -89,7 +88,7 @@ class DruidRollupTest extends FunSuite with Matchers
     val rollup = DruidRollup(
       SpecificDruidDimensions(Seq("foo", "bar")),
       Seq(new LongSumAggregatorFactory("hey", "there")),
-      QueryGranularity.NONE
+      QueryGranularities.NONE
     )
     val timestampSpec = new TimestampSpec("t", "auto", null)
     rollup.isStringDimension(timestampSpec, "t") should be(false)
@@ -105,7 +104,7 @@ class DruidRollupTest extends FunSuite with Matchers
     val rollup = DruidRollup(
       SchemalessDruidDimensions(Set("qux")),
       Seq(new LongSumAggregatorFactory("hey", "there")),
-      QueryGranularity.NONE
+      QueryGranularities.NONE
     )
     val timestampSpec = new TimestampSpec("t", "auto", null)
     rollup.isStringDimension(timestampSpec, "t") should be(false)

@@ -36,7 +36,7 @@ import io.druid.cli.CliBroker
 import io.druid.cli.CliCoordinator
 import io.druid.cli.CliOverlord
 import io.druid.cli.GuiceRunnable
-import io.druid.granularity.QueryGranularity
+import io.druid.granularity.QueryGranularities
 import io.druid.guice.GuiceInjectors
 import io.druid.query.Druids
 import io.druid.query.Query
@@ -77,32 +77,41 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
   }
 
   def spawnDruidServer[A <: GuiceRunnable : ClassTag](configFile: File): DruidServerHandle = {
-    val server = classTag[A].runtimeClass.newInstance().asInstanceOf[A]
-    val serverName = server.getClass.getName
+    val serverClass = classTag[A].runtimeClass
+
     // Make the ForkingTaskRunner work under sbt
     System.setProperty("java.class.path", getClass.getClassLoader.asInstanceOf[URLClassLoader].getURLs.mkString(":"))
+
     // Would be better to have a way to easily pass Properties into the startup injector.
     System.setProperty("druid.properties.file", configFile.toString)
-    server.configure(GuiceInjectors.makeStartupInjector())
-    val _injector = server.makeInjector()
-    val lifecycle = _injector.getInstance(classOf[Lifecycle])
-    System.clearProperty("druid.properties.file")
+
+    val (serverInjector, lifecycle) = try {
+      val startupInjector = GuiceInjectors.makeStartupInjector()
+      val server: A = startupInjector.getInstance(serverClass).asInstanceOf[A]
+      server.configure(startupInjector)
+      val serverInjector = server.makeInjector()
+      (serverInjector, serverInjector.getInstance(classOf[Lifecycle]))
+    }
+    finally {
+      System.clearProperty("druid.properties.file")
+    }
+
     lifecycle.start()
-    log.info("Server started up: %s", serverName)
+    log.info("Server started up: %s", serverClass.getName)
     val thread = loggingThread {
       try {
         lifecycle.join()
       }
       catch {
         case e: Throwable =>
-          log.error(e, "Failed to run server: %s", serverName)
+          log.error(e, "Failed to run server: %s", serverClass.getName)
           throw e
       }
     }
     thread.start()
     new DruidServerHandle
     {
-      def injector = _injector
+      def injector = serverInjector
 
       def close() {
         try {
@@ -110,7 +119,7 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
         }
         catch {
           case e: Throwable =>
-            log.error(e, "Failed to stop lifecycle for server: %s", serverName)
+            log.error(e, "Failed to stop lifecycle for server: %s", serverClass.getName)
         }
         thread.interrupt()
       }
@@ -239,7 +248,7 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
       (Druids
         .newTimeseriesQueryBuilder()
         .dataSource("xxx")
-        .granularity(QueryGranularity.MINUTE)
+        .granularity(QueryGranularities.MINUTE)
         .intervals("0000/3000")
         .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
         .build(),
@@ -256,7 +265,7 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
       (Druids
         .newTimeseriesQueryBuilder()
         .dataSource("xxx")
-        .granularity(QueryGranularity.MINUTE)
+        .granularity(QueryGranularities.MINUTE)
         .intervals("0000/3000")
         .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
         .filters(new SpatialDimFilter("coord.geo", new RectangularBound(Array(35f, 120f), Array(40f, 125f))))

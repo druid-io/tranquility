@@ -276,7 +276,7 @@ class TranquilityServletTest extends FunSuite with ShouldMatchers
     val events = withBeams { beams =>
       val parseSpec = new CSVParseSpec(
         new TimestampSpec("ts", "posix", null),
-        new DimensionsSpec(Seq("ts", "dataSource", "n").asJava, null, null),
+        new DimensionsSpec(DimensionsSpec.getDefaultSchemas(Seq("ts", "dataSource", "n").asJava), null, null),
         null,
         Seq("ts", "dataSource", "n", FailableBeam.ActionKey).asJava
       )

@@ -58,6 +58,8 @@ import com.metamx.tranquility.typeclass.Timestamper
 import com.twitter.finagle.Service
 import io.druid.data.input.ByteBufferInputRowParser
 import io.druid.data.input.InputRow
+import io.druid.data.input.impl.DimensionSchema
+import io.druid.data.input.impl.DimensionSchema.ValueType
 import io.druid.data.input.impl.InputRowParser
 import io.druid.data.input.impl.MapInputRowParser
 import io.druid.data.input.impl.StringInputRowParser
@@ -90,7 +92,7 @@ import scala.reflect.runtime.universe.typeTag
   *   .curator(curator)
   *   .discoveryPath("/test/discovery")
   *   .location(DruidLocation(new DruidEnvironment("druid:local:indexer", "druid:local:firehose:%s"), dataSource))
-  *   .rollup(DruidRollup(dimensions, aggregators, QueryGranularity.MINUTE))
+  *   .rollup(DruidRollup(dimensions, aggregators, QueryGranularities.MINUTE))
   *   .tuning(new ClusteredBeamTuning(Granularity.HOUR, 10.minutes, 1, 1))
   *   .buildTranquilizer()
   * val future = sender.send(Map("timestamp" -> "2010-01-02T03:04:05.678Z", "bar" -> "hey", "baz" -> 3))
@@ -320,7 +322,16 @@ object DruidBeams
           )
         case _ =>
           SpecificDruidDimensions(
-            j2s(parseSpec.getDimensionsSpec.getDimensions),
+            j2s(parseSpec.getDimensionsSpec.getDimensions) filter { dimensionSchema =>
+              // Spatial dimensions are handled as a special case, above
+              dimensionSchema.getTypeName != DimensionSchema.SPATIAL_TYPE_NAME
+            } map { dimensionSchema =>
+              dimensionSchema.getValueType match {
+                case ValueType.STRING => dimensionSchema.getName
+                case other =>
+                  throw new IllegalStateException("Dimensions of type[%s] are not supported" format other)
+              }
+            },
             spatialDimensions
           )
       },

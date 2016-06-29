@@ -36,7 +36,7 @@ class SimpleEventBeamFactory extends BeamFactory[SimpleEvent]
       .curator(curator)
       .discoveryPath(discoveryPath)
       .location(DruidLocation.create(indexService, dataSource))
-      .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularity.MINUTE))
+      .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularities.MINUTE))
       .tuning(
         ClusteredBeamTuning(
           segmentGranularity = Granularity.HOUR,

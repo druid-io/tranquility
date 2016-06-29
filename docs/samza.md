@@ -83,7 +83,7 @@ public class MyBeamFactory implements BeamFactory
         .curator(curator)
         .discoveryPath("/druid/discovery")
         .location(DruidLocation.create("druid/overlord", "druid:firehose:%s", dataSource))
-        .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularity.MINUTE))
+        .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularities.MINUTE))
         .tuning(
             ClusteredBeamTuning.builder()
                                .segmentGranularity(Granularity.HOUR)

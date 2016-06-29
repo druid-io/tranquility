@@ -20,7 +20,6 @@
 package com.metamx.tranquility.test
 
 import _root_.io.druid.data.input.impl.TimestampSpec
-import _root_.io.druid.granularity.QueryGranularity
 import _root_.io.druid.query.aggregation.LongSumAggregatorFactory
 import _root_.scala.collection.JavaConverters._
 import _root_.scala.reflect.runtime.universe.typeTag
@@ -58,6 +57,7 @@ import com.twitter.util.Future
 import com.twitter.util.NonFatal
 import com.twitter.util.Return
 import com.twitter.util.Throw
+import _root_.io.druid.granularity.QueryGranularities
 import java.io.ByteArrayInputStream
 import java.nio.ByteBuffer
 import java.{util => ju}
@@ -96,7 +96,7 @@ object DirectDruidTest
         Vector(MultipleFieldDruidSpatialDimension("coord.geo", Seq("lat", "lon")))
       ),
       IndexedSeq(new LongSumAggregatorFactory("barr", "bar")),
-      QueryGranularity.MINUTE
+      QueryGranularities.MINUTE
     )
     val druidEnvironment = new DruidEnvironment(
       "druid/tranquility/indexer" /* Slashes should be converted to colons */ ,
