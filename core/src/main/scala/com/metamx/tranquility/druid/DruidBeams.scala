@@ -166,20 +166,20 @@ object DruidBeams
           case t if t == typeTag[ByteBuffer] =>
             val trialParser = mkparser()
             require(
-              trialParser.isInstanceOf[ByteBufferInputRowParser],
-              s"Expected ByteBufferInputRowParser, got[${trialParser.getClass.getName}]"
+              trialParser.isInstanceOf[InputRowParser[ByteBuffer]],
+              s"Expected InputRowParser of ByteBuffer, got[${trialParser.getClass.getName}]"
             )
             val threadLocalParser = new ThreadLocalInputRowParser(mkparser)
-            msg => threadLocalParser.get().asInstanceOf[ByteBufferInputRowParser].parse(msg.asInstanceOf[ByteBuffer])
+            msg => threadLocalParser.get().asInstanceOf[InputRowParser[ByteBuffer]].parse(msg.asInstanceOf[ByteBuffer])
 
           case t if t == typeTag[Array[Byte]] =>
             val trialParser = mkparser()
             require(
-              trialParser.isInstanceOf[ByteBufferInputRowParser],
-              s"Expected ByteBufferInputRowParser, got[${trialParser.getClass.getName}]"
+              trialParser.isInstanceOf[InputRowParser[ByteBuffer]],
+              s"Expected InputRowParser of ByteBuffer, got[${trialParser.getClass.getName}]"
             )
             val threadLocalParser = new ThreadLocalInputRowParser(mkparser)
-            msg => threadLocalParser.get().asInstanceOf[ByteBufferInputRowParser].parse(
+            msg => threadLocalParser.get().asInstanceOf[InputRowParser[ByteBuffer]].parse(
               ByteBuffer.wrap(msg.asInstanceOf[Array[Byte]])
             )
 

@@ -41,7 +41,7 @@ def dependOnDruid(artifact: String) = {
 
 val coreDependencies = Seq(
   "com.metamx" %% "scala-util" % "1.11.6" exclude("log4j", "log4j") force(),
-  "com.metamx" % "java-util" % "0.27.4" exclude("log4j", "log4j") force(),
+  "com.metamx" % "java-util" % "0.27.10" exclude("log4j", "log4j") force(),
   "io.netty" % "netty" % "3.10.5.Final" force(),
   "com.twitter" %% "util-core" % twitterUtilVersion force(),
   "com.twitter" %% "finagle-core" % finagleVersion force(),
