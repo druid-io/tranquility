@@ -79,7 +79,7 @@ public class TestSamzaBeamFactory implements BeamFactory
         .curator(curator)
         .discoveryPath("/druid/discovery")
         .location(DruidLocation.create("overlord", "druid:firehose:%s", dataSource))
-        .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularities.MINUTE))
+        .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularities.MINUTE, true))
         .tuning(
             ClusteredBeamTuning.builder()
                                .segmentGranularity(Granularity.HOUR)

@@ -52,6 +52,7 @@ class TranquilityConfigTest extends FunSuite with ShouldMatchers
     for (builder <- makeBuilders(fooConfig.specMap)) {
       builder.config._location.get.dataSource should be(DataSource)
       builder.config._rollup.get.aggregators.map(_.getName) should be(Seq("count", "x"))
+      builder.config._rollup.get.isRollup should be(false)
       builder.config._druidTuningMap.get should be(Dict(
         "type" -> "realtime",
         "maxRowsInMemory" -> 100000,
@@ -81,6 +82,7 @@ class TranquilityConfigTest extends FunSuite with ShouldMatchers
     for (builder <- makeBuilders(fooConfig.specMap)) {
       builder.config._location.get.dataSource should be(DataSource)
       builder.config._rollup.get.aggregators.map(_.getName) should be(Seq("count", "x"))
+      builder.config._rollup.get.isRollup should be(false)
       builder.config._druidTuningMap.get should be(Dict(
         "type" -> "realtime",
         "maxRowsInMemory" -> 100000,

@@ -129,7 +129,8 @@ object ServerDruidTest
         Vector(MultipleFieldDruidSpatialDimension("coord.geo", Seq("lat", "lon")))
       ),
       IndexedSeq(new LongSumAggregatorFactory("barr", "bar")),
-      QueryGranularities.MINUTE
+      QueryGranularities.MINUTE,
+      true
     )
     val druidEnvironment = DruidEnvironment.create(
       "druid/tranquility/indexer" /* Slashes should be converted to colons */

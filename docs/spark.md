@@ -33,6 +33,7 @@ object SimpleEventBeamFactory
     val dataSource = "foo"
     val dimensions = IndexedSeq("bar")
     val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
+    val isRollup = true
 
     // Expects simpleEvent.timestamp to return a Joda DateTime object.
     DruidBeams
@@ -40,7 +41,7 @@ object SimpleEventBeamFactory
       .curator(curator)
       .discoveryPath(discoveryPath)
       .location(DruidLocation(indexService, dataSource))
-      .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularities.MINUTE))
+      .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularities.MINUTE, isRollup))
       .tuning(
         ClusteredBeamTuning(
           segmentGranularity = Granularity.HOUR,

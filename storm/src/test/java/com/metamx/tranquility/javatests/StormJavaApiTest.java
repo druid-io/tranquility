@@ -102,7 +102,7 @@ public class StormJavaApiTest
                     dataSource
                 )
             )
-            .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularities.MINUTE))
+            .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularities.MINUTE, true))
             .tuning(
                 ClusteredBeamTuning.builder()
                                    .segmentGranularity(Granularity.HOUR)

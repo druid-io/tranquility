@@ -14,7 +14,7 @@ val jacksonOneVersion = "1.9.13"
 // See https://github.com/druid-io/druid/pull/1669, https://github.com/druid-io/tranquility/pull/81 before upgrading Jackson
 val jacksonTwoVersion = "2.4.6"
 val jacksonTwoModuleScalaVersion = "2.4.5"
-val druidVersion = "0.9.1"
+val druidVersion = "0.9.2"
 val guiceVersion = "4.0"
 val flinkVersion = "1.0.3"
 val finagleVersion = "6.31.0"

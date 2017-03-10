@@ -20,14 +20,11 @@
 package com.metamx.tranquility.test
 
 import com.fasterxml.jackson.databind
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.InjectableValues
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.{ObjectReader, DeserializationContext, InjectableValues, ObjectMapper}
 import com.google.inject.Key
 import com.metamx.common.Granularity
 import com.metamx.common.scala.untyped.Dict
-import com.metamx.emitter.core.Emitter
-import com.metamx.emitter.core.Event
+import com.metamx.emitter.core.NoopEmitter
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.beam.ClusteredBeamTuning
 import com.metamx.tranquility.druid.DruidBeamConfig
@@ -56,6 +53,30 @@ import _root_.scala.collection.JavaConverters._
 
 class DruidBeamTest extends FunSuite with Matchers
 {
+  private def emptyEmitter(): ServiceEmitter = new ServiceEmitter(
+    "service", "host", new NoopEmitter()
+  )
+
+  private def defaultObjectReader(): ObjectReader = DruidGuicer.Default.objectMapper.reader(
+    new InjectableValues
+    {
+      override def findInjectableValue(
+          valueId: Any,
+          ctxt: DeserializationContext,
+          forProperty: databind.BeanProperty,
+          beanInstance: scala.Any
+        ): AnyRef =
+      {
+        valueId match {
+          case k: Key[_] if k.getTypeLiteral.getRawType == classOf[ChatHandlerProvider] => new NoopChatHandlerProvider
+          case k: Key[_] if k.getTypeLiteral.getRawType == classOf[ObjectMapper] => DruidGuicer.Default.objectMapper
+          case k: Key[_] if k.getTypeLiteral.getRawType == classOf[EventReceiverFirehoseRegister] =>
+            new EventReceiverFirehoseRegister
+        }
+      }
+    }
+  ).withType(classOf[Task])
+
   test("GenerateAvailabilityGroup") {
     val dt = new DateTime("2010-02-03T04:34:56.789", DateTimeZone.forID("America/Los_Angeles"))
     assert(DruidBeamMaker.generateAvailabilityGroup("x", dt, 1) === "x-2010-02-03T12:34:56.789Z-0001")
@@ -123,23 +144,13 @@ class DruidBeamTest extends FunSuite with Matchers
       DruidRollup(
         dimensions = SpecificDruidDimensions(Seq("dim1", "dim2"), Seq(DruidSpatialDimension.singleField("spatial1"))),
         aggregators = Seq(new LongSumAggregatorFactory("met1", "met1")),
-        indexGranularity = QueryGranularities.MINUTE
+        indexGranularity = QueryGranularities.MINUTE,
+        true
       ),
       new TimestampSpec("ts", "iso", null),
       null,
       null,
-      new ServiceEmitter(
-        "service", "host", new Emitter
-        {
-          override def flush(): Unit = ???
-
-          override def emit(event: Event): Unit = ???
-
-          override def close(): Unit = ???
-
-          override def start(): Unit = ???
-        }
-      ),
+      emptyEmitter(),
       null,
       DruidGuicer.Default.objectMapper
     )
@@ -151,27 +162,7 @@ class DruidBeamTest extends FunSuite with Matchers
       1,
       2
     )
-    val objectReader = DruidGuicer.Default.objectMapper.reader(
-      new InjectableValues
-      {
-        override def findInjectableValue(
-          valueId: Any,
-          ctxt: DeserializationContext,
-          forProperty: databind.BeanProperty,
-          beanInstance: scala.Any
-        ): AnyRef =
-        {
-          valueId match {
-            case k: Key[_] if k.getTypeLiteral.getRawType == classOf[ChatHandlerProvider] => new NoopChatHandlerProvider
-            case k: Key[_] if k.getTypeLiteral.getRawType == classOf[ObjectMapper] => DruidGuicer.Default.objectMapper
-            case k: Key[_] if k.getTypeLiteral.getRawType == classOf[EventReceiverFirehoseRegister] =>
-              new EventReceiverFirehoseRegister
-          }
-        }
-      }
-    ).withType(classOf[Task])
-
-    val task = objectReader.readValue(taskBytes).asInstanceOf[RealtimeIndexTask]
+    val task = defaultObjectReader().readValue(taskBytes).asInstanceOf[RealtimeIndexTask]
     task.getId should be("index_realtime_mydatasource_2000-01-01T00:00:00.000Z_1_2")
     task.getDataSource should be("mydatasource")
     task.getTaskResource.getAvailabilityGroup should be("mygroup")
@@ -201,5 +192,40 @@ class DruidBeamTest extends FunSuite with Matchers
     parseSpec.getTimestampSpec.getTimestampFormat should be("iso")
     parseSpec.getDimensionsSpec.getDimensions.asScala.map(_.getName) should be(Seq("dim1", "dim2", "spatial1"))
     parseSpec.getDimensionsSpec.getSpatialDimensions.asScala.map(_.getDimName) should be(Seq("spatial1"))
+  }
+
+  test("Attribute isRollup should be passed to task") {
+    val isRollup = false
+    val druidBeamMaker = new DruidBeamMaker[Dict](
+      DruidBeamConfig(),
+      DruidLocation.create("druid/overlord", "mydatasource"),
+      ClusteredBeamTuning(),
+      DruidTuning().toMap,
+      DruidRollup(
+        dimensions = SpecificDruidDimensions(Seq(), Seq()),
+        aggregators = Seq(),
+        indexGranularity = QueryGranularities.NONE,
+        // isRollup is set for test.
+        isRollup
+      ),
+      new TimestampSpec("ts", "iso", null),
+      null,
+      null,
+      emptyEmitter(),
+      null,
+      DruidGuicer.Default.objectMapper
+    )
+
+    val interval = new Interval("2000/PT1H", ISOChronology.getInstanceUTC)
+    val taskBytes = druidBeamMaker.taskBytes(
+      interval,
+      "mygroup",
+      "myfirehose",
+      1,
+      2
+    )
+    val task = defaultObjectReader().readValue(taskBytes).asInstanceOf[RealtimeIndexTask]
+
+    task.getRealtimeIngestionSchema.getDataSchema.getGranularitySpec.isRollup should be(isRollup)
   }
 }

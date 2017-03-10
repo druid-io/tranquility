@@ -87,12 +87,13 @@ import scala.reflect.runtime.universe.typeTag
   * val dataSource = "foo"
   * val dimensions = Seq("bar")
   * val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
+  * val isRollup = true
   * val sender = DruidBeams
   *   .builder[Map[String, Any]](eventMap => new DateTime(eventMap("timestamp")))
   *   .curator(curator)
   *   .discoveryPath("/test/discovery")
   *   .location(DruidLocation(new DruidEnvironment("druid:local:indexer", "druid:local:firehose:%s"), dataSource))
-  *   .rollup(DruidRollup(dimensions, aggregators, QueryGranularities.MINUTE))
+  *   .rollup(DruidRollup(dimensions, aggregators, QueryGranularities.MINUTE, isRollup))
   *   .tuning(new ClusteredBeamTuning(Granularity.HOUR, 10.minutes, 1, 1))
   *   .buildTranquilizer()
   * val future = sender.send(Map("timestamp" -> "2010-01-02T03:04:05.678Z", "bar" -> "hey", "baz" -> 3))
@@ -336,7 +337,8 @@ object DruidBeams
           )
       },
       aggregators = fireDepartment.getDataSchema.getAggregators,
-      indexGranularity = fireDepartment.getDataSchema.getGranularitySpec.getQueryGranularity
+      indexGranularity = fireDepartment.getDataSchema.getGranularitySpec.getQueryGranularity,
+      isRollup = fireDepartment.getDataSchema.getGranularitySpec.isRollup
     )
     builder(inputFnFn(rollup, mkparser, timestampSpec), timestamperFn(timestampSpec))
       .curatorFactory(

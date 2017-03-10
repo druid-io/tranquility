@@ -37,7 +37,8 @@
           "granularitySpec" : {
             "queryGranularity" : "none",
             "type" : "uniform",
-            "segmentGranularity" : "hour"
+            "segmentGranularity" : "hour",
+            "rollup": false
           },
           "dataSource" : "foo"
         },

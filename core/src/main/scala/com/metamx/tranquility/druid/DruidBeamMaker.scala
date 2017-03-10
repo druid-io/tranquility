@@ -88,7 +88,8 @@ class DruidBeamMaker[A](
       "granularitySpec" -> Map(
         "type" -> "uniform",
         "segmentGranularity" -> beamTuning.segmentGranularity,
-        "queryGranularity" -> queryGranularityMap
+        "queryGranularity" -> queryGranularityMap,
+        "rollup" -> rollup.isRollup
       )
     )
     val ioConfigMap = Map(

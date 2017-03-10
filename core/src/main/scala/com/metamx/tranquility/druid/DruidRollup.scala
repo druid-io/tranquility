@@ -35,7 +35,8 @@ import scala.collection.JavaConverters._
 class DruidRollup(
   val dimensions: DruidDimensions,
   val aggregators: IndexedSeq[AggregatorFactory],
-  val indexGranularity: QueryGranularity
+  val indexGranularity: QueryGranularity,
+  val isRollup: Boolean = true
 )
 {
   private val additionalExclusions: Set[String] = {
@@ -176,10 +177,11 @@ object DruidRollup
   def apply(
     dimensions: DruidDimensions,
     aggregators: Seq[AggregatorFactory],
-    indexGranularity: QueryGranularity
+    indexGranularity: QueryGranularity,
+    isRollup: Boolean
   ) =
   {
-    new DruidRollup(dimensions, aggregators.toIndexedSeq, indexGranularity)
+    new DruidRollup(dimensions, aggregators.toIndexedSeq, indexGranularity, isRollup)
   }
 
   /**
@@ -192,13 +194,15 @@ object DruidRollup
   def create(
     dimensions: DruidDimensions,
     aggregators: java.util.List[AggregatorFactory],
-    indexGranularity: QueryGranularity
+    indexGranularity: QueryGranularity,
+    isRollup: Boolean
   ): DruidRollup =
   {
     new DruidRollup(
       dimensions,
       aggregators.asScala.toIndexedSeq,
-      indexGranularity
+      indexGranularity,
+      isRollup
     )
   }
 
@@ -208,13 +212,15 @@ object DruidRollup
   def create(
     dimensions: java.util.List[String],
     aggregators: java.util.List[AggregatorFactory],
-    indexGranularity: QueryGranularity
+    indexGranularity: QueryGranularity,
+    isRollup: Boolean
   ): DruidRollup =
   {
     new DruidRollup(
       SpecificDruidDimensions(dimensions.asScala, Vector.empty),
       aggregators.asScala.toIndexedSeq,
-      indexGranularity
+      indexGranularity,
+      isRollup
     )
   }
 }

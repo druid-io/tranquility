@@ -21,6 +21,7 @@ dataSources:
           type: uniform
           segmentGranularity: hour
           queryGranularity: none
+          rollup: false
 
       ioConfig:
         type: realtime

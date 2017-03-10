@@ -25,13 +25,14 @@ class MyBeamFactory extends BeamFactory[Map[String, Any]]
     val dataSource = "foo"
     val dimensions = Seq("bar")
     val aggregators = Seq(new LongSumAggregatorFactory("baz", "baz"))
+    val isRollup = true
 
     DruidBeams
       .builder((eventMap: Map[String, Any]) => new DateTime(eventMap("timestamp")))
       .curator(curator)
       .discoveryPath(discoveryPath)
       .location(DruidLocation(indexService, dataSource))
-      .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularities.MINUTE))
+      .rollup(DruidRollup(SpecificDruidDimensions(dimensions), aggregators, QueryGranularities.MINUTE, isRollup))
       .tuning(
         ClusteredBeamTuning(
           segmentGranularity = Granularity.HOUR,

@@ -52,7 +52,8 @@ public class JavaApiTest
     final DruidRollup rollup = DruidRollup.create(
         DruidDimensions.specific(dimensions),
         aggregators,
-        QueryGranularities.MINUTE
+        QueryGranularities.MINUTE,
+        true
     );
     Assert.assertTrue(rollup.dimensions() instanceof SpecificDruidDimensions);
     Assert.assertEquals("column", ((SpecificDruidDimensions) rollup.dimensions()).dimensions().iterator().next());
@@ -64,7 +65,8 @@ public class JavaApiTest
     final DruidRollup rollup = DruidRollup.create(
         DruidDimensions.schemaless(),
         aggregators,
-        QueryGranularities.MINUTE
+        QueryGranularities.MINUTE,
+        true
     );
     Assert.assertTrue(rollup.dimensions() instanceof SchemalessDruidDimensions);
     Assert.assertEquals(0, ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().size());
@@ -76,7 +78,8 @@ public class JavaApiTest
     final DruidRollup rollup = DruidRollup.create(
         DruidDimensions.schemalessWithExclusions(dimensions),
         aggregators,
-        QueryGranularities.MINUTE
+        QueryGranularities.MINUTE,
+        true
     );
     Assert.assertTrue(rollup.dimensions() instanceof SchemalessDruidDimensions);
     Assert.assertEquals("column", ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().iterator().next());
@@ -96,7 +99,8 @@ public class JavaApiTest
                            )
                        ),
         aggregators,
-        QueryGranularities.MINUTE
+        QueryGranularities.MINUTE,
+        true
     );
     Assert.assertTrue(rollup.dimensions() instanceof SchemalessDruidDimensions);
     Assert.assertEquals("column", ((SchemalessDruidDimensions) rollup.dimensions()).dimensionExclusions().iterator().next());

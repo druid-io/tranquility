@@ -69,7 +69,8 @@ class MapPartitionerTest extends FunSuite with Matchers
       DruidRollup(
         SpecificDruidDimensions(Seq("foo", "bar", "baz")),
         Seq(new DoubleSumAggregatorFactory("x", "xSum")),
-        QueryGranularities.MINUTE
+        QueryGranularities.MINUTE,
+        true
       )
     )
 
@@ -106,7 +107,8 @@ class MapPartitionerTest extends FunSuite with Matchers
       DruidRollup(
         SpecificDruidDimensions(Seq("foo", "bar", "baz")),
         Seq(new DoubleSumAggregatorFactory("x", "xSum")),
-        QueryGranularities.MINUTE
+        QueryGranularities.MINUTE,
+        true
       )
     )
 
@@ -146,7 +148,8 @@ class MapPartitionerTest extends FunSuite with Matchers
       DruidRollup(
         SpecificDruidDimensions(Seq("foo", "bar", "baz")),
         Seq(new DoubleSumAggregatorFactory("x", "xSum")),
-        QueryGranularities.MINUTE
+        QueryGranularities.MINUTE,
+        true
       )
     )
 

@@ -56,6 +56,7 @@ public class MyBeamFactory implements BeamFactory
     final String dataSource = stream.getStream();
 
     final List<String> dimensions = ImmutableList.of("column");
+    final Boolean isRollup = true;
     final List<AggregatorFactory> aggregators = ImmutableList.<AggregatorFactory>of(
         new CountAggregatorFactory("cnt")
     );
@@ -83,7 +84,7 @@ public class MyBeamFactory implements BeamFactory
         .curator(curator)
         .discoveryPath("/druid/discovery")
         .location(DruidLocation.create("druid/overlord", "druid:firehose:%s", dataSource))
-        .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularities.MINUTE))
+        .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularities.MINUTE, isRollup))
         .tuning(
             ClusteredBeamTuning.builder()
                                .segmentGranularity(Granularity.HOUR)
