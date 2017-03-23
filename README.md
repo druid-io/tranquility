@@ -75,7 +75,7 @@ This version is built to work with Druid 0.7.x and 0.8.x. If you are using Druid
 v0.3.2, which is the most recent version built for use with Druid 0.6.x.
 
 Tranquility is built with [SBT](http://www.scala-sbt.org/). If you want to build the jars yourself, you can
-run `sbt +package`.
+run `sbt +package`. To build a distribution tarball, run `sbt ++2.11.8 'project distribution' universal:packageZipTarball`.
 
 ### Downloadable Distribution
 
