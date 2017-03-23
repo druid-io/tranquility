@@ -1,6 +1,6 @@
-scalaVersion := "2.10.5"
+scalaVersion := "2.10.6"
 
-crossScalaVersions := Seq("2.10.5", "2.11.7")
+crossScalaVersions := Seq("2.10.6", "2.11.8")
 
 // Disable parallel execution, the various Druid oriented tests need to claim ports
 parallelExecution in ThisBuild := false
@@ -15,6 +15,7 @@ val jacksonOneVersion = "1.9.13"
 val jacksonTwoVersion = "2.4.6"
 val jacksonTwoModuleScalaVersion = "2.4.5"
 val druidVersion = "0.9.2"
+val curatorVersion = "2.12.0"
 val guiceVersion = "4.0"
 val flinkVersion = "1.0.3"
 val finagleVersion = "6.31.0"
@@ -35,6 +36,10 @@ def dependOnDruid(artifact: String) = {
     exclude("org.apache.logging.log4j", "log4j-api")
     exclude("org.apache.logging.log4j", "log4j-slf4j-impl")
     exclude("org.apache.logging.log4j", "log4j-1.2-api")
+    exclude("org.apache.curator", "curator-client")
+    exclude("org.apache.curator", "curator-framework")
+    exclude("org.apache.curator", "curator-recipes")
+    exclude("org.apache.curator", "curator-x-discovery")
     exclude("com.lmax", "disruptor") // Pulled in by log4j2, conflicts with the one Storm wants.
     force())
 }
@@ -43,6 +48,10 @@ val coreDependencies = Seq(
   "com.metamx" %% "scala-util" % "1.11.6" exclude("log4j", "log4j") force(),
   "com.metamx" % "java-util" % "0.27.10" exclude("log4j", "log4j") force(),
   "io.netty" % "netty" % "3.10.5.Final" force(),
+  "org.apache.curator" % "curator-client" % curatorVersion force(),
+  "org.apache.curator" % "curator-framework" % curatorVersion force(),
+  "org.apache.curator" % "curator-recipes" % curatorVersion force(),
+  "org.apache.curator" % "curator-x-discovery" % curatorVersion force(),
   "com.twitter" %% "util-core" % twitterUtilVersion force(),
   "com.twitter" %% "finagle-core" % finagleVersion force(),
   "com.twitter" %% "finagle-http" % finagleVersion force(),
@@ -125,7 +134,7 @@ val kafkaDependencies = Seq(
 val coreTestDependencies = Seq(
   "org.scalatest" %% "scalatest" % "2.2.5" % "test",
   dependOnDruid("druid-services") % "test",
-  "org.apache.curator" % "curator-test" % "2.6.0" % "test" exclude("log4j", "log4j") force(),
+  "org.apache.curator" % "curator-test" % curatorVersion % "test" exclude("log4j", "log4j") force(),
   "com.sun.jersey" % "jersey-servlet" % "1.17.1" % "test" force(),
   "junit" % "junit" % "4.12" % "test",
   "com.novocode" % "junit-interface" % "0.11" % "test",

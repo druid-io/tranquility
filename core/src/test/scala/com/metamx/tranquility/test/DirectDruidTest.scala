@@ -283,7 +283,7 @@ class DirectDruidTest
     }
   }
 
-  ignore("Druid standalone - overlord based task discovery") {
+  test("Druid standalone - overlord based task discovery") {
     withDruidStack {
       (curator, broker, coordinator, overlord) =>
         val timekeeper = new TestingTimekeeper
