@@ -71,7 +71,7 @@ Any of these properties can be specified either globally, or per-dataSource.
 
 |Property|Description|Default|
 |--------|-----------|-------|
-|`druid.discovery.curator.path`|Curator service discovery path.|/druid/discovery|
+|`druid.discovery.curator.path`|Curator service discovery path. This is assumed to be on the same zookeeper cluster as `zookeeper.connect` refers to.|/druid/discovery|
 |`druid.selectors.indexing.serviceName`|The druid.service name of the indexing service Overlord node.|druid/overlord|
 |`druidBeam.firehoseBufferSize`|Size of buffer used by firehose to store events.|100000|
 |`druidBeam.firehoseChunkSize`|Maximum number of events to send to Druid in one HTTP request.|1000|
@@ -93,6 +93,7 @@ Any of these properties can be specified either globally, or per-dataSource.
 |`tranquility.maxPendingBatches`|Maximum number of batches that may be in flight before we block and wait for one to finish.|5|
 |`zookeeper.connect`|ZooKeeper connect string.|none; must be provided|
 |`zookeeper.timeout`|ZooKeeper session timeout. ISO8601 duration.|PT20S|
+|`zookeeper.path`|ZooKeeper znode to use for Tranquility's internal coordination.|/tranquility/beams|
 
 ### Code
 

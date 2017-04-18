@@ -56,7 +56,6 @@ import com.metamx.tranquility.typeclass.JavaObjectWriter
 import com.metamx.tranquility.typeclass.ObjectWriter
 import com.metamx.tranquility.typeclass.Timestamper
 import com.twitter.finagle.Service
-import io.druid.data.input.ByteBufferInputRowParser
 import io.druid.data.input.InputRow
 import io.druid.data.input.impl.DimensionSchema
 import io.druid.data.input.impl.DimensionSchema.ValueType
@@ -107,6 +106,8 @@ object DruidBeams
 {
   private val DefaultScalaObjectMapper = Jackson.newObjectMapper()
   private val DefaultTimestampSpec     = new TimestampSpec("timestamp", "iso", null)
+
+  val DefaultZookeeperPath     = "/tranquility/beams"
 
   /**
     * Start a builder for Java Maps based on a particular Tranquility dataSourceConfig. Not all of the realtime spec
@@ -348,6 +349,7 @@ object DruidBeams
           .retryPolicy(new ExponentialBackoffRetry(1000, 20, 30000))
       )
       .discoveryPath(config.propertiesBasedConfig.discoPath)
+      .clusteredBeamZkBasePath(config.propertiesBasedConfig.zookeeperPath)
       .location(DruidLocation(environment, fireDepartment.getDataSchema.getDataSource))
       .rollup(rollup)
       .timestampSpec(timestampSpec)
@@ -887,7 +889,7 @@ object DruidBeams
       val timestampSpec           = _timestampSpec getOrElse {
         DefaultTimestampSpec
       }
-      val clusteredBeamZkBasePath = _clusteredBeamZkBasePath getOrElse "/tranquility/beams"
+      val clusteredBeamZkBasePath = _clusteredBeamZkBasePath getOrElse DefaultZookeeperPath
       val clusteredBeamIdent      = _clusteredBeamIdent getOrElse {
         "%s/%s" format(location.environment.indexServiceKey, location.dataSource)
       }
