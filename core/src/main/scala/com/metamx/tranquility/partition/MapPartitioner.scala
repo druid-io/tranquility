@@ -26,7 +26,6 @@ import com.metamx.tranquility.typeclass.Timestamper
 import io.druid.data.input.impl.TimestampSpec
 import java.util.concurrent.atomic.AtomicBoolean
 import java.{util => ju}
-import org.scala_tools.time.Imports._
 import scala.collection.JavaConverters._
 
 object MapPartitioner
@@ -82,7 +81,7 @@ class MapPartitioner[A](
     }
 
     val partitionHashCode = if (dimensions.nonEmpty) {
-      val truncatedTimestamp = rollup.indexGranularity.truncate(timestamper.timestamp(thing).millis)
+      val truncatedTimestamp = rollup.indexGranularity.truncate(timestamper.timestamp(thing).getMillis)
       Partitioner.timeAndDimsHashCode(truncatedTimestamp, dimensions)
     } else {
       thing.hashCode()

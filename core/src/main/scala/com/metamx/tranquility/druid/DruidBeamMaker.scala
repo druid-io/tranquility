@@ -19,10 +19,11 @@
 package com.metamx.tranquility.druid
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.Granularity
+import com.metamx.common.scala.untyped._
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Logging
-import com.metamx.common.scala.untyped._
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.beam.BeamMaker
 import com.metamx.tranquility.beam.ClusteredBeamTuning
@@ -31,10 +32,9 @@ import com.twitter.util.Await
 import com.twitter.util.Future
 import io.druid.data.input.impl.TimestampSpec
 import java.{util => ju}
+import org.joda.time.chrono.ISOChronology
 import org.joda.time.DateTime
 import org.joda.time.Interval
-import org.joda.time.chrono.ISOChronology
-import org.scala_tools.time.Implicits._
 import scala.util.Random
 
 class DruidBeamMaker[A](
@@ -241,7 +241,7 @@ object DruidBeamMaker
     // Not only is this a nasty hack, it also only works if the RT task hands things off in a timely manner. We'd rather
     // use UUIDs, but this creates a ton of clutter in service discovery.
 
-    val tsUtc = new DateTime(ts.millis, ISOChronology.getInstanceUTC)
+    val tsUtc = new DateTime(ts.getMillis, ISOChronology.getInstanceUTC)
 
     val cycleBucket = segmentGranularity match {
       case Granularity.SECOND => (tsUtc.minuteOfHour().get * 60 + tsUtc.secondOfMinute().get) % 900 // 900 buckets

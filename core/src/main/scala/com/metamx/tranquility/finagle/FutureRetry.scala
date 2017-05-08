@@ -18,6 +18,7 @@
  */
 package com.metamx.tranquility.finagle
 
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.Backoff
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
@@ -25,7 +26,6 @@ import com.twitter.util.Future
 import com.twitter.util.Promise
 import com.twitter.util.Time
 import com.twitter.util.Timer
-import org.scala_tools.time.Imports._
 
 object FutureRetry extends Logging
 {
@@ -58,7 +58,7 @@ object FutureRetry extends Logging
               log.debug(e, "Transient error, will try again in %,d ms", sleep)
             }
 
-            timer.schedule(Time.fromMilliseconds(DateTime.now.millis + sleep)) {
+            timer.schedule(Time.fromMilliseconds(DateTime.now.getMillis + sleep)) {
               promise.become(onErrors(isTransients, backoff, quietUntil)(mkfuture))
             }
         }

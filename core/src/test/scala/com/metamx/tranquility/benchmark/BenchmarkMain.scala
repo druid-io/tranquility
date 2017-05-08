@@ -19,6 +19,7 @@
 
 package com.metamx.tranquility.benchmark
 
+import com.github.nscala_time.time.Imports._
 import com.google.common.base.Charsets
 import com.google.common.io.ByteStreams
 import com.metamx.common.scala.Jackson
@@ -51,7 +52,6 @@ import com.twitter.util.Throw
 import java.io.ByteArrayInputStream
 import java.util.concurrent.atomic.AtomicLong
 import org.joda.time.DateTime
-import org.scala_tools.time.Imports._
 import scala.collection.JavaConverters._
 import scala.collection.Set
 

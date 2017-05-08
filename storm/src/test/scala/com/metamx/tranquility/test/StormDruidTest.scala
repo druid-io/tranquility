@@ -21,6 +21,7 @@ package com.metamx.tranquility.test
 import backtype.storm.Config
 import backtype.storm.task.IMetricsContext
 import backtype.storm.topology.TopologyBuilder
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.timekeeper.TestingTimekeeper
@@ -37,7 +38,6 @@ import java.{util => ju}
 import org.apache.curator.framework.CuratorFrameworkFactory
 import org.apache.curator.retry.BoundedExponentialBackoffRetry
 import org.junit.runner.RunWith
-import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
 import org.scalatest.junit.JUnitRunner
 

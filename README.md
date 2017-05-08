@@ -41,35 +41,33 @@ Central to make them easy to include. The current stable versions are:
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-core_2.11</artifactId>
-  <version>0.8.1</version>
+  <version>0.9.0</version>
 </dependency>
 <dependency>
   <groupId>io.druid</groupId>
-  <artifactId>tranquility-samza_2.10</artifactId>
-  <version>0.8.1</version>
+  <artifactId>tranquility-samza_2.11</artifactId>
+  <version>0.9.0</version>
 </dependency>
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-spark_2.11</artifactId>
-  <version>0.8.1</version>
+  <version>0.9.0</version>
 </dependency>
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-storm_2.11</artifactId>
-  <version>0.8.1</version>
+  <version>0.9.0</version>
 </dependency>
 <dependency>
   <groupId>io.druid</groupId>
   <artifactId>tranquility-flink_2.11</artifactId>
-  <version>0.8.1</version>
+  <version>0.9.0</version>
 </dependency>
 ```
 
 You only need to include the modules you are actually using.
 
-All Tranquility modules are built for both Scala 2.10 and 2.11, except for the Samza module, which is only built for
-Scala 2.10. If you're using Scala for your own code, you should choose the Tranquility build that matches your version
-of Scala. Otherwise, Scala 2.11 is recommended.
+All Tranquility modules are built for Scala 2.11.
 
 This version is built to work with Druid 0.7.x and 0.8.x. If you are using Druid 0.6.x, you may want to use Tranquility
 v0.3.2, which is the most recent version built for use with Druid 0.6.x.
@@ -85,10 +83,10 @@ run them directly. The distribution also includes the [Core API](docs/core.md) a
 them rather than get them through Maven.
 
 The current distribution is:
-[tranquility-distribution-0.8.1](http://static.druid.io/tranquility/releases/tranquility-distribution-0.8.1.tgz).
+[tranquility-distribution-0.9.0](http://static.druid.io/tranquility/releases/tranquility-distribution-0.9.0.tgz).
 
 To use it, first download it and then unpack it into your directory of choice by running
-`tar -xzf tranquility-distribution-0.8.1.tgz`.
+`tar -xzf tranquility-distribution-0.9.0.tgz`.
 
 ### How to Contribute
 

@@ -18,7 +18,7 @@
  */
 package com.metamx.tranquility.finagle
 
-import org.scala_tools.time.Imports._
+import com.github.nscala_time.time.Imports._
 
 case class FinagleRegistryConfig(
   finagleHttpTimeout: Period = 90.seconds,

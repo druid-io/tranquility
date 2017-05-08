@@ -18,6 +18,7 @@
  */
 package com.metamx.tranquility.druid
 
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.Backoff
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Predef._
@@ -27,17 +28,17 @@ import com.metamx.common.scala.untyped._
 import com.metamx.tranquility.druid.IndexService.TaskHostPort
 import com.metamx.tranquility.druid.IndexService.TaskId
 import com.metamx.tranquility.finagle._
+import com.twitter.finagle.util.DefaultTimer
 import com.twitter.finagle.Addr
+import com.twitter.finagle.Address
 import com.twitter.finagle.Service
 import com.twitter.finagle.http
-import com.twitter.finagle.util.DefaultTimer
 import com.twitter.io.Buf
 import com.twitter.util.Closable
 import com.twitter.util.Future
 import com.twitter.util.Time
 import com.twitter.util.Timer
 import java.net.InetSocketAddress
-import org.scala_tools.time.Imports._
 
 class IndexService(
   environment: DruidEnvironment,
@@ -197,7 +198,7 @@ object IndexService
       if (!isBound) {
         Addr.Neg
       } else {
-        Addr.Bound(new InetSocketAddress(host, port))
+        Addr.Bound(Address(new InetSocketAddress(host, port)))
       }
     }
   }

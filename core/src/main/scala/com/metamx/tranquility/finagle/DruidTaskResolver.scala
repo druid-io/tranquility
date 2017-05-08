@@ -19,23 +19,18 @@
 
 package com.metamx.tranquility.finagle
 
+import com.github.nscala_time.time.Imports._
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.timekeeper.Timekeeper
 import com.metamx.tranquility.druid.IndexService
 import com.twitter.finagle.Addr
 import com.twitter.finagle.Resolver
-import com.twitter.util.Await
-import com.twitter.util.Closable
-import com.twitter.util.Future
-import com.twitter.util.Time
-import com.twitter.util.Updatable
-import com.twitter.util.Var
+import com.twitter.util._
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
-import org.scala_tools.time.Imports._
 import scala.util.Random
 import scala.util.control.NonFatal
 
@@ -66,8 +61,8 @@ class DruidTaskResolver(
             while (!Thread.currentThread().isInterrupted) {
               try {
                 val tasksSnapshot: Map[Long, (String, AtomicReference[Addr], Updatable[Addr])] = lock.synchronized {
-                  while (timekeeper.now.millis < nextPoll) {
-                    val waitMillis = nextPoll - timekeeper.now.millis
+                  while (timekeeper.now.getMillis < nextPoll) {
+                    val waitMillis = nextPoll - timekeeper.now.getMillis
                     if (waitMillis > 0) {
                       lock.wait(waitMillis)
                     }
@@ -76,9 +71,9 @@ class DruidTaskResolver(
                 }
 
                 val now = timekeeper.now
-                val baseWait = now.plus(pollPeriod).millis - now.millis
+                val baseWait = now.plus(pollPeriod).getMillis - now.getMillis
                 val fuzzyWait = (math.max(1 + 0.25 * Random.nextGaussian, 0) * baseWait).toLong
-                nextPoll = now.millis + fuzzyWait
+                nextPoll = now.getMillis + fuzzyWait
 
                 val running = Await.result(indexService.runningTasks())
 

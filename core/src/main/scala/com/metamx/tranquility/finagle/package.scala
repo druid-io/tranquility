@@ -18,11 +18,10 @@
  */
 package com.metamx.tranquility
 
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.scala.Predef._
 import com.twitter.finagle.http
-import com.twitter.finagle.http
 import org.joda.time.Duration
-import org.scala_tools.time.Implicits._
 import scala.language.implicitConversions
 
 package object finagle

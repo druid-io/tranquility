@@ -36,6 +36,7 @@ import com.twitter.util.Time
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.Buffer
+import scala.util.control.NoStackTrace
 
 /**
   * Tranquilizers allow you to provide single messages and get a future for each message reporting success or failure.
@@ -353,7 +354,7 @@ class Tranquilizer[MessageType] private(
   * Exception indicating that a message was dropped "on purpose" by the beam. This is not a recoverable exception
   * and so the message must be discarded.
   */
-class MessageDroppedException private() extends Exception("Message dropped") with com.twitter.finagle.NoStacktrace
+class MessageDroppedException private() extends Exception("Message dropped") with NoStackTrace
 
 object MessageDroppedException
 {

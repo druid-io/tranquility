@@ -18,7 +18,7 @@
  */
 package com.metamx.tranquility.druid
 
-import org.scala_tools.time.Imports._
+import com.github.nscala_time.time.Imports._
 
 case class DruidBeamConfig(
   firehoseGracePeriod: Period = 5.minutes,

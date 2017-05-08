@@ -19,9 +19,9 @@
 
 package com.metamx.tranquility.druid
 
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.scala.untyped.Dict
 import org.joda.time.Period
-import org.scala_tools.time.Imports._
 
 case class DruidTuning(
   maxRowsInMemory: Int = 75000,

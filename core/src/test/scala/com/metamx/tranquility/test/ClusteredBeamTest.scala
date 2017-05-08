@@ -21,6 +21,7 @@ package com.metamx.tranquility.test
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import com.github.nscala_time.time.Imports._
 import com.google.common.base.Charsets
 import com.metamx.common.Granularity
 import com.metamx.common.logger.Logger
@@ -30,14 +31,7 @@ import com.metamx.common.scala.timekeeper.TestingTimekeeper
 import com.metamx.common.scala.untyped._
 import com.metamx.emitter.core.LoggingEmitter
 import com.metamx.emitter.service.ServiceEmitter
-import com.metamx.tranquility.beam.Beam
-import com.metamx.tranquility.beam.BeamMaker
-import com.metamx.tranquility.beam.ClusteredBeam
-import com.metamx.tranquility.beam.ClusteredBeamMeta
-import com.metamx.tranquility.beam.ClusteredBeamTuning
-import com.metamx.tranquility.beam.DefunctBeamException
-import com.metamx.tranquility.beam.RoundRobinBeam
-import com.metamx.tranquility.beam.SendResult
+import com.metamx.tranquility.beam._
 import com.metamx.tranquility.test.common.CuratorRequiringSuite
 import com.metamx.tranquility.typeclass.Timestamper
 import com.twitter.util.Await
@@ -48,7 +42,6 @@ import org.apache.curator.framework.CuratorFramework
 import org.joda.time.DateTime
 import org.joda.time.DateTimeZone
 import org.joda.time.Interval
-import org.scala_tools.time.Implicits._
 import org.scalatest.BeforeAndAfter
 import org.scalatest.FunSuite
 import org.scalatest.Matchers
@@ -415,10 +408,10 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
         val desired = List("2012-01-01T00Z", "2012-01-01T00Z", "2012-01-01T01Z", "2012-01-01T01Z").map(new DateTime(_))
         val startTime = System.currentTimeMillis()
         while (System.currentTimeMillis() < startTime + 2000 &&
-          beamsList.map(_.timestamp).sortBy(_.millis) != desired) {
+          beamsList.map(_.timestamp).sortBy(_.getMillis) != desired) {
           Thread.sleep(100)
         }
-        assert(beamsList.map(_.timestamp).sortBy(_.millis) === desired)
+        assert(beamsList.map(_.timestamp).sortBy(_.getMillis) === desired)
     }
   }
 
@@ -631,11 +624,11 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
       assert(meta.latestCloseTime === new DateTime("2000-01-01T14:00:00.000Z").withZone(DateTimeZone.UTC))
       assert(
         meta.beamDictss.keys.toSet === Set(
-          new DateTime("2000-01-01T15:00:00.000Z").millis
+          new DateTime("2000-01-01T15:00:00.000Z").getMillis
         )
       )
-      assert(meta.beamDictss(new DateTime("2000-01-01T15:00:00.000Z").millis).size === 1)
-      assert(meta.beamDictss(new DateTime("2000-01-01T15:00:00.000Z").millis)(0)("partition") === 123)
+      assert(meta.beamDictss(new DateTime("2000-01-01T15:00:00.000Z").getMillis).size === 1)
+      assert(meta.beamDictss(new DateTime("2000-01-01T15:00:00.000Z").getMillis)(0)("partition") === 123)
     }
     val objectMapper = new ObjectMapper withEffect {
       jm =>

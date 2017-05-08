@@ -18,20 +18,16 @@
  */
 package com.metamx.tranquility.finagle
 
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.net.curator.Disco
 import com.metamx.common.scala.net.finagle.DiscoResolver
-import com.twitter.finagle.Name
-import com.twitter.finagle.Resolver
-import com.twitter.finagle.Service
-import com.twitter.finagle.ServiceProxy
+import com.twitter.finagle._
 import com.twitter.finagle.builder.ClientBuilder
-import com.twitter.finagle.http
 import com.twitter.util.Future
 import com.twitter.util.Time
 import java.util.concurrent.atomic.AtomicBoolean
-import org.scala_tools.time.Implicits._
 import scala.collection.Set
 import scala.collection.mutable
 

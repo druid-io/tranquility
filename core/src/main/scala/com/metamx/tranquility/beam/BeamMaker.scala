@@ -18,8 +18,8 @@
  */
 package com.metamx.tranquility.beam
 
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.scala.untyped._
-import org.scala_tools.time.Imports._
 
 /**
  * Makes beams for particular intervals and partition numbers. Can also serialize and deserialize beam representations.

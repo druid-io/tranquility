@@ -19,6 +19,7 @@
 
 package com.metamx.tranquility.test
 
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.timekeeper.TestingTimekeeper
@@ -30,16 +31,15 @@ import com.metamx.tranquility.test.common.DruidIntegrationSuite
 import com.metamx.tranquility.test.common.JulUtils
 import org.apache.curator.framework.CuratorFrameworkFactory
 import org.apache.curator.retry.BoundedExponentialBackoffRetry
-import org.apache.spark.SparkConf
-import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.Seconds
 import org.apache.spark.streaming.StreamingContext
+import org.apache.spark.SparkConf
+import org.apache.spark.SparkContext
 import org.junit.runner.RunWith
-import org.scala_tools.time.Imports._
+import org.scalatest.junit.JUnitRunner
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSuite
-import org.scalatest.junit.JUnitRunner
 import scala.collection.mutable
 
 @RunWith(classOf[JUnitRunner])

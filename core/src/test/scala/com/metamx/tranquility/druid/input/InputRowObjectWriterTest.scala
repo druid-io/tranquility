@@ -19,15 +19,13 @@
 
 package com.metamx.tranquility.druid.input
 
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.untyped.Dict
-import io.druid.data.input.InputRow
 import io.druid.data.input.MapBasedInputRow
-import io.druid.data.input.Row
 import io.druid.data.input.impl.TimestampSpec
 import io.druid.query.aggregation.LongSumAggregatorFactory
 import javax.ws.rs.core.MediaType
-import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
 import org.scalatest.ShouldMatchers
 import scala.collection.JavaConverters._
@@ -56,7 +54,7 @@ class InputRowObjectWriterTest extends FunSuite with ShouldMatchers
   test("asBytes") {
     Jackson.parse[Dict](objectWriter.asBytes(mapBasedRow)) should be(
       Dict(
-        "ts" -> new DateTime("2000").millis,
+        "ts" -> new DateTime("2000").getMillis,
         "bar" -> 2,
         "foo" -> "x",
         "baz" -> "what"
@@ -68,7 +66,7 @@ class InputRowObjectWriterTest extends FunSuite with ShouldMatchers
     Jackson.parse[Seq[Dict]](objectWriter.batchAsBytes(Seq(mapBasedRow))) should be(
       Seq(
         Dict(
-          "ts" -> new DateTime("2000").millis,
+          "ts" -> new DateTime("2000").getMillis,
           "bar" -> 2,
           "foo" -> "x",
           "baz" -> "what"

@@ -19,22 +19,6 @@
 
 package com.metamx.tranquility.test
 
-import com.fasterxml.jackson.databind
-import com.fasterxml.jackson.databind.{ObjectReader, DeserializationContext, InjectableValues, ObjectMapper}
-import com.google.inject.Key
-import com.metamx.common.Granularity
-import com.metamx.common.scala.untyped.Dict
-import com.metamx.emitter.core.NoopEmitter
-import com.metamx.emitter.service.ServiceEmitter
-import com.metamx.tranquility.beam.ClusteredBeamTuning
-import com.metamx.tranquility.druid.DruidBeamConfig
-import com.metamx.tranquility.druid.DruidBeamMaker
-import com.metamx.tranquility.druid.DruidGuicer
-import com.metamx.tranquility.druid.DruidLocation
-import com.metamx.tranquility.druid.DruidRollup
-import com.metamx.tranquility.druid.DruidSpatialDimension
-import com.metamx.tranquility.druid.DruidTuning
-import com.metamx.tranquility.druid.SpecificDruidDimensions
 import _root_.io.druid.data.input.impl.TimestampSpec
 import _root_.io.druid.granularity.QueryGranularities
 import _root_.io.druid.indexing.common.task.RealtimeIndexTask
@@ -45,11 +29,23 @@ import _root_.io.druid.segment.realtime.firehose.ClippedFirehoseFactory
 import _root_.io.druid.segment.realtime.firehose.NoopChatHandlerProvider
 import _root_.io.druid.server.metrics.EventReceiverFirehoseRegister
 import _root_.io.druid.timeline.partition.LinearShardSpec
+import _root_.scala.collection.JavaConverters._
+import com.fasterxml.jackson.databind
+import com.fasterxml.jackson.databind.DeserializationContext
+import com.fasterxml.jackson.databind.InjectableValues
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectReader
+import com.github.nscala_time.time.Imports._
+import com.google.inject.Key
+import com.metamx.common.Granularity
+import com.metamx.common.scala.untyped.Dict
+import com.metamx.emitter.core.NoopEmitter
+import com.metamx.emitter.service.ServiceEmitter
+import com.metamx.tranquility.beam.ClusteredBeamTuning
+import com.metamx.tranquility.druid._
 import org.joda.time.chrono.ISOChronology
-import org.scala_tools.time.Imports._
 import org.scalatest.FunSuite
 import org.scalatest.Matchers
-import _root_.scala.collection.JavaConverters._
 
 class DruidBeamTest extends FunSuite with Matchers
 {

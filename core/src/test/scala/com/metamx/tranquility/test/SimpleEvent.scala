@@ -20,16 +20,16 @@
 package com.metamx.tranquility.test
 
 import com.fasterxml.jackson.annotation.JsonValue
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.scala.untyped._
 import com.metamx.tranquility.test.DirectDruidTest.TimeColumn
 import com.metamx.tranquility.typeclass.Timestamper
-import org.scala_tools.time.Imports._
 
 case class SimpleEvent(ts: DateTime, foo: String, bar: Int, lat: Double, lon: Double)
 {
   @JsonValue
   def toMap: Map[String, Any] = Map(
-    TimeColumn -> (ts.millis / 1000),
+    TimeColumn -> (ts.getMillis / 1000),
     "foo" -> foo,
     "bar" -> bar,
     "lat" -> lat,
@@ -37,12 +37,12 @@ case class SimpleEvent(ts: DateTime, foo: String, bar: Int, lat: Double, lon: Do
   )
 
   def toNestedMap: Map[String, Any] = Map(
-    TimeColumn -> (ts.millis / 1000),
+    TimeColumn -> (ts.getMillis / 1000),
     "data" -> Map("foo" -> foo, "bar" -> bar),
     "geo" -> Map("lat" -> lat, "lon" -> lon)
   )
 
-  def toCsv: String = Seq(ts.millis / 1000, foo, bar, lat, lon).mkString(",")
+  def toCsv: String = Seq(ts.getMillis / 1000, foo, bar, lat, lon).mkString(",")
 }
 
 object SimpleEvent

@@ -21,6 +21,7 @@ package com.metamx.tranquility.druid
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.smile.SmileFactory
 import com.fasterxml.jackson.jaxrs.smile.SmileMediaTypes
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.logger.Logger
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.net.curator.Disco
@@ -32,12 +33,7 @@ import com.metamx.common.scala.untyped.dict
 import com.metamx.common.scala.untyped.normalizeJava
 import com.metamx.emitter.core.LoggingEmitter
 import com.metamx.emitter.service.ServiceEmitter
-import com.metamx.tranquility.beam.Beam
-import com.metamx.tranquility.beam.ClusteredBeam
-import com.metamx.tranquility.beam.ClusteredBeamTuning
-import com.metamx.tranquility.beam.MergingPartitioningBeam
-import com.metamx.tranquility.beam.MessageHolder
-import com.metamx.tranquility.beam.TransformingBeam
+import com.metamx.tranquility.beam._
 import com.metamx.tranquility.config.DataSourceConfig
 import com.metamx.tranquility.config.PropertiesBasedConfig
 import com.metamx.tranquility.druid.input.InputRowObjectWriter
@@ -57,12 +53,8 @@ import com.metamx.tranquility.typeclass.ObjectWriter
 import com.metamx.tranquility.typeclass.Timestamper
 import com.twitter.finagle.Service
 import io.druid.data.input.InputRow
-import io.druid.data.input.impl.DimensionSchema
 import io.druid.data.input.impl.DimensionSchema.ValueType
-import io.druid.data.input.impl.InputRowParser
-import io.druid.data.input.impl.MapInputRowParser
-import io.druid.data.input.impl.StringInputRowParser
-import io.druid.data.input.impl.TimestampSpec
+import io.druid.data.input.impl._
 import io.druid.segment.realtime.FireDepartment
 import java.nio.ByteBuffer
 import java.{lang => jl}
@@ -71,7 +63,6 @@ import javax.ws.rs.core.MediaType
 import org.apache.curator.framework.CuratorFramework
 import org.apache.curator.framework.CuratorFrameworkFactory
 import org.apache.curator.retry.ExponentialBackoffRetry
-import org.scala_tools.time.Imports._
 import scala.collection.JavaConverters._
 import scala.language.reflectiveCalls
 import scala.reflect.runtime.universe.TypeTag

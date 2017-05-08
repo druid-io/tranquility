@@ -18,6 +18,7 @@
  */
 package com.metamx.tranquility.beam
 
+import com.github.nscala_time.time.Imports._
 import com.google.common.base.Charsets
 import com.google.common.io.BaseEncoding
 import com.metamx.common.Backoff
@@ -36,15 +37,16 @@ import com.twitter.finagle.Name
 import com.twitter.finagle.builder.ClientBuilder
 import com.twitter.finagle.http.Http
 import com.twitter.finagle.http.Request
+import com.twitter.finagle.service.ExpiringService
 import com.twitter.finagle.util.DefaultTimer
 import com.twitter.io.Buf
+import com.twitter.util
 import com.twitter.util.Future
 import com.twitter.util.Promise
 import com.twitter.util.Timer
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.util.zip.GZIPOutputStream
-import org.scala_tools.time.Imports._
 
 /**
   * Emits messages over http.
@@ -80,7 +82,7 @@ class HttpBeam[A: Timestamper](
       .codec(Http())
       .dest(Name.Bound(resolver.bind(hostAndPort), "%s!%s" format(resolver.scheme, hostAndPort)))
       .hostConnectionLimit(2)
-      .hostConnectionMaxLifeTime(HttpBeam.DefaultConnectionMaxLifeTime)
+      .configured(ExpiringService.Param(util.Duration.Top, HttpBeam.DefaultConnectionMaxLifeTime))
       .tcpConnectTimeout(HttpBeam.DefaultConnectTimeout)
       .timeout(HttpBeam.DefaultTimeout)
       .logger(FinagleLogger)

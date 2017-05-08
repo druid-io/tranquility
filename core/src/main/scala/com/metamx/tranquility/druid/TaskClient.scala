@@ -19,6 +19,7 @@
 
 package com.metamx.tranquility.druid
 
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.Backoff
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.event.WARN
@@ -28,15 +29,14 @@ import com.metamx.common.scala.untyped.str
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.druid.TaskClient.timer
 import com.metamx.tranquility.finagle._
+import com.twitter.finagle.util.DefaultTimer
 import com.twitter.finagle.Service
 import com.twitter.finagle.http
-import com.twitter.finagle.util.DefaultTimer
 import com.twitter.util.Closable
 import com.twitter.util.Future
 import com.twitter.util.Time
 import com.twitter.util.Timer
 import java.io.IOException
-import org.scala_tools.time.Imports._
 
 /**
  * Client for a single Druid task.

@@ -325,7 +325,7 @@ public class KafkaConsumerTest
 
     channel.send(fetchRequest.underlying());
 
-    OffsetFetchResponse fetchResponse = OffsetFetchResponse.readFrom(channel.receive().buffer());
+    OffsetFetchResponse fetchResponse = OffsetFetchResponse.readFrom(channel.receive().payload());
     OffsetMetadataAndError result = fetchResponse.offsets().get(partition);
     return result.offset();
   }

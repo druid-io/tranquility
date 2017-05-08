@@ -19,6 +19,7 @@
 
 package com.metamx.tranquility.test
 
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.timekeeper.TestingTimekeeper
@@ -36,7 +37,6 @@ import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.test.util.ForkableFlinkMiniCluster
 import org.apache.flink.test.util.TestBaseUtils
 import org.junit.runner.RunWith
-import org.scala_tools.time.Imports._
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.BeforeAndAfter
 import org.scalatest.FunSuite

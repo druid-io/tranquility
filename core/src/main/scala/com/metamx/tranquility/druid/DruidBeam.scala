@@ -18,6 +18,7 @@
  */
 package com.metamx.tranquility.druid
 
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.emitter.service.ServiceEmitter
@@ -27,13 +28,7 @@ import com.metamx.tranquility.beam.SendResult
 import com.metamx.tranquility.finagle._
 import com.metamx.tranquility.typeclass.ObjectWriter
 import com.twitter.io.Buf
-import com.twitter.util.Closable
-import com.twitter.util.Future
-import com.twitter.util.Promise
-import com.twitter.util.Return
-import com.twitter.util.Throw
-import com.twitter.util.Time
-import org.scala_tools.time.Imports._
+import com.twitter.util._
 
 /**
   * A Beam that writes all messages to a fixed set of Druid tasks.

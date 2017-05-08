@@ -21,10 +21,10 @@ package com.metamx.tranquility.storm.common
 
 import backtype.storm.LocalCluster
 import backtype.storm.generated.KillOptions
+import com.github.nscala_time.time.Imports._
 import com.metamx.common.scala.Logging
 import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.control._
-import org.scala_tools.time.Imports._
 import scala.collection.JavaConverters._
 
 trait StormRequiringSuite extends Logging
