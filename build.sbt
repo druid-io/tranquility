@@ -39,11 +39,15 @@ def dependOnDruid(artifact: String) = {
     exclude("org.apache.curator", "curator-recipes")
     exclude("org.apache.curator", "curator-x-discovery")
     exclude("com.lmax", "disruptor") // Pulled in by log4j2, conflicts with the one Storm wants.
+    exclude("com.google.code.findbugs", "annotations") // Not needed, unwanted LGPL license (see https://github.com/druid-io/druid/issues/3866)
     force())
 }
 
 val coreDependencies = Seq(
-  "com.metamx" %% "scala-util" % "1.13.2" exclude("log4j", "log4j") force(),
+  "com.metamx" %% "scala-util" % "1.13.2"
+    exclude("log4j", "log4j")
+    exclude("mysql", "mysql-connector-java") // Not needed, unwanted GPLv2 license
+    force(),
   "com.metamx" % "java-util" % "0.28.2" exclude("log4j", "log4j") force(),
   "io.netty" % "netty" % "3.10.5.Final" force(),
   "org.apache.curator" % "curator-client" % curatorVersion force(),
@@ -57,6 +61,9 @@ val coreDependencies = Seq(
   "org.slf4j" % "jul-to-slf4j" % "1.7.25" force() force(),
   "org.apache.httpcomponents" % "httpclient" % apacheHttpVersion force(),
   "org.apache.httpcomponents" % "httpcore" % apacheHttpVersion force(),
+
+  // Replacement for com.google.code.findbugs:annotations (see https://github.com/druid-io/druid/issues/3866)
+  "com.google.code.findbugs" % "jsr305" % "2.0.1" force(),
 
   // Curator uses Jackson 1.x internally, and older version cause problems with service discovery.
   "org.codehaus.jackson" % "jackson-core-asl" % jacksonOneVersion force(),
