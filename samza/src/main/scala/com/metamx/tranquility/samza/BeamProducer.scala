@@ -19,6 +19,8 @@
 package com.metamx.tranquility.samza
 
 import com.metamx.common.scala.Logging
+import com.metamx.common.scala.Predef.EffectOps
+import com.metamx.common.scala.collection.mutable.ConcurrentMap
 import com.metamx.tranquility.tranquilizer.MessageDroppedException
 import com.metamx.tranquility.tranquilizer.Tranquilizer
 import java.util.concurrent.atomic.AtomicReference
@@ -26,7 +28,6 @@ import org.apache.samza.config.Config
 import org.apache.samza.system.OutgoingMessageEnvelope
 import org.apache.samza.system.SystemProducer
 import org.apache.samza.system.SystemStream
-import scala.collection.mutable
 
 class BeamProducer(
   beamFactory: BeamFactory,
@@ -56,16 +57,14 @@ class BeamProducer(
   )
 
   // stream => sender
-  private val senders = mutable.Map[String, Tranquilizer[Any]]()
+  private val senders = ConcurrentMap[String, Tranquilizer[Any]]()
 
   private val exception = new AtomicReference[Throwable]()
 
   override def start() {}
 
   override def stop() {
-    for (sender <- senders.values) {
-      sender.stop()
-    }
+    senders.values.foreach(_.stop())
   }
 
   override def register(source: String) {}
@@ -73,22 +72,27 @@ class BeamProducer(
   override def send(source: String, envelope: OutgoingMessageEnvelope) {
     val streamName = envelope.getSystemStream.getStream
     val message = envelope.getMessage
-    val sender = senders.getOrElseUpdate(
-      streamName, {
-        log.info("Creating beam for stream[%s.%s].", systemName, streamName)
-        val t = Tranquilizer.create(
-          beamFactory.makeBeam(new SystemStream(systemName, streamName), config),
-          batchSize,
-          maxPendingBatches,
-          lingerMillis
-        )
-        t.start()
-        t
-      }
-    )
+
+    val sender = senders.get(streamName) match {
+      case Some(x) => x
+      case None =>
+        senders.synchronized {
+          senders.getOrElseUpdate(
+            streamName, {
+              log.info("Creating beam for stream[%s.%s].", systemName, streamName)
+              Tranquilizer.create(
+                beamFactory.makeBeam(new SystemStream(systemName, streamName), config),
+                batchSize,
+                maxPendingBatches,
+                lingerMillis
+              ) withEffect(_.start())
+            }
+          )
+        }
+    }
 
     sender.send(message) handle {
-      case e: MessageDroppedException => // Suppress
+      case _: MessageDroppedException => // Suppress
       case e => exception.compareAndSet(null, e)
     }
 
@@ -97,10 +101,7 @@ class BeamProducer(
 
   override def flush(source: String) {
     // So flippin' lazy. Flush ALL the data!
-    for ((streamName, sender) <- senders) {
-      sender.flush()
-    }
-
+    senders.values.foreach(_.flush())
     maybeThrow()
   }
 
