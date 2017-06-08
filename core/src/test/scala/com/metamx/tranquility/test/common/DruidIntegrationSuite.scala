@@ -25,7 +25,6 @@ import com.google.common.base.Charsets
 import com.google.common.io.CharStreams
 import com.google.common.io.Files
 import com.google.inject.Injector
-import com.metamx.collections.spatial.search.RectangularBound
 import com.metamx.common.lifecycle.Lifecycle
 import com.metamx.common.scala.concurrent._
 import com.metamx.common.scala.control._
@@ -37,7 +36,6 @@ import io.druid.cli.CliBroker
 import io.druid.cli.CliCoordinator
 import io.druid.cli.CliOverlord
 import io.druid.cli.GuiceRunnable
-import io.druid.granularity.QueryGranularities
 import io.druid.guice.GuiceInjectors
 import io.druid.query.aggregation.AggregatorFactory
 import io.druid.query.aggregation.LongSumAggregatorFactory
@@ -50,8 +48,12 @@ import java.io.InputStreamReader
 import java.net.BindException
 import java.net.URLClassLoader
 import java.util.concurrent.atomic.AtomicInteger
+
+import io.druid.collections.spatial.search.RectangularBound
+import io.druid.java.util.common.granularity.Granularities
 import org.apache.curator.framework.CuratorFramework
 import org.scalatest.FunSuite
+
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 import scala.reflect.classTag
@@ -256,7 +258,7 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
       (Druids
         .newTimeseriesQueryBuilder()
         .dataSource("xxx")
-        .granularity(QueryGranularities.MINUTE)
+        .granularity(Granularities.MINUTE)
         .intervals("0000/3000")
         .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
         .build(),
@@ -273,7 +275,7 @@ trait DruidIntegrationSuite extends Logging with CuratorRequiringSuite
       (Druids
         .newTimeseriesQueryBuilder()
         .dataSource("xxx")
-        .granularity(QueryGranularities.MINUTE)
+        .granularity(Granularities.MINUTE)
         .intervals("0000/3000")
         .aggregators(Seq[AggregatorFactory](new LongSumAggregatorFactory("barr", "barr")).asJava)
         .filters(new SpatialDimFilter("coord.geo", new RectangularBound(Array(35f, 120f), Array(40f, 125f))))

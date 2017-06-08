@@ -81,7 +81,7 @@ class MapPartitioner[A](
     }
 
     val partitionHashCode = if (dimensions.nonEmpty) {
-      val truncatedTimestamp = rollup.indexGranularity.truncate(timestamper.timestamp(thing).getMillis)
+      val truncatedTimestamp = rollup.indexGranularity.bucketStart(timestamper.timestamp(thing)).getMillis
       Partitioner.timeAndDimsHashCode(truncatedTimestamp, dimensions)
     } else {
       thing.hashCode()

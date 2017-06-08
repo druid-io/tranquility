@@ -12,7 +12,7 @@ val jacksonOneVersion = "1.9.13"
 // See https://github.com/druid-io/druid/pull/1669, https://github.com/druid-io/tranquility/pull/81 before upgrading Jackson
 val jacksonTwoVersion = "2.4.6"
 val jacksonTwoModuleScalaVersion = "2.4.5"
-val druidVersion = "0.9.2"
+val druidVersion = "0.10.1-SNAPSHOT"
 val curatorVersion = "2.12.0"
 val guiceVersion = "4.0"
 val flinkVersion = "1.0.3"
@@ -48,8 +48,7 @@ val coreDependencies = Seq(
     exclude("log4j", "log4j")
     exclude("mysql", "mysql-connector-java") // Not needed, unwanted GPLv2 license
     force(),
-  "com.metamx" % "java-util" % "0.28.2" exclude("log4j", "log4j") force(),
-  "io.netty" % "netty" % "3.10.5.Final" force(),
+  "io.netty" % "netty" % "3.10.6.Final" force(),
   "org.apache.curator" % "curator-client" % curatorVersion force(),
   "org.apache.curator" % "curator-framework" % curatorVersion force(),
   "org.apache.curator" % "curator-recipes" % curatorVersion force(),

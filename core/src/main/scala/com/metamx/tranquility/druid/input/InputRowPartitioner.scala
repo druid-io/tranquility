@@ -22,17 +22,19 @@ package com.metamx.tranquility.druid.input
 import com.google.common.hash.Hashing
 import com.metamx.tranquility.partition.Partitioner
 import io.druid.data.input.InputRow
-import io.druid.granularity.QueryGranularity
+import io.druid.java.util.common.granularity.Granularity
+import org.joda.time.DateTime
+
 import scala.collection.JavaConverters._
 
 /**
   * Partitioner that partitions Druid InputRows by their truncated timestamp and dimensions.
   */
-class InputRowPartitioner(queryGranularity: QueryGranularity) extends Partitioner[InputRow]
+class InputRowPartitioner(queryGranularity: Granularity) extends Partitioner[InputRow]
 {
   override def partition(row: InputRow, numPartitions: Int): Int = {
     val partitionHashCode = Partitioner.timeAndDimsHashCode(
-      queryGranularity.truncate(row.getTimestampFromEpoch),
+      queryGranularity.bucketStart(new DateTime(row.getTimestampFromEpoch)).getMillis,
       row.getDimensions.asScala.view map { dim =>
         dim -> row.getRaw(dim)
       }

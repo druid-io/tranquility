@@ -19,11 +19,12 @@
 
 package com.metamx.tranquility.test
 
+import java.util.UUID
+
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.github.nscala_time.time.Imports._
 import com.google.common.base.Charsets
-import com.metamx.common.Granularity
 import com.metamx.common.logger.Logger
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Predef._
@@ -34,17 +35,12 @@ import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.beam._
 import com.metamx.tranquility.test.common.CuratorRequiringSuite
 import com.metamx.tranquility.typeclass.Timestamper
-import com.twitter.util.Await
-import com.twitter.util.Future
-import com.twitter.util.Promise
-import java.util.UUID
+import com.twitter.util.{Await, Future, Promise}
+import io.druid.java.util.common.granularity.{Granularities, PeriodGranularity}
 import org.apache.curator.framework.CuratorFramework
-import org.joda.time.DateTime
-import org.joda.time.DateTimeZone
-import org.joda.time.Interval
-import org.scalatest.BeforeAndAfter
-import org.scalatest.FunSuite
-import org.scalatest.Matchers
+import org.joda.time.{DateTime, DateTimeZone, Interval}
+import org.scalatest.{BeforeAndAfter, FunSuite, Matchers}
+
 import scala.collection.immutable.BitSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -200,7 +196,7 @@ class ClusteredBeamTest extends FunSuite with CuratorRequiringSuite with BeforeA
   }
 
   val defaultTuning = ClusteredBeamTuning(
-    segmentGranularity = Granularity.HOUR,
+    segmentGranularity = Granularities.HOUR.asInstanceOf[PeriodGranularity],
     warmingPeriod = 0.minutes,
     windowPeriod = 10.minutes,
     partitions = 2,

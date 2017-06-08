@@ -20,32 +20,25 @@
 package com.metamx.tranquility.test
 
 import _root_.io.druid.data.input.impl.TimestampSpec
-import _root_.io.druid.granularity.QueryGranularities
-import _root_.io.druid.indexing.common.task.RealtimeIndexTask
-import _root_.io.druid.indexing.common.task.Task
+import _root_.io.druid.indexing.common.task.{RealtimeIndexTask, Task}
 import _root_.io.druid.query.aggregation.LongSumAggregatorFactory
-import _root_.io.druid.segment.realtime.firehose.ChatHandlerProvider
-import _root_.io.druid.segment.realtime.firehose.ClippedFirehoseFactory
-import _root_.io.druid.segment.realtime.firehose.NoopChatHandlerProvider
+import _root_.io.druid.segment.realtime.firehose.{ChatHandlerProvider, ClippedFirehoseFactory, NoopChatHandlerProvider}
 import _root_.io.druid.server.metrics.EventReceiverFirehoseRegister
 import _root_.io.druid.timeline.partition.LinearShardSpec
-import _root_.scala.collection.JavaConverters._
 import com.fasterxml.jackson.databind
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.InjectableValues
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.ObjectReader
+import com.fasterxml.jackson.databind.{DeserializationContext, InjectableValues, ObjectMapper, ObjectReader}
 import com.github.nscala_time.time.Imports._
 import com.google.inject.Key
-import com.metamx.common.Granularity
 import com.metamx.common.scala.untyped.Dict
 import com.metamx.emitter.core.NoopEmitter
 import com.metamx.emitter.service.ServiceEmitter
 import com.metamx.tranquility.beam.ClusteredBeamTuning
 import com.metamx.tranquility.druid._
+import io.druid.java.util.common.granularity.{Granularities, PeriodGranularity}
 import org.joda.time.chrono.ISOChronology
-import org.scalatest.FunSuite
-import org.scalatest.Matchers
+import org.scalatest.{FunSuite, Matchers}
+
+import _root_.scala.collection.JavaConverters._
 
 class DruidBeamTest extends FunSuite with Matchers
 {
@@ -80,47 +73,47 @@ class DruidBeamTest extends FunSuite with Matchers
 
   test("GenerateFirehoseId: H=00") {
     val dt = new DateTime("2010-02-03T00:34:56.789Z")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.SECOND, dt, 1) === "x-296-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.MINUTE, dt, 1) === "x-034-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.FIVE_MINUTE, dt, 1) === "x-034-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.TEN_MINUTE, dt, 1) === "x-034-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.FIFTEEN_MINUTE, dt, 1) === "x-034-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.HOUR, dt, 1) === "x-000-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.SIX_HOUR, dt, 1) === "x-000-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.DAY, dt, 1) === "x-003-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.WEEK, dt, 1) === "x-005-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.MONTH, dt, 1) === "x-002-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.YEAR, dt, 1) === "x-010-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.SECOND, dt, 1) === "x-296-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.MINUTE, dt, 1) === "x-034-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.FIVE_MINUTE, dt, 1) === "x-034-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.TEN_MINUTE, dt, 1) === "x-034-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.FIFTEEN_MINUTE, dt, 1) === "x-034-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.HOUR, dt, 1) === "x-000-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.SIX_HOUR, dt, 1) === "x-000-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.DAY, dt, 1) === "x-003-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.WEEK, dt, 1) === "x-005-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.MONTH, dt, 1) === "x-002-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.YEAR, dt, 1) === "x-010-0001")
   }
 
   test("GenerateFirehoseId: H=12") {
     val dt = new DateTime("2010-02-03T12:34:56.789Z")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.SECOND, dt, 1) === "x-296-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.MINUTE, dt, 1) === "x-034-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.FIVE_MINUTE, dt, 1) === "x-034-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.TEN_MINUTE, dt, 1) === "x-034-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.FIFTEEN_MINUTE, dt, 1) === "x-034-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.HOUR, dt, 1) === "x-012-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.SIX_HOUR, dt, 1) === "x-012-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.DAY, dt, 1) === "x-003-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.WEEK, dt, 1) === "x-005-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.MONTH, dt, 1) === "x-002-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.YEAR, dt, 1) === "x-010-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.SECOND, dt, 1) === "x-296-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.MINUTE, dt, 1) === "x-034-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.FIVE_MINUTE, dt, 1) === "x-034-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.TEN_MINUTE, dt, 1) === "x-034-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.FIFTEEN_MINUTE, dt, 1) === "x-034-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.HOUR, dt, 1) === "x-012-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.SIX_HOUR, dt, 1) === "x-012-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.DAY, dt, 1) === "x-003-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.WEEK, dt, 1) === "x-005-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.MONTH, dt, 1) === "x-002-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.YEAR, dt, 1) === "x-010-0001")
   }
 
   test("GenerateFirehoseId: H=23") {
     val dt = new DateTime("2010-02-03T23:34:56.789Z")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.SECOND, dt, 1) === "x-296-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.MINUTE, dt, 1) === "x-154-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.FIVE_MINUTE, dt, 1) === "x-154-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.TEN_MINUTE, dt, 1) === "x-154-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.FIFTEEN_MINUTE, dt, 1) === "x-154-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.HOUR, dt, 1) === "x-023-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.SIX_HOUR, dt, 1) === "x-023-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.DAY, dt, 1) === "x-003-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.WEEK, dt, 1) === "x-005-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.MONTH, dt, 1) === "x-002-0001")
-    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularity.YEAR, dt, 1) === "x-010-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.SECOND, dt, 1) === "x-296-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.MINUTE, dt, 1) === "x-154-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.FIVE_MINUTE, dt, 1) === "x-154-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.TEN_MINUTE, dt, 1) === "x-154-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.FIFTEEN_MINUTE, dt, 1) === "x-154-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.HOUR, dt, 1) === "x-023-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.SIX_HOUR, dt, 1) === "x-023-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.DAY, dt, 1) === "x-003-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.WEEK, dt, 1) === "x-005-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.MONTH, dt, 1) === "x-002-0001")
+    assert(DruidBeamMaker.generateBaseFirehoseId("x", Granularities.YEAR, dt, 1) === "x-010-0001")
   }
 
   test("Task JSON") {
@@ -128,7 +121,7 @@ class DruidBeamTest extends FunSuite with Matchers
       DruidBeamConfig(),
       DruidLocation.create("druid/overlord", "mydatasource"),
       ClusteredBeamTuning(
-        segmentGranularity = Granularity.HOUR,
+        segmentGranularity = Granularities.HOUR.asInstanceOf[PeriodGranularity],
         warmingPeriod = 0.minutes,
         windowPeriod = 4.minutes
       ),
@@ -140,7 +133,7 @@ class DruidBeamTest extends FunSuite with Matchers
       DruidRollup(
         dimensions = SpecificDruidDimensions(Seq("dim1", "dim2"), Seq(DruidSpatialDimension.singleField("spatial1"))),
         aggregators = Seq(new LongSumAggregatorFactory("met1", "met1")),
-        indexGranularity = QueryGranularities.MINUTE,
+        indexGranularity = Granularities.MINUTE,
         true
       ),
       new TimestampSpec("ts", "iso", null),
@@ -180,8 +173,8 @@ class DruidBeamTest extends FunSuite with Matchers
     val dataSchema = task.getRealtimeIngestionSchema.getDataSchema
     dataSchema.getDataSource should be("mydatasource")
     dataSchema.getAggregators.deep should be(Array(new LongSumAggregatorFactory("met1", "met1")).deep)
-    dataSchema.getGranularitySpec.getSegmentGranularity should be(Granularity.HOUR)
-    dataSchema.getGranularitySpec.getQueryGranularity should be(QueryGranularities.MINUTE)
+    dataSchema.getGranularitySpec.getSegmentGranularity should be(Granularities.HOUR)
+    dataSchema.getGranularitySpec.getQueryGranularity should be(Granularities.MINUTE)
 
     val parseSpec = dataSchema.getParser.getParseSpec
     parseSpec.getTimestampSpec.getTimestampColumn should be("ts")
@@ -200,7 +193,7 @@ class DruidBeamTest extends FunSuite with Matchers
       DruidRollup(
         dimensions = SpecificDruidDimensions(Seq(), Seq()),
         aggregators = Seq(),
-        indexGranularity = QueryGranularities.NONE,
+        indexGranularity = Granularities.NONE,
         // isRollup is set for test.
         isRollup
       ),

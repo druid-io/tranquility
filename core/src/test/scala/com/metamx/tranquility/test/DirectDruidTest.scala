@@ -19,42 +19,35 @@
 
 package com.metamx.tranquility.test
 
-import _root_.io.druid.data.input.impl.TimestampSpec
-import _root_.io.druid.granularity.QueryGranularities
-import _root_.io.druid.query.aggregation.LongSumAggregatorFactory
-import _root_.scala.collection.JavaConverters._
-import _root_.scala.reflect.runtime.universe.typeTag
-import com.github.nscala_time.time.Imports._
-import com.google.common.base.Charsets
-import com.google.common.io.ByteStreams
-import com.metamx.common.parsers.ParseException
-import com.metamx.common.scala.timekeeper.TestingTimekeeper
-import com.metamx.common.scala.timekeeper.Timekeeper
-import com.metamx.common.scala.Jackson
-import com.metamx.common.scala.Logging
-import com.metamx.common.Granularity
-import com.metamx.common.ISE
-import com.metamx.tranquility.beam.ClusteredBeamTuning
-import com.metamx.tranquility.beam.RoundRobinBeam
-import com.metamx.tranquility.config.DataSourceConfig
-import com.metamx.tranquility.config.PropertiesBasedConfig
-import com.metamx.tranquility.config.TranquilityConfig
-import com.metamx.tranquility.druid._
-import com.metamx.tranquility.test.DirectDruidTest._
-import com.metamx.tranquility.test.common._
-import com.metamx.tranquility.tranquilizer.MessageDroppedException
-import com.metamx.tranquility.tranquilizer.Tranquilizer
-import com.metamx.tranquility.typeclass.DefaultJsonWriter
-import com.metamx.tranquility.typeclass.JavaObjectWriter
-import com.metamx.tranquility.typeclass.Timestamper
-import com.twitter.util._
 import java.io.ByteArrayInputStream
 import java.nio.ByteBuffer
 import java.{util => ju}
 import javax.ws.rs.core.MediaType
+
+import _root_.io.druid.data.input.impl.TimestampSpec
+import _root_.io.druid.query.aggregation.LongSumAggregatorFactory
+import com.github.nscala_time.time.Imports._
+import com.google.common.base.Charsets
+import com.google.common.io.ByteStreams
+import com.metamx.common.ISE
+import com.metamx.common.parsers.ParseException
+import com.metamx.common.scala.{Jackson, Logging}
+import com.metamx.common.scala.timekeeper.{TestingTimekeeper, Timekeeper}
+import com.metamx.tranquility.beam.{ClusteredBeamTuning, RoundRobinBeam}
+import com.metamx.tranquility.config.{DataSourceConfig, PropertiesBasedConfig, TranquilityConfig}
+import com.metamx.tranquility.druid._
+import com.metamx.tranquility.test.DirectDruidTest._
+import com.metamx.tranquility.test.common._
+import com.metamx.tranquility.tranquilizer.{MessageDroppedException, Tranquilizer}
+import com.metamx.tranquility.typeclass.{DefaultJsonWriter, JavaObjectWriter, Timestamper}
+import com.twitter.util._
+import io.druid.java.util.common.granularity.{Granularities, PeriodGranularity}
 import org.apache.curator.framework.CuratorFramework
 import org.joda.time.DateTime
 import org.scalatest.FunSuite
+
+import _root_.scala.collection.JavaConverters._
+import _root_.scala.reflect.runtime.universe.typeTag
 
 object DirectDruidTest
 {
@@ -78,14 +71,14 @@ object DirectDruidTest
 
   def newBuilder(curator: CuratorFramework, timekeeper: Timekeeper): DruidBeams.Builder[SimpleEvent, SimpleEvent] = {
     val dataSource = "xxx"
-    val tuning = ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 1, 1, 1, 1)
+    val tuning = ClusteredBeamTuning(Granularities.HOUR.asInstanceOf[PeriodGranularity], 0.minutes, 10.minutes, 1, 1, 1, 1)
     val rollup = DruidRollup(
       SpecificDruidDimensions(
         Vector("foo"),
         Vector(MultipleFieldDruidSpatialDimension("coord.geo", Seq("lat", "lon")))
       ),
       IndexedSeq(new LongSumAggregatorFactory("barr", "bar")),
-      QueryGranularities.MINUTE,
+      Granularities.MINUTE,
       true
     )
     val druidEnvironment = new DruidEnvironment(

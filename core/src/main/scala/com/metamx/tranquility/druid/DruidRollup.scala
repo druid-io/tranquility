@@ -20,9 +20,11 @@ package com.metamx.tranquility.druid
 
 import io.druid.data.input.impl.SpatialDimensionSchema
 import io.druid.data.input.impl.TimestampSpec
-import io.druid.granularity.QueryGranularity
 import io.druid.query.aggregation.AggregatorFactory
 import java.{util => ju}
+
+import io.druid.java.util.common.granularity.Granularity
+
 import scala.collection.JavaConverters._
 
 /**
@@ -35,7 +37,7 @@ import scala.collection.JavaConverters._
 class DruidRollup(
   val dimensions: DruidDimensions,
   val aggregators: IndexedSeq[AggregatorFactory],
-  val indexGranularity: QueryGranularity,
+  val indexGranularity: Granularity,
   val isRollup: Boolean = true
 )
 {
@@ -177,7 +179,7 @@ object DruidRollup
   def apply(
     dimensions: DruidDimensions,
     aggregators: Seq[AggregatorFactory],
-    indexGranularity: QueryGranularity,
+    indexGranularity: Granularity,
     isRollup: Boolean
   ) =
   {
@@ -194,7 +196,7 @@ object DruidRollup
   def create(
     dimensions: DruidDimensions,
     aggregators: java.util.List[AggregatorFactory],
-    indexGranularity: QueryGranularity,
+    indexGranularity: Granularity,
     isRollup: Boolean
   ): DruidRollup =
   {
@@ -212,7 +214,7 @@ object DruidRollup
   def create(
     dimensions: java.util.List[String],
     aggregators: java.util.List[AggregatorFactory],
-    indexGranularity: QueryGranularity,
+    indexGranularity: Granularity,
     isRollup: Boolean
   ): DruidRollup =
   {

@@ -18,12 +18,12 @@
  */
 package com.metamx.tranquility.beam
 
-import com.metamx.common.Granularity
 import com.metamx.common.scala.Logging
+import io.druid.java.util.common.granularity.{Granularities, PeriodGranularity}
 import org.joda.time.{DateTime, Period}
 
 case class ClusteredBeamTuning(
-  segmentGranularity: Granularity = Granularity.HOUR,
+  segmentGranularity: PeriodGranularity = Granularities.HOUR.asInstanceOf[PeriodGranularity],
   warmingPeriod: Period = new Period(0),
   windowPeriod: Period = new Period("PT10M"),
   partitions: Int = 1,
@@ -58,7 +58,7 @@ object ClusteredBeamTuning
       *
       * Default is Granularity.HOUR.
       */
-    def segmentGranularity(x: Granularity) = new Builder(config.copy(segmentGranularity = x))
+    def segmentGranularity(x: PeriodGranularity) = new Builder(config.copy(segmentGranularity = x))
 
     /**
       * If nonzero, create sub-beams early. This can be useful if sub-beams take a long time to start up.
@@ -120,7 +120,7 @@ object ClusteredBeamTuning
     */
   @deprecated("use ClusteredBeamTuning.builder()", "0.2.26")
   def create(
-    segmentGranularity: Granularity,
+    segmentGranularity: PeriodGranularity,
     warmingPeriod: Period,
     windowPeriod: Period,
     partitions: Int,

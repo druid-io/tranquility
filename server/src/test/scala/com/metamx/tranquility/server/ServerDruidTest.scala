@@ -21,32 +21,25 @@ package com.metamx.tranquility.server
 
 import _root_.io.druid.data.input.InputRow
 import _root_.io.druid.data.input.impl.TimestampSpec
-import _root_.io.druid.granularity.QueryGranularities
 import _root_.io.druid.query.aggregation.LongSumAggregatorFactory
-import _root_.scala.reflect.runtime.universe.typeTag
 import com.github.nscala_time.time.Imports._
 import com.google.common.base.Charsets
-import com.metamx.common.Granularity
+import com.metamx.common.scala.{Jackson, Logging}
 import com.metamx.common.scala.Predef._
-import com.metamx.common.scala.timekeeper.TestingTimekeeper
-import com.metamx.common.scala.timekeeper.Timekeeper
-import com.metamx.common.scala.untyped.Dict
-import com.metamx.common.scala.untyped.long
-import com.metamx.common.scala.Jackson
-import com.metamx.common.scala.Logging
-import com.metamx.tranquility.beam.Beam
-import com.metamx.tranquility.beam.ClusteredBeamTuning
-import com.metamx.tranquility.beam.RoundRobinBeam
+import com.metamx.common.scala.timekeeper.{TestingTimekeeper, Timekeeper}
+import com.metamx.common.scala.untyped.{Dict, long}
+import com.metamx.tranquility.beam.{Beam, ClusteredBeamTuning, RoundRobinBeam}
 import com.metamx.tranquility.druid._
 import com.metamx.tranquility.server.ServerDruidTest._
 import com.metamx.tranquility.server.ServerTestUtil.withTester
 import com.metamx.tranquility.test.DirectDruidTest
-import com.metamx.tranquility.test.common.CuratorRequiringSuite
-import com.metamx.tranquility.test.common.DruidIntegrationSuite
+import com.metamx.tranquility.test.common.{CuratorRequiringSuite, DruidIntegrationSuite}
+import io.druid.java.util.common.granularity.{Granularities, PeriodGranularity}
 import org.apache.curator.framework.CuratorFramework
 import org.joda.time.DateTime
-import org.scalatest.FunSuite
-import org.scalatest.ShouldMatchers
+import org.scalatest.{FunSuite, ShouldMatchers}
+
+import _root_.scala.reflect.runtime.universe.typeTag
 
 class ServerDruidTest
   extends FunSuite with DruidIntegrationSuite with CuratorRequiringSuite with ShouldMatchers with Logging
@@ -117,14 +110,22 @@ object ServerDruidTest
   val TimeFormat = "posix"
 
   def newDruidBeam(curator: CuratorFramework, timekeeper: Timekeeper): Beam[Dict] = {
-    val tuning = ClusteredBeamTuning(Granularity.HOUR, 0.minutes, 10.minutes, 1, 1, 1, 1)
+    val tuning = ClusteredBeamTuning(
+      Granularities.HOUR.asInstanceOf[PeriodGranularity],
+      0.minutes,
+      10.minutes,
+      1,
+      1,
+      1,
+      1
+    )
     val rollup = DruidRollup(
       SpecificDruidDimensions(
         Vector("foo"),
         Vector(MultipleFieldDruidSpatialDimension("coord.geo", Seq("lat", "lon")))
       ),
       IndexedSeq(new LongSumAggregatorFactory("barr", "bar")),
-      QueryGranularities.MINUTE,
+      Granularities.MINUTE,
       true
     )
     val druidEnvironment = DruidEnvironment.create(

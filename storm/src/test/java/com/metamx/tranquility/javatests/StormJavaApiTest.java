@@ -19,12 +19,18 @@
 
 package com.metamx.tranquility.javatests;
 
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectOutputStream;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import javax.ws.rs.core.MediaType;
+
 import backtype.storm.task.IMetricsContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
-import com.metamx.common.Granularity;
 import com.metamx.tranquility.beam.Beam;
 import com.metamx.tranquility.beam.ClusteredBeamTuning;
 import com.metamx.tranquility.druid.DruidBeams;
@@ -35,7 +41,9 @@ import com.metamx.tranquility.storm.BeamFactory;
 import com.metamx.tranquility.typeclass.JavaObjectWriter;
 import com.metamx.tranquility.typeclass.Timestamper;
 import com.twitter.finagle.Service;
-import io.druid.granularity.QueryGranularities;
+import io.druid.java.util.common.granularity.DurationGranularity;
+import io.druid.java.util.common.granularity.Granularities;
+import io.druid.java.util.common.granularity.PeriodGranularity;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.CountAggregatorFactory;
 import org.apache.curator.framework.CuratorFramework;
@@ -46,13 +54,6 @@ import org.joda.time.DateTime;
 import org.joda.time.Period;
 import org.junit.Assert;
 import org.junit.Test;
-
-import javax.ws.rs.core.MediaType;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectOutputStream;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 
 public class StormJavaApiTest
 {
@@ -102,10 +103,10 @@ public class StormJavaApiTest
                     dataSource
                 )
             )
-            .rollup(DruidRollup.create(dimensions, aggregators, QueryGranularities.MINUTE, true))
+            .rollup(DruidRollup.create(dimensions, aggregators, Granularities.MINUTE, true))
             .tuning(
                 ClusteredBeamTuning.builder()
-                                   .segmentGranularity(Granularity.HOUR)
+                                   .segmentGranularity(((PeriodGranularity) Granularities.HOUR))
                                    .windowPeriod(new Period("PT10M"))
                                    .build()
             )

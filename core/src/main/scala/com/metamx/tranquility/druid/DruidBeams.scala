@@ -60,9 +60,12 @@ import java.nio.ByteBuffer
 import java.{lang => jl}
 import java.{util => ju}
 import javax.ws.rs.core.MediaType
+
+import io.druid.java.util.common.granularity.PeriodGranularity
 import org.apache.curator.framework.CuratorFramework
 import org.apache.curator.framework.CuratorFrameworkFactory
 import org.apache.curator.retry.ExponentialBackoffRetry
+
 import scala.collection.JavaConverters._
 import scala.language.reflectiveCalls
 import scala.reflect.runtime.universe.TypeTag
@@ -346,7 +349,8 @@ object DruidBeams
       .timestampSpec(timestampSpec)
       .tuning(
         ClusteredBeamTuning(
-          segmentGranularity = fireDepartment.getDataSchema.getGranularitySpec.getSegmentGranularity,
+          segmentGranularity =
+            fireDepartment.getDataSchema.getGranularitySpec.getSegmentGranularity.asInstanceOf[PeriodGranularity],
           windowPeriod = fireDepartment.getTuningConfig.getWindowPeriod,
           warmingPeriod = config.propertiesBasedConfig.taskWarmingPeriod
         )

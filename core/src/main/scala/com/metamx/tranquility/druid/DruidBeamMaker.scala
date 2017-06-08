@@ -20,7 +20,6 @@ package com.metamx.tranquility.druid
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.nscala_time.time.Imports._
-import com.metamx.common.Granularity
 import com.metamx.common.scala.untyped._
 import com.metamx.common.scala.Jackson
 import com.metamx.common.scala.Logging
@@ -32,9 +31,12 @@ import com.twitter.util.Await
 import com.twitter.util.Future
 import io.druid.data.input.impl.TimestampSpec
 import java.{util => ju}
+
+import io.druid.java.util.common.granularity.{Granularities, Granularity}
 import org.joda.time.chrono.ISOChronology
 import org.joda.time.DateTime
 import org.joda.time.Interval
+
 import scala.util.Random
 
 class DruidBeamMaker[A](
@@ -70,10 +72,6 @@ class DruidBeamMaker[A](
     }
     val taskId = "index_realtime_%s_%s_%s_%s%s" format(dataSource, interval.start, partition, replicant, suffix)
     val shutoffTime = interval.end + beamTuning.windowPeriod + config.firehoseGracePeriod
-    val queryGranularityMap = druidObjectMapper.convertValue(
-      rollup.indexGranularity,
-      classOf[ju.Map[String, AnyRef]]
-    )
     val dataSchemaMap = Map(
       "dataSource" -> dataSource,
       "parser" -> Map(
@@ -88,7 +86,7 @@ class DruidBeamMaker[A](
       "granularitySpec" -> Map(
         "type" -> "uniform",
         "segmentGranularity" -> beamTuning.segmentGranularity,
-        "queryGranularity" -> queryGranularityMap,
+        "queryGranularity" -> rollup.indexGranularity,
         "rollup" -> rollup.isRollup
       )
     )
@@ -149,8 +147,12 @@ class DruidBeamMaker[A](
 
   override def newBeam(interval: Interval, partition: Int) = {
     require(
-      beamTuning.segmentGranularity.widen(interval) == interval,
-      "Interval does not match segmentGranularity[%s]: %s" format(beamTuning.segmentGranularity, interval)
+      DruidBeamMaker.widen(beamTuning.segmentGranularity, interval) == interval,
+      "Interval does not match segmentGranularity[%s]: %s != %s" format(
+        beamTuning.segmentGranularity,
+        interval,
+        DruidBeamMaker.widen(beamTuning.segmentGranularity, interval)
+      )
     )
     val baseFirehoseId = DruidBeamMaker.generateBaseFirehoseId(
       location.dataSource,
@@ -202,8 +204,12 @@ class DruidBeamMaker[A](
       beamTuning.segmentBucket(new DateTime(d("timestamp"), ISOChronology.getInstanceUTC))
     }
     require(
-      beamTuning.segmentGranularity.widen(interval) == interval,
-      "Interval does not match segmentGranularity[%s]: %s" format(beamTuning.segmentGranularity, interval)
+      DruidBeamMaker.widen(beamTuning.segmentGranularity, interval) == interval,
+      "Interval does not match segmentGranularity[%s]: %s != %s" format(
+        beamTuning.segmentGranularity,
+        interval,
+        DruidBeamMaker.widen(beamTuning.segmentGranularity, interval)
+      )
     )
     val partition = int(d("partition"))
     val tasks = if (d contains "tasks") {
@@ -244,20 +250,37 @@ object DruidBeamMaker
     val tsUtc = new DateTime(ts.getMillis, ISOChronology.getInstanceUTC)
 
     val cycleBucket = segmentGranularity match {
-      case Granularity.SECOND => (tsUtc.minuteOfHour().get * 60 + tsUtc.secondOfMinute().get) % 900 // 900 buckets
-      case Granularity.MINUTE => tsUtc.hourOfDay().get % 3 * 60 + tsUtc.minuteOfHour().get // 180 buckets
-      case Granularity.FIVE_MINUTE => tsUtc.hourOfDay().get % 3 * 60 + tsUtc.minuteOfHour().get // 36 buckets
-      case Granularity.TEN_MINUTE => tsUtc.hourOfDay().get % 3 * 60 + tsUtc.minuteOfHour().get // 18 buckets
-      case Granularity.FIFTEEN_MINUTE => tsUtc.hourOfDay().get % 3 * 60 + tsUtc.minuteOfHour().get // 12 buckets
-      case Granularity.HOUR => tsUtc.hourOfDay().get
-      case Granularity.SIX_HOUR => tsUtc.hourOfDay().get
-      case Granularity.DAY => tsUtc.dayOfMonth().get
-      case Granularity.WEEK => tsUtc.weekOfWeekyear().get
-      case Granularity.MONTH => tsUtc.monthOfYear().get
-      case Granularity.YEAR => tsUtc.yearOfCentury().get
+      case Granularities.SECOND => (tsUtc.minuteOfHour().get * 60 + tsUtc.secondOfMinute().get) % 900 // 900 buckets
+      case Granularities.MINUTE => tsUtc.hourOfDay().get % 3 * 60 + tsUtc.minuteOfHour().get // 180 buckets
+      case Granularities.FIVE_MINUTE => tsUtc.hourOfDay().get % 3 * 60 + tsUtc.minuteOfHour().get // 36 buckets
+      case Granularities.TEN_MINUTE => tsUtc.hourOfDay().get % 3 * 60 + tsUtc.minuteOfHour().get // 18 buckets
+      case Granularities.FIFTEEN_MINUTE => tsUtc.hourOfDay().get % 3 * 60 + tsUtc.minuteOfHour().get // 12 buckets
+      case Granularities.HOUR => tsUtc.hourOfDay().get
+      case Granularities.SIX_HOUR => tsUtc.hourOfDay().get
+      case Granularities.DAY => tsUtc.dayOfMonth().get
+      case Granularities.WEEK => tsUtc.weekOfWeekyear().get
+      case Granularities.MONTH => tsUtc.monthOfYear().get
+      case Granularities.YEAR => tsUtc.yearOfCentury().get
       case x => throw new IllegalArgumentException("No gross firehose id hack for granularity[%s]" format x)
     }
 
     "%s-%03d-%04d".format(dataSource, cycleBucket, partition)
+  }
+
+  def widen(granularity: Granularity, interval: Interval): Interval = {
+    val start: DateTime = granularity.bucketStart(interval.getStart)
+    val end: DateTime =
+      if (interval.getEnd.equals(start)) {
+        // Empty with aligned start/end; expand into a granularity-sized interval
+        granularity.increment(start)
+      } else if (granularity.bucketStart(interval.getEnd).equals(interval.getEnd)) {
+        // Non-empty with aligned end; keep the same end
+        interval.getEnd
+      } else {
+        // Non-empty with non-aligned end; push it out
+        granularity.bucketEnd(interval.getEnd)
+      }
+
+    new Interval(start, end)
   }
 }
