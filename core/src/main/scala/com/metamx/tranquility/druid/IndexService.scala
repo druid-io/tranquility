@@ -213,9 +213,12 @@ object IndexService
       } else {
         val hostOption = Option(d.getOrElse("host", null)).map(str(_))
         val portOption = Option(d.getOrElse("port", null)).map(int(_))
+        val tlsPortOption = Option(d.getOrElse("tlsPort", null)).map(int(_))
 
-        (hostOption, portOption) match {
-          case (Some(host), Some(port)) if host.nonEmpty && port > 0 => TaskHostPort(host, port)
+        (hostOption, portOption, tlsPortOption) match {
+          case (Some(host), Some(_), Some(tlsPort)) if host.nonEmpty && tlsPort > 0 => TaskHostPort(host, tlsPort)
+          case (Some(host), Some(port), None) if host.nonEmpty && port > 0 => TaskHostPort(host, port)
+          case (Some(host), Some(port), Some(_)) if host.nonEmpty && port > 0 => TaskHostPort(host, port)
           case _ => unknown
         }
       }

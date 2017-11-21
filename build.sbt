@@ -44,7 +44,7 @@ def dependOnDruid(artifact: String) = {
 }
 
 val coreDependencies = Seq(
-  "com.metamx" %% "scala-util" % "1.13.2"
+  "com.metamx" %% "scala-util" % "1.13.6"
     exclude("log4j", "log4j")
     exclude("mysql", "mysql-connector-java") // Not needed, unwanted GPLv2 license
     force(),

@@ -78,7 +78,7 @@ class FinagleRegistry(
         }
       )
     }
-    val client = ClientBuilder()
+    val clientBuilder = ClientBuilder()
       .name(id)
       .codec(http.Http())
       .dest(Name.Bound(resolver.bind(name), id))
@@ -87,7 +87,12 @@ class FinagleRegistry(
       .logger(FinagleLogger)
       .daemon(true)
       .failFast(config.finagleEnableFailFast)
-      .build()
+
+    val client = config.sslContextOption match {
+      case Some(sslContext) => clientBuilder.tls(sslContext).build()
+      case None => clientBuilder.build()
+    }
+
     new SharedService(
       new ServiceProxy(client)
       {
