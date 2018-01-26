@@ -115,7 +115,7 @@ class DruidGuicer(props: Properties)
           JsonConfigProvider.bindInstance(
             binder,
             Key.get(classOf[DruidNode], classOf[Self]),
-            new DruidNode("dummy", "localhost", -1)
+            new DruidNode("dummy", null, null)
           )
         }
       },

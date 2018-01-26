@@ -45,7 +45,9 @@ class BeamSink[T](beamFactory: BeamFactory[T], reportDropsAsExceptions: Boolean 
   private var droppedCounter : Option[LongCounter] = None
 
   override def open(parameters: Configuration) = {
-    sender = Some(beamFactory.tranquilizer)
+    val tranquilizer = Tranquilizer.create(beamFactory.makeBeam)
+    tranquilizer.start()
+    sender = Some(tranquilizer)
     receivedCounter = Some(getRuntimeContext.getLongCounter("Druid: Messages received"))
     sentCounter = Some(getRuntimeContext.getLongCounter("Druid: Messages sent"))
     droppedCounter = Some(getRuntimeContext.getLongCounter("Druid: Messages dropped"))
