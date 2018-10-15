@@ -84,7 +84,19 @@ These Server-specific properties, if used, must be specified at the global level
 
 |Property|Description|Default|
 |--------|-----------|-------|
-|`http.port`|Port to listen on.|8200|
+|`http.port`|Port to listen on, with plaintext traffic|8200|
+|`http.port.enable`|Enable the port for plaintext traffic.|true|
+|`https.port`|Port to listen on, with TLS.|8400|
+|`https.port.enable`|Enable the TLS port.|false|
+|`https.keyStorePath`|Path of the keystore file that contains Traquility Server's TLS certificate.|''|
+|`https.keyStorePassword`|Password for the keystore|''|
+|`https.certAlias`|Alias of the server certificate in the keystore|''|
+|`https.keyManagerFactoryAlgorithm`|Algorithm to use for creating KeyManager, more details [here](https://docs.oracle.com/javase/7/docs/technotes/guides/security/jsse/JSSERefGuide.html#KeyManager).|KeyManagerFactory.getDefaultAlgorithm()|
+|`https.keyManagerPassword`|Password for the KeyManager|''|
+|`https.includeCipherSuites`|List of cipher suite names to include. You can either use the exact cipher suite name or a regular expression.|Jetty's default include cipher list|
+|`https.excludeCipherSuites`|List of cipher suite names to exclude. You can either use the exact cipher suite name or a regular expression.|Jetty's default exclude cipher list|
+|`https.includeProtocols`|List of exact protocols names to include.|Jetty's default include protocol list|
+|`https.excludeProtocols`|List of exact protocols names to exclude.|Jetty's default exclude protocol list|
 |`http.threads`|Number of threads for serving HTTP requests.|40|
 |`http.idleTimeout`|Abort connections that have had no activity for longer than this timeout. Set to zero to disable. ISO8601 duration.|PT5M|
 

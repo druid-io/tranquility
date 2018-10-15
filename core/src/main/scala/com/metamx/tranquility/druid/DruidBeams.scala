@@ -18,6 +18,8 @@
  */
 package com.metamx.tranquility.druid
 
+import javax.net.ssl.SSLContext
+
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.smile.SmileFactory
 import com.fasterxml.jackson.jaxrs.smile.SmileMediaTypes
@@ -33,6 +35,7 @@ import com.metamx.common.scala.untyped.dict
 import com.metamx.common.scala.untyped.normalizeJava
 import com.metamx.emitter.core.LoggingEmitter
 import com.metamx.emitter.service.ServiceEmitter
+import com.metamx.common.scala.Logging
 import com.metamx.tranquility.beam._
 import com.metamx.tranquility.config.DataSourceConfig
 import com.metamx.tranquility.config.PropertiesBasedConfig
@@ -46,6 +49,7 @@ import com.metamx.tranquility.finagle.FinagleRegistry
 import com.metamx.tranquility.finagle.FinagleRegistryConfig
 import com.metamx.tranquility.partition.MapPartitioner
 import com.metamx.tranquility.partition.Partitioner
+import com.metamx.tranquility.security.SSLContextMaker
 import com.metamx.tranquility.tranquilizer.Tranquilizer
 import com.metamx.tranquility.typeclass.DefaultJsonWriter
 import com.metamx.tranquility.typeclass.JavaObjectWriter
@@ -93,7 +97,7 @@ import scala.reflect.runtime.universe.typeTag
   * Your event type (in this case, `Map[String, Any]`) must be serializable via Jackson to JSON that Druid can
   * understand. If Jackson is not an appropriate choice, you can provide an ObjectWriter via `.objectWriter(...)`.
   */
-object DruidBeams
+object DruidBeams extends Logging
 {
   private val DefaultScalaObjectMapper = Jackson.newObjectMapper()
   private val DefaultTimestampSpec     = new TimestampSpec("timestamp", "iso", null)
@@ -355,6 +359,13 @@ object DruidBeams
       .partitions(config.propertiesBasedConfig.taskPartitions)
       .replicants(config.propertiesBasedConfig.taskReplicants)
       .druidBeamConfig(config.propertiesBasedConfig.druidBeamConfig)
+      .basicAuthUser(config.propertiesBasedConfig.basicAuthUser)
+      .basicAuthPass(config.propertiesBasedConfig.basicAuthPass)
+      .tlsEnable(config.propertiesBasedConfig.tlsEnable)
+      .tlsProtocol(config.propertiesBasedConfig.tlsProtocol)
+      .tlsTrustStoreAlgorithm(config.propertiesBasedConfig.tlsTrustStoreAlgorithm)
+      .tlsTrustStoreType(config.propertiesBasedConfig.tlsTrustStoreType)
+      .tlsTrustStorePassword(config.propertiesBasedConfig.tlsTrustStorePassword)
   }
 
   /**
@@ -726,6 +737,102 @@ object DruidBeams
     }
 
     /**
+      * Set the username for basic HTTP authentication.
+      *
+      * @param basicAuthUser
+      * @return new builder
+      */
+    def basicAuthUser(basicAuthUser: String) = {
+      new Builder[InputType, EventType](config.copy(
+        _basicAuthUser = Some(basicAuthUser)
+      ))
+    }
+
+    /**
+      * Set the password for basic HTTP authentication.
+      *
+      * @param basicAuthPass
+      * @return new builder
+      */
+    def basicAuthPass(basicAuthPass: String) = {
+      new Builder[InputType, EventType](config.copy(
+        _basicAuthPass = Some(basicAuthPass)
+      ))
+    }
+
+    /**
+      * Enable TLS communications.
+      *
+      * @param tlsEnable
+      * @return new builder
+      */
+    def tlsEnable(tlsEnable: Boolean) = {
+      new Builder[InputType, EventType](config.copy(
+        _tlsEnable = Some(tlsEnable)
+      ))
+    }
+
+    /**
+      * Set the TLS protocol.
+      *
+      * @param tlsProtocol
+      * @return new builder
+      */
+    def tlsProtocol(tlsProtocol: String) = {
+      new Builder[InputType, EventType](config.copy(
+        _tlsProtocol = Some(tlsProtocol)
+      ))
+    }
+
+    /**
+      * Set the TLS truststore type.
+      *
+      * @param tlsTrustStoreType
+      * @return new builder
+      */
+    def tlsTrustStoreType(tlsTrustStoreType: String) = {
+      new Builder[InputType, EventType](config.copy(
+        _tlsTrustStoreType = Some(tlsTrustStoreType)
+      ))
+    }
+
+    /**
+      * Set the TLS truststore path.
+      *
+      * @param tlsTrustStorePath
+      * @return new builder
+      */
+    def tlsTrustStorePath(tlsTrustStorePath: String) = {
+      new Builder[InputType, EventType](config.copy(
+        _tlsTrustStorePath = Some(tlsTrustStorePath)
+      ))
+    }
+
+    /**
+      * Set the TLS truststore algorithm.
+      *
+      * @param tlsTrustStoreAlgorithm
+      * @return new builder
+      */
+    def tlsTrustStoreAlgorithm(tlsTrustStoreAlgorithm: String) = {
+      new Builder[InputType, EventType](config.copy(
+        _tlsTrustStoreAlgorithm = Some(tlsTrustStoreAlgorithm)
+      ))
+    }
+
+    /**
+      * Set the TLS truststore password.
+      *
+      * @param tlsTrustStorePassword
+      * @return new builder
+      */
+    def tlsTrustStorePassword(tlsTrustStorePassword: String) = {
+      new Builder[InputType, EventType](config.copy(
+        _tlsTrustStorePassword = Some(tlsTrustStorePassword)
+      ))
+    }
+
+    /**
       * Build a Beam using this DruidBeams builder.
       *
       * @return a beam
@@ -850,7 +957,15 @@ object DruidBeams
     _beamMergeFn: Option[Seq[Beam[EventType]] => Beam[EventType]] = None,
     _alertMap: Option[Dict] = None,
     _objectWriter: Option[ObjectWriter[EventType]] = None,
-    _timestamper: Option[Timestamper[EventType]] = None
+    _timestamper: Option[Timestamper[EventType]] = None,
+    _basicAuthUser: Option[String] = None,
+    _basicAuthPass: Option[String] = None,
+    _tlsEnable: Option[Boolean] = None,
+    _tlsProtocol: Option[String] = None,
+    _tlsTrustStoreType: Option[String] = None,
+    _tlsTrustStorePath: Option[String] = None,
+    _tlsTrustStoreAlgorithm: Option[String] = None,
+    _tlsTrustStorePassword: Option[String] = None
   )
   {
     def buildAll() = new {
@@ -905,8 +1020,21 @@ object DruidBeams
           def discoPath = discoveryPath
         }
       )
-      val finagleRegistry         = _finagleRegistry getOrElse {
-        new FinagleRegistry(FinagleRegistryConfig(), Nil)
+      //val generalConfig           = _generalConfig getOrElse PropertiesBasedConfig.fromDict(Dict(), classOf[PropertiesBasedConfig])
+
+      val finagleRegistry = _finagleRegistry getOrElse {
+        val finagleRegistryConfig = FinagleRegistryConfig
+          .builder()
+          .sslContextOption(SSLContextMaker.createSSLContextOption(
+            _tlsEnable,
+            _tlsProtocol,
+            _tlsTrustStoreType,
+            _tlsTrustStorePath,
+            _tlsTrustStoreAlgorithm,
+            _tlsTrustStorePassword
+          ))
+          .build()
+        new FinagleRegistry(finagleRegistryConfig, Nil)
       }
       val overlordLocator         = OverlordLocator.create(
         druidBeamConfig.overlordLocator,
@@ -916,7 +1044,9 @@ object DruidBeams
       val indexService            = new IndexService(
         location.environment,
         druidBeamConfig,
-        overlordLocator
+        overlordLocator,
+        _basicAuthUser,
+        _basicAuthPass
       )
       val taskLocator             = TaskLocator.create(
         druidBeamConfig.taskLocator,

@@ -25,9 +25,11 @@ import com.metamx.common.scala.Predef._
 import com.metamx.common.scala.control._
 import com.metamx.common.scala.exception._
 import com.metamx.common.scala.untyped._
+import com.metamx.tranquility.config.PropertiesBasedConfig
 import com.metamx.tranquility.druid.IndexService.TaskHostPort
 import com.metamx.tranquility.druid.IndexService.TaskId
 import com.metamx.tranquility.finagle._
+import com.metamx.tranquility.security.BasicAuthClientMaker
 import com.twitter.finagle.util.DefaultTimer
 import com.twitter.finagle.Addr
 import com.twitter.finagle.Address
@@ -43,7 +45,9 @@ import java.net.InetSocketAddress
 class IndexService(
   environment: DruidEnvironment,
   config: IndexServiceConfig,
-  overlordLocator: OverlordLocator
+  overlordLocator: OverlordLocator,
+  basicAuthUser: Option[String],
+  basicAuthPass: Option[String]
 ) extends Closable
 {
   private implicit val timer: Timer = DefaultTimer.twitter
@@ -59,7 +63,11 @@ class IndexService(
       }
 
       if (_client == null) {
-        _client = overlordLocator.connect()
+        _client = BasicAuthClientMaker.wrapBaseClient(
+          overlordLocator.connect(),
+          basicAuthUser,
+          basicAuthPass
+        )
       }
 
       _client

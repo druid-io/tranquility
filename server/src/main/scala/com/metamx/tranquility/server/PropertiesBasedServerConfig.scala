@@ -19,6 +19,10 @@
 
 package com.metamx.tranquility.server
 
+import java.security.KeyStore
+import java.{util => ju}
+import javax.net.ssl.KeyManagerFactory
+
 import com.metamx.tranquility.config.PropertiesBasedConfig
 import org.joda.time.Period
 import org.skife.config.Config
@@ -28,6 +32,45 @@ abstract class PropertiesBasedServerConfig
 {
   @Config(Array("http.port"))
   def httpPort: Int = 8200
+
+  @Config(Array("http.port.enable"))
+  def httpPortEnable: Boolean = true
+
+  @Config(Array("https.port"))
+  def httpsPort: Int = 8400
+
+  @Config(Array("https.port.enable"))
+  def httpsPortEnable: Boolean = false
+
+  @Config(Array("https.keyStorePath"))
+  def httpsKeyStorePath: String = ""
+
+  @Config(Array("https.keyStoreType"))
+  def httpsKeyStoreType: String = KeyStore.getDefaultType
+
+  @Config(Array("https.keyStorePassword"))
+  def httpsKeyStorePassword: String = ""
+
+  @Config(Array("https.certAlias"))
+  def httpsCertAlias: String = ""
+
+  @Config(Array("https.keyManagerFactoryAlgorithm"))
+  def httpsKeyManagerFactoryAlgorithm: String = KeyManagerFactory.getDefaultAlgorithm
+
+  @Config(Array("https.keyManagerPassword"))
+  def httpsKeyManagerPassword: String = ""
+
+  @Config(Array("https.includeCipherSuites"))
+  def httpsIncludeCipherSuites: ju.List[String] = null
+
+  @Config(Array("https.excludeCipherSuites"))
+  def httpsExcludeCipherSuites: ju.List[String] = null
+
+  @Config(Array("https.includeProtocols"))
+  def httpsIncludeProtocols: ju.List[String] = null
+
+  @Config(Array("https.excludeProtocols"))
+  def httpsExcludeProtocols: ju.List[String] = null
 
   @Config(Array("http.threads"))
   def httpThreads: Int = 40

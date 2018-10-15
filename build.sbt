@@ -17,6 +17,7 @@ val curatorVersion = "2.12.0"
 val guiceVersion = "4.0"
 val flinkVersion = "1.0.3"
 val finagleVersion = "6.43.0"
+val finagleHttpAuthVersion = "0.1.0"
 val twitterUtilVersion = "6.42.0"
 val samzaVersion = "0.12.0"
 val sparkVersion = "1.6.0"
@@ -57,6 +58,7 @@ val coreDependencies = Seq(
   "com.twitter" %% "util-core" % twitterUtilVersion force(),
   "com.twitter" %% "finagle-core" % finagleVersion force(),
   "com.twitter" %% "finagle-http" % finagleVersion force(),
+  "com.github.finagle" %% "finagle-http-auth" % finagleHttpAuthVersion force(),
   "org.slf4j" % "slf4j-api" % "1.7.25" force() force(),
   "org.slf4j" % "jul-to-slf4j" % "1.7.25" force() force(),
   "org.apache.httpcomponents" % "httpclient" % apacheHttpVersion force(),

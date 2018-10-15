@@ -19,6 +19,8 @@
 
 package com.metamx.tranquility.server.http
 
+import java.util
+
 import com.github.nscala_time.time.Imports._
 import com.metamx.common.lifecycle.Lifecycle
 import com.metamx.common.scala.Predef._
@@ -33,21 +35,24 @@ import com.metamx.tranquility.config.TranquilityConfig
 import com.metamx.tranquility.druid.DruidBeams
 import com.metamx.tranquility.finagle.FinagleRegistry
 import com.metamx.tranquility.finagle.FinagleRegistryConfig
+import com.metamx.tranquility.security.SSLContextMaker
 import com.metamx.tranquility.server.PropertiesBasedServerConfig
 import com.twitter.app.App
 import com.twitter.app.Flag
 import io.druid.data.input.InputRow
 import java.io.FileInputStream
 import org.apache.curator.framework.CuratorFramework
-import org.eclipse.jetty.server.Server
-import org.eclipse.jetty.server.ServerConnector
+import org.eclipse.jetty.server._
 import org.eclipse.jetty.servlet.ServletHandler
 import org.eclipse.jetty.servlet.ServletHolder
+import org.eclipse.jetty.util.ssl.SslContextFactory
 import org.eclipse.jetty.util.thread.QueuedThreadPool
+import scala.collection.mutable.ListBuffer
 import scala.reflect.runtime.universe.typeTag
 
 object ServerMain extends App with Logging
 {
+  private val HTTP_1_1_STRING: String = "HTTP/1.1"
   private val ConfigResource = "tranquility-server.yaml"
 
   private val configFile: Flag[String] = flag(
@@ -110,7 +115,15 @@ object ServerMain extends App with Logging
       val finagleRegistry = finagleRegistries.getOrElseUpdate(
         (zookeeperConnect, discoPath), {
           val disco = lifecycle.addManagedInstance(new Disco(curator, dataSourceConfig.propertiesBasedConfig))
-          new FinagleRegistry(FinagleRegistryConfig(), disco)
+          val sslContext = SSLContextMaker.createSSLContextOption(
+            Some(config.globalConfig.tlsEnable),
+            Some(config.globalConfig.tlsProtocol),
+            Some(config.globalConfig.tlsTrustStoreType),
+            Some(config.globalConfig.tlsTrustStorePath),
+            Some(config.globalConfig.tlsTrustStoreAlgorithm),
+            Some(config.globalConfig.tlsTrustStorePassword)
+          )
+          new FinagleRegistry(FinagleRegistryConfig(sslContextOption = sslContext), disco)
         }
       )
 
@@ -127,6 +140,86 @@ object ServerMain extends App with Logging
     new TranquilityServlet(bundles)
   }
 
+  def createPlaintextConnector(
+    server: Server,
+    config: TranquilityConfig[PropertiesBasedServerConfig]
+  ): ServerConnector =
+  {
+    val connector = new ServerConnector(server)
+    connector.setPort(config.globalConfig.httpPort)
+    config.globalConfig.httpIdleTimeout.standardDuration.millis match {
+      case timeout if timeout > 0 =>
+        connector.setIdleTimeout(timeout)
+      case _ =>
+    }
+    connector
+  }
+
+  def createTLSConnector(
+    server: Server,
+    config: TranquilityConfig[PropertiesBasedServerConfig]
+  ): ServerConnector =
+  {
+    val sslContextFactory = createSslContextFactory(config)
+
+    val httpsConfiguration : HttpConfiguration = new HttpConfiguration
+    httpsConfiguration.setSecureScheme("https")
+    httpsConfiguration.setSecurePort(config.globalConfig.httpsPort)
+    httpsConfiguration.addCustomizer(new SecureRequestCustomizer)
+    httpsConfiguration.setRequestHeaderSize(8 * 1024)
+
+    val connector : ServerConnector = new ServerConnector(
+      server,
+      new SslConnectionFactory(sslContextFactory, HTTP_1_1_STRING),
+      new HttpConnectionFactory(httpsConfiguration)
+    )
+
+    connector.setPort(config.globalConfig.httpsPort)
+    config.globalConfig.httpIdleTimeout.standardDuration.millis match {
+      case timeout if timeout > 0 =>
+        connector.setIdleTimeout(timeout)
+      case _ =>
+    }
+    connector
+  }
+
+  def createSslContextFactory(
+    config: TranquilityConfig[PropertiesBasedServerConfig]
+  ): SslContextFactory = {
+    val sslContextFactory = new SslContextFactory(false)
+    sslContextFactory.setKeyStorePath(config.globalConfig.httpsKeyStorePath)
+    sslContextFactory.setKeyStoreType(config.globalConfig.httpsKeyStoreType)
+    sslContextFactory.setKeyStorePassword(config.globalConfig.httpsKeyStorePassword)
+    sslContextFactory.setCertAlias(config.globalConfig.httpsCertAlias)
+    sslContextFactory.setSslKeyManagerFactoryAlgorithm(config.globalConfig.httpsKeyManagerFactoryAlgorithm)
+    sslContextFactory.setKeyManagerPassword(config.globalConfig.httpsKeyManagerPassword)
+    if (config.globalConfig.httpsIncludeCipherSuites != null) {
+      val suites: Array[String] = config.globalConfig.httpsIncludeCipherSuites.toArray(
+        new Array[String](config.globalConfig.httpsIncludeCipherSuites.size())
+      )
+      sslContextFactory.setIncludeCipherSuites(suites: _*)
+    }
+    if (config.globalConfig.httpsExcludeCipherSuites != null) {
+      val suites: Array[String] = config.globalConfig.httpsExcludeCipherSuites.toArray(
+        new Array[String](config.globalConfig.httpsExcludeCipherSuites.size())
+      )
+      sslContextFactory.setExcludeCipherSuites(suites: _*)
+    }
+    if (config.globalConfig.httpsIncludeProtocols != null) {
+      val protocols: Array[String] = config.globalConfig.httpsIncludeProtocols.toArray(
+        new Array[String](config.globalConfig.httpsIncludeProtocols.size())
+      )
+      sslContextFactory.setIncludeProtocols(protocols: _*)
+    }
+    if (config.globalConfig.httpsExcludeProtocols != null) {
+      val protocols: Array[String] = config.globalConfig.httpsExcludeProtocols.toArray(
+        new Array[String](config.globalConfig.httpsExcludeProtocols.size())
+      )
+      sslContextFactory.setExcludeProtocols(protocols: _*)
+    }
+    sslContextFactory
+  }
+
   def createJettyServer(
     lifecycle: Lifecycle,
     config: TranquilityConfig[PropertiesBasedServerConfig],
@@ -134,14 +227,15 @@ object ServerMain extends App with Logging
   ): Server =
   {
     new Server(new QueuedThreadPool(config.globalConfig.httpThreads)) withEffect { server =>
-      val connector = new ServerConnector(server)
-      server.setConnectors(Array(connector))
-      connector.setPort(config.globalConfig.httpPort)
-      config.globalConfig.httpIdleTimeout.standardDuration.millis match {
-        case timeout if timeout > 0 =>
-          connector.setIdleTimeout(timeout)
-        case _ =>
+
+      val connectors: ListBuffer[ServerConnector] = ListBuffer[ServerConnector]()
+      if (config.globalConfig.httpPortEnable) {
+        connectors += createPlaintextConnector(server, config)
       }
+      if (config.globalConfig.httpsPortEnable) {
+        connectors += createTLSConnector(server, config)
+      }
+      server.setConnectors(connectors.toArray)
 
       server.setHandler(
         new ServletHandler withEffect { handler =>

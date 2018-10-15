@@ -26,7 +26,9 @@ import com.metamx.tranquility.beam.Beam
 import com.metamx.tranquility.beam.DefunctBeamException
 import com.metamx.tranquility.beam.SendResult
 import com.metamx.tranquility.finagle._
+import com.metamx.tranquility.security._
 import com.metamx.tranquility.typeclass.ObjectWriter
+import com.twitter.finagle.{http, Service}
 import com.twitter.io.Buf
 import com.twitter.util._
 
@@ -51,7 +53,11 @@ class DruidBeam[A](
         task ->
           new TaskClient(
             task,
-            taskLocator.connect(task),
+            BasicAuthClientMaker.wrapBaseClient(
+              taskLocator.connect(task),
+              Some(config.basicAuthUser),
+              Some(config.basicAuthPass)
+            ),
             location.dataSource,
             config.firehoseQuietPeriod,
             config.firehoseRetryPeriod,
