@@ -68,6 +68,7 @@ class BeamSink[T](beamFactory: BeamFactory[T], reportDropsAsExceptions: Boolean 
   override def close() = {
     sender.get.flush()
     maybeThrow()
+    sender.get.stop()
   }
 
   private def maybeThrow() {
